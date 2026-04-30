@@ -64,16 +64,19 @@ def warn_if_process_auth_token(settings: Settings) -> None:
 
 def log_startup_failure(settings: Settings, exc: Exception) -> None:
     """Log startup failures without traceback noise unless verbose diagnostics are enabled."""
+    message = startup_failure_message(settings, exc)
+    logger.error("Startup failed:\n{}", message)
+
+
+def startup_failure_message(settings: Settings, exc: Exception) -> str:
+    """Return a concise startup failure message for logs and ASGI lifespan failure."""
     if isinstance(exc, ServiceUnavailableError):
-        message = exc.message.strip() or "Server startup failed."
-        logger.error("Startup failed:\n{}", message)
-        return
+        return exc.message.strip() or "Server startup failed."
 
     if settings.log_api_error_tracebacks:
-        logger.error("Startup failed: {}: {}", type(exc).__name__, exc)
-        return
+        return f"{type(exc).__name__}: {exc}"
 
-    logger.error("Startup failed: exc_type={}", type(exc).__name__)
+    return f"Server startup failed: exc_type={type(exc).__name__}"
 
 
 @dataclass(slots=True)
