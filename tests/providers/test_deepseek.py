@@ -115,6 +115,44 @@ def test_build_request_body_thinking_enabled(deepseek_provider):
     assert "extra_body" not in body
 
 
+def test_build_request_body_tool_list_keeps_thinking(deepseek_provider):
+    request = MessagesRequest.model_validate(
+        {
+            "model": "m",
+            "messages": [{"role": "user", "content": "x"}],
+            "tools": [
+                {
+                    "name": "Read",
+                    "description": "Read a file",
+                    "input_schema": {"type": "object", "properties": {}},
+                }
+            ],
+            "thinking": {"type": "enabled", "budget_tokens": 2000},
+        }
+    )
+
+    body = deepseek_provider._build_request_body(request)
+
+    assert body["thinking"] == {"type": "enabled", "budget_tokens": 2000}
+    assert body["tools"][0]["name"] == "Read"
+
+
+def test_build_request_body_tool_choice_keeps_thinking(deepseek_provider):
+    request = MessagesRequest.model_validate(
+        {
+            "model": "m",
+            "messages": [{"role": "user", "content": "x"}],
+            "tool_choice": {"type": "auto"},
+            "thinking": {"type": "enabled", "budget_tokens": 2000},
+        }
+    )
+
+    body = deepseek_provider._build_request_body(request)
+
+    assert body["thinking"] == {"type": "enabled", "budget_tokens": 2000}
+    assert body["tool_choice"] == {"type": "auto"}
+
+
 def test_build_request_body_respects_global_thinking_disable():
     provider = DeepSeekProvider(
         ProviderConfig(
@@ -181,6 +219,202 @@ def test_strip_redacted_thinking_when_thinking_on(deepseek_provider):
     types = {b["type"] for b in body["messages"][0]["content"]}
     assert "redacted_thinking" not in types
     assert "text" in types
+
+
+def test_tool_history_with_replayable_thinking_preserves_thinking(deepseek_provider):
+    request = MessagesRequest.model_validate(
+        {
+            "model": "m",
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "thinking",
+                            "thinking": "hidden",
+                            "signature": "sig_123",
+                        },
+                        {"type": "redacted_thinking", "data": "opaque"},
+                        {
+                            "type": "tool_use",
+                            "id": "t1",
+                            "name": "Read",
+                            "input": {"file_path": "x"},
+                        },
+                    ],
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "t1",
+                            "content": "ok",
+                        }
+                    ],
+                },
+            ],
+            "thinking": {"type": "enabled", "budget_tokens": 2000},
+            "context_management": {
+                "edits": [{"type": "clear_thinking_20251015", "keep": "all"}]
+            },
+            "output_config": {"effort": "high"},
+        }
+    )
+
+    body = deepseek_provider._build_request_body(request)
+
+    assert body["thinking"] == {"type": "enabled", "budget_tokens": 2000}
+    assert body["context_management"] == {
+        "edits": [{"type": "clear_thinking_20251015", "keep": "all"}]
+    }
+    assert body["output_config"] == {"effort": "high"}
+    assistant_blocks = body["messages"][0]["content"]
+    assert [block["type"] for block in assistant_blocks] == ["thinking", "tool_use"]
+    assert assistant_blocks[0]["thinking"] == "hidden"
+    assert assistant_blocks[0]["signature"] == "sig_123"
+    assert assistant_blocks[1]["name"] == "Read"
+    assert body["messages"][1]["content"][0]["type"] == "tool_result"
+
+
+def test_tool_history_with_unsigned_thinking_preserves_thinking(deepseek_provider):
+    request = MessagesRequest.model_validate(
+        {
+            "model": "m",
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": [
+                        {"type": "thinking", "thinking": "plain"},
+                        {
+                            "type": "tool_use",
+                            "id": "t1",
+                            "name": "Read",
+                            "input": {"file_path": "x"},
+                        },
+                    ],
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "t1",
+                            "content": "ok",
+                        }
+                    ],
+                },
+            ],
+            "thinking": {"type": "enabled"},
+        }
+    )
+
+    body = deepseek_provider._build_request_body(request)
+
+    assert body["thinking"] == {"type": "enabled"}
+    assert body["messages"][0]["content"][0] == {
+        "type": "thinking",
+        "thinking": "plain",
+    }
+
+
+def test_tool_history_without_thinking_disables_thinking_and_hints(deepseek_provider):
+    request = MessagesRequest.model_validate(
+        {
+            "model": "m",
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": [
+                        {
+                            "type": "tool_use",
+                            "id": "t1",
+                            "name": "Read",
+                            "input": {"file_path": "x"},
+                        },
+                    ],
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "t1",
+                            "content": "ok",
+                        }
+                    ],
+                },
+            ],
+            "tools": [
+                {
+                    "name": "Read",
+                    "description": "Read a file",
+                    "input_schema": {"type": "object", "properties": {}},
+                }
+            ],
+            "tool_choice": {"type": "auto"},
+            "thinking": {"type": "enabled", "budget_tokens": 2000},
+            "context_management": {
+                "edits": [
+                    {"type": "clear_thinking_20251015", "keep": "all"},
+                    {"type": "other_edit", "keep": "all"},
+                ],
+                "other": True,
+            },
+            "output_config": {"effort": "high", "format": "text"},
+        }
+    )
+
+    body = deepseek_provider._build_request_body(request)
+
+    assert "thinking" not in body
+    assert body["context_management"] == {
+        "edits": [{"type": "other_edit", "keep": "all"}],
+        "other": True,
+    }
+    assert body["output_config"] == {"format": "text"}
+    assert body["tools"][0]["name"] == "Read"
+    assert body["tool_choice"] == {"type": "auto"}
+    assert body["messages"][0]["content"][0]["type"] == "tool_use"
+    assert body["messages"][1]["content"][0]["type"] == "tool_result"
+
+
+def test_tool_history_with_empty_thinking_disables_thinking(deepseek_provider):
+    request = MessagesRequest.model_validate(
+        {
+            "model": "m",
+            "messages": [
+                {
+                    "role": "assistant",
+                    "content": [
+                        {"type": "thinking", "thinking": ""},
+                        {
+                            "type": "tool_use",
+                            "id": "t1",
+                            "name": "Read",
+                            "input": {"file_path": "x"},
+                        },
+                    ],
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": "t1",
+                            "content": "ok",
+                        }
+                    ],
+                },
+            ],
+            "thinking": {"type": "enabled"},
+        }
+    )
+
+    body = deepseek_provider._build_request_body(request)
+
+    assert "thinking" not in body
+    assert [block["type"] for block in body["messages"][0]["content"]] == ["tool_use"]
 
 
 def test_thinking_off_strips_thinking_history():
