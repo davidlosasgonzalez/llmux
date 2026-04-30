@@ -11,6 +11,7 @@ from fastapi import FastAPI
 from loguru import logger
 
 from config.settings import Settings, get_settings
+from providers.exceptions import ServiceUnavailableError
 from providers.registry import ProviderRegistry
 
 if TYPE_CHECKING:
@@ -61,6 +62,20 @@ def warn_if_process_auth_token(settings: Settings) -> None:
         )
 
 
+def log_startup_failure(settings: Settings, exc: Exception) -> None:
+    """Log startup failures without traceback noise unless verbose diagnostics are enabled."""
+    if isinstance(exc, ServiceUnavailableError):
+        message = exc.message.strip() or "Server startup failed."
+        logger.error("Startup failed:\n{}", message)
+        return
+
+    if settings.log_api_error_tracebacks:
+        logger.error("Startup failed: {}: {}", type(exc).__name__, exc)
+        return
+
+    logger.error("Startup failed: exc_type={}", type(exc).__name__)
+
+
 @dataclass(slots=True)
 class AppRuntime:
     """Own optional messaging, CLI, session, and provider runtime resources."""
@@ -89,7 +104,8 @@ class AppRuntime:
             await self._provider_registry.validate_configured_models(self.settings)
             await self._start_messaging_if_configured()
             self._publish_state()
-        except Exception:
+        except Exception as exc:
+            log_startup_failure(self.settings, exc)
             await best_effort(
                 "provider_registry.cleanup",
                 self._provider_registry.cleanup(),

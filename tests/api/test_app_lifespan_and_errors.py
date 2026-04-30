@@ -378,6 +378,7 @@ async def test_runtime_startup_validation_blocks_messaging_and_cleans_up(tmp_pat
     with (
         patch.object(ProviderRegistry, "validate_configured_models", new=validation),
         patch.object(ProviderRegistry, "cleanup", new=cleanup),
+        patch.object(api_runtime_mod.logger, "error") as log_error,
         patch(
             "messaging.platforms.factory.create_messaging_platform"
         ) as create_platform,
@@ -388,6 +389,12 @@ async def test_runtime_startup_validation_blocks_messaging_and_cleans_up(tmp_pat
     validation.assert_awaited_once_with(settings)
     cleanup.assert_awaited_once()
     create_platform.assert_not_called()
+    logged = " ".join(
+        str(arg) for call in log_error.call_args_list for arg in call.args
+    )
+    assert "Startup failed" in logged
+    assert "bad model" in logged
+    assert "Traceback" not in logged
 
 
 def test_app_lifespan_messaging_import_error_no_crash(tmp_path, caplog):
