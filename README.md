@@ -121,15 +121,15 @@ provider_id/model/name
 
 | Provider | Prefix | Transport | Key | Default base URL |
 | --- | --- | --- | --- | --- |
-| NVIDIA NIM | `nvidia_nim/...` | OpenAI chat translation | `NVIDIA_NIM_API_KEY` | `https://integrate.api.nvidia.com/v1` |
-| OpenRouter | `open_router/...` | Anthropic Messages | `OPENROUTER_API_KEY` | `https://openrouter.ai/api/v1` |
-| DeepSeek | `deepseek/...` | Anthropic Messages | `DEEPSEEK_API_KEY` | `https://api.deepseek.com/anthropic` |
-| LM Studio | `lmstudio/...` | Anthropic Messages | none | `http://localhost:1234/v1` |
-| llama.cpp | `llamacpp/...` | Anthropic Messages | none | `http://localhost:8080/v1` |
-| Ollama | `ollama/...` | Anthropic Messages | none | `http://localhost:11434` |
+| <img src="https://cdn.simpleicons.org/nvidia/76B900" alt="" width="18" height="18"> NVIDIA NIM | `nvidia_nim/...` | OpenAI chat translation | `NVIDIA_NIM_API_KEY` | `https://integrate.api.nvidia.com/v1` |
+| <img src="https://cdn.simpleicons.org/openrouter/6C47FF" alt="" width="18" height="18"> OpenRouter | `open_router/...` | Anthropic Messages | `OPENROUTER_API_KEY` | `https://openrouter.ai/api/v1` |
+| <img src="https://cdn.simpleicons.org/deepseek/4D6BFF" alt="" width="18" height="18"> DeepSeek | `deepseek/...` | Anthropic Messages | `DEEPSEEK_API_KEY` | `https://api.deepseek.com/anthropic` |
+| <img src="https://github.com/lmstudio-ai.png?size=64" alt="" width="18" height="18"> LM Studio | `lmstudio/...` | Anthropic Messages | none | `http://localhost:1234/v1` |
+| <img src="https://github.com/ggml-org.png?size=64" alt="" width="18" height="18"> llama.cpp | `llamacpp/...` | Anthropic Messages | none | `http://localhost:8080/v1` |
+| <img src="https://github.com/ollama.png?size=64" alt="" width="18" height="18"> Ollama | `ollama/...` | Anthropic Messages | none | `http://localhost:11434` |
 
 <details>
-<summary><b>NVIDIA NIM</b></summary>
+<summary><img src="https://cdn.simpleicons.org/nvidia/76B900" alt="" width="18" height="18"> <b>NVIDIA NIM</b></summary>
 
 Get a key at [build.nvidia.com/settings/api-keys](https://build.nvidia.com/settings/api-keys).
 
@@ -150,7 +150,7 @@ Browse models at [build.nvidia.com](https://build.nvidia.com/explore/discover).
 </details>
 
 <details>
-<summary><b>OpenRouter</b></summary>
+<summary><img src="https://cdn.simpleicons.org/openrouter/6C47FF" alt="" width="18" height="18"> <b>OpenRouter</b></summary>
 
 Get a key at [openrouter.ai/keys](https://openrouter.ai/keys).
 
@@ -164,7 +164,7 @@ Browse [all models](https://openrouter.ai/models) or [free models](https://openr
 </details>
 
 <details>
-<summary><b>DeepSeek</b></summary>
+<summary><img src="https://cdn.simpleicons.org/deepseek/4D6BFF" alt="" width="18" height="18"> <b>DeepSeek</b></summary>
 
 Get a key at [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys).
 
@@ -178,7 +178,7 @@ This provider uses DeepSeek's Anthropic-compatible endpoint, not the OpenAI chat
 </details>
 
 <details>
-<summary><b>LM Studio</b></summary>
+<summary><img src="https://github.com/lmstudio-ai.png?size=64" alt="" width="18" height="18"> <b>LM Studio</b></summary>
 
 Start LM Studio's local server, load a model, then configure:
 
@@ -192,7 +192,7 @@ Use the model identifier shown by LM Studio. Prefer models with tool-use support
 </details>
 
 <details>
-<summary><b>llama.cpp</b></summary>
+<summary><img src="https://github.com/ggml-org.png?size=64" alt="" width="18" height="18"> <b>llama.cpp</b></summary>
 
 Start `llama-server` with an Anthropic-compatible `/v1/messages` endpoint and enough context for Claude Code requests.
 
@@ -206,7 +206,7 @@ For local coding models, context size matters. If llama.cpp returns HTTP 400 for
 </details>
 
 <details>
-<summary><b>Ollama</b></summary>
+<summary><img src="https://github.com/ollama.png?size=64" alt="" width="18" height="18"> <b>Ollama</b></summary>
 
 Run Ollama and pull a model:
 
