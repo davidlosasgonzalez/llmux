@@ -51,6 +51,10 @@ class OpenRouterProvider(AnthropicMessagesTransport):
             "anthropic-version": _ANTHROPIC_VERSION,
         }
 
+    def _model_list_headers(self) -> dict[str, str]:
+        """Return OpenRouter's OpenAI-compatible model-list headers."""
+        return {"Authorization": f"Bearer {self._api_key}"}
+
     def _new_stream_state(self, request: Any, *, thinking_enabled: bool) -> Any:
         """Create per-stream state for thinking block filtering."""
         return NativeSseBlockPolicyState()

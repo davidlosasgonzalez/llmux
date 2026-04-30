@@ -28,6 +28,7 @@ from providers.error_mapping import (
     map_error,
     user_visible_message_for_mapped_provider_error,
 )
+from providers.model_listing import extract_openai_model_ids
 from providers.rate_limit import GlobalRateLimiter
 
 
@@ -105,6 +106,11 @@ class OpenAIChatTransport(BaseProvider):
         client = getattr(self, "_client", None)
         if client is not None:
             await client.aclose()
+
+    async def list_model_ids(self) -> frozenset[str]:
+        """Return model ids from the provider's OpenAI-compatible models endpoint."""
+        payload = await self._client.models.list()
+        return extract_openai_model_ids(payload, provider_name=self._provider_name)
 
     @abstractmethod
     def _build_request_body(

@@ -84,9 +84,18 @@ class AppRuntime:
         logger.info("Starting Claude Code Proxy...")
         self._provider_registry = ProviderRegistry()
         self.app.state.provider_registry = self._provider_registry
-        warn_if_process_auth_token(self.settings)
-        await self._start_messaging_if_configured()
-        self._publish_state()
+        try:
+            warn_if_process_auth_token(self.settings)
+            await self._provider_registry.validate_configured_models(self.settings)
+            await self._start_messaging_if_configured()
+            self._publish_state()
+        except Exception:
+            await best_effort(
+                "provider_registry.cleanup",
+                self._provider_registry.cleanup(),
+                log_verbose_errors=self.settings.log_api_error_tracebacks,
+            )
+            raise
 
     async def shutdown(self) -> None:
         verbose = self.settings.log_api_error_tracebacks

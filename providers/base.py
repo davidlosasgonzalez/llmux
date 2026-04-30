@@ -106,6 +106,10 @@ class BaseProvider(ABC):
         """Release any resources held by this provider."""
 
     @abstractmethod
+    async def list_model_ids(self) -> frozenset[str]:
+        """Return the model ids currently advertised by this provider."""
+
+    @abstractmethod
     async def stream_response(
         self,
         request: Any,
