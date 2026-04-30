@@ -145,7 +145,7 @@ Popular examples:
 - `nvidia_nim/moonshotai/kimi-k2.5`
 - `nvidia_nim/minimaxai/minimax-m2.5`
 
-Browse models at [build.nvidia.com](https://build.nvidia.com/explore/discover). A cached model list is also kept in [`nvidia_nim_models.json`](nvidia_nim_models.json).
+Browse models at [build.nvidia.com](https://build.nvidia.com/explore/discover).
 
 </details>
 
