@@ -105,6 +105,7 @@ class AppRuntime:
         try:
             warn_if_process_auth_token(self.settings)
             await self._provider_registry.validate_configured_models(self.settings)
+            self._provider_registry.start_model_list_refresh(self.settings)
             await self._start_messaging_if_configured()
             self._publish_state()
         except Exception as exc:

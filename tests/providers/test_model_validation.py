@@ -26,12 +26,18 @@ def _settings(
     model_opus: str | None = None,
     model_sonnet: str | None = None,
     model_haiku: str | None = None,
+    nvidia_nim_api_key: str = "",
+    open_router_api_key: str = "",
+    deepseek_api_key: str = "",
 ) -> Settings:
     return Settings.model_construct(
         model=model,
         model_opus=model_opus,
         model_sonnet=model_sonnet,
         model_haiku=model_haiku,
+        nvidia_nim_api_key=nvidia_nim_api_key,
+        open_router_api_key=open_router_api_key,
+        deepseek_api_key=deepseek_api_key,
         log_api_error_tracebacks=False,
     )
 
@@ -204,6 +210,11 @@ async def test_registry_validation_succeeds_for_all_configured_models() -> None:
 
     await registry.validate_configured_models(settings)
 
+    assert registry.cached_model_ids() == {
+        "nvidia_nim": frozenset({"nim-model"}),
+        "open_router": frozenset({"anthropic/claude-opus"}),
+    }
+
 
 @pytest.mark.asyncio
 async def test_registry_validation_reports_missing_model_with_sources() -> None:
@@ -267,3 +278,55 @@ async def test_registry_validation_queries_providers_concurrently() -> None:
     settings = _settings(model_opus="open_router/anthropic/claude-opus")
 
     await asyncio.wait_for(registry.validate_configured_models(settings), timeout=1.0)
+
+
+@pytest.mark.asyncio
+async def test_registry_refresh_model_list_cache_uses_configured_remote_keys_and_referenced_local() -> (
+    None
+):
+    registry = ProviderRegistry(
+        {
+            "open_router": FakeProvider(frozenset({"anthropic/claude-sonnet"})),
+            "lmstudio": FakeProvider(frozenset({"local-qwen"})),
+            "ollama": FakeProvider(frozenset({"llama3.1"})),
+        }
+    )
+    settings = _settings(
+        model="lmstudio/local-qwen",
+        open_router_api_key="open-router-key",
+    )
+
+    await registry.refresh_model_list_cache(settings)
+
+    assert registry.cached_model_ids() == {
+        "open_router": frozenset({"anthropic/claude-sonnet"}),
+        "lmstudio": frozenset({"local-qwen"}),
+    }
+
+
+@pytest.mark.asyncio
+async def test_registry_refresh_model_list_cache_keeps_prior_cache_on_failure() -> None:
+    registry = ProviderRegistry(
+        {"nvidia_nim": FakeProvider(error=RuntimeError("upstream down"))}
+    )
+    registry.cache_model_ids("nvidia_nim", {"cached-model"})
+    settings = _settings(
+        model="nvidia_nim/cached-model",
+        nvidia_nim_api_key="nim-key",
+    )
+
+    await registry.refresh_model_list_cache(settings)
+
+    assert registry.cached_model_ids() == {"nvidia_nim": frozenset({"cached-model"})}
+
+
+def test_registry_cached_prefixed_model_refs_are_deterministic() -> None:
+    registry = ProviderRegistry()
+    registry.cache_model_ids("deepseek", {"deepseek-chat"})
+    registry.cache_model_ids("open_router", {"z-model", "a-model"})
+
+    assert registry.cached_prefixed_model_refs() == (
+        "open_router/a-model",
+        "open_router/z-model",
+        "deepseek/deepseek-chat",
+    )

@@ -39,6 +39,7 @@ Free Claude Code routes Anthropic Messages API traffic from Claude Code to NVIDI
 - Drop-in proxy for Claude Code's Anthropic API calls.
 - Six provider backends: NVIDIA NIM, OpenRouter, DeepSeek, LM Studio, llama.cpp, and Ollama.
 - Per-model routing: send Opus, Sonnet, Haiku, and fallback traffic to different providers.
+- Native Claude Code `/model` picker support through the proxy's `/v1/models` endpoint.
 - Streaming, tool use, reasoning/thinking block handling, and local request optimizations.
 - Optional Discord or Telegram bot wrapper for remote coding sessions.
 - Optional voice-note transcription through local Whisper or NVIDIA NIM.
@@ -47,7 +48,7 @@ Free Claude Code routes Anthropic Messages API traffic from Claude Code to NVIDI
 
 ### 1. Install Requirements
 
-Install [Claude Code](https://github.com/anthropics/claude-code), then install `uv` and Python 3.14.
+Install [Claude Code](https://github.com/anthropics/claude-code) 2.1.126 or later, then install `uv` and Python 3.14.
 
 macOS/Linux:
 
@@ -296,19 +297,13 @@ Restart the IDE after changing the file.
 
 ### Model Picker
 
-`claude-pick` lets you choose a model at launch time.
+Claude Code 2.1.126 or later reads this proxy's `/v1/models` endpoint when `ANTHROPIC_BASE_URL` points at the proxy. Start Claude Code normally, run `/model`, and choose any discovered provider model.
 
-```bash
-brew install fzf
-alias claude-pick="/absolute/path/to/free-claude-code/claude-pick"
-claude-pick
-```
+<div align="center">
+  <img src="cc-model-picker.png" alt="Claude Code model picker showing gateway models" width="700">
+</div>
 
-You can also create fixed aliases:
-
-```bash
-alias claude-kimi='ANTHROPIC_BASE_URL="http://localhost:8082" ANTHROPIC_AUTH_TOKEN="freecc:moonshotai/kimi-k2.5" claude'
-```
+The proxy lists models for configured provider keys and referenced local providers. Picker-safe IDs are routed back to the real provider/model automatically, so no `.env` edit or separate launcher script is needed after startup.
 
 ## Optional Integrations
 
