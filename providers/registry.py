@@ -24,6 +24,7 @@ from providers.exceptions import (
     ServiceUnavailableError,
     UnknownProviderTypeError,
 )
+from providers.model_listing import ProviderModelInfo, model_infos_from_ids
 
 ProviderFactory = Callable[[ProviderConfig, Settings], BaseProvider]
 
@@ -224,6 +225,7 @@ class ProviderRegistry:
     def __init__(self, providers: MutableMapping[str, BaseProvider] | None = None):
         self._providers = providers if providers is not None else {}
         self._model_ids_by_provider: dict[str, frozenset[str]] = {}
+        self._model_infos_by_provider: dict[str, dict[str, ProviderModelInfo]] = {}
         self._model_list_refresh_task: asyncio.Task[None] | None = None
 
     def is_cached(self, provider_id: str) -> bool:
@@ -237,23 +239,50 @@ class ProviderRegistry:
 
     def cache_model_ids(self, provider_id: str, model_ids: Iterable[str]) -> None:
         """Store a provider model-list result for later instant API responses."""
-        self._model_ids_by_provider[provider_id] = frozenset(
-            model_id for model_id in model_ids if model_id.strip()
-        )
+        self.cache_model_infos(provider_id, model_infos_from_ids(model_ids))
+
+    def cache_model_infos(
+        self, provider_id: str, model_infos: Iterable[ProviderModelInfo]
+    ) -> None:
+        """Store provider model metadata for later instant API responses."""
+        clean_infos = {
+            info.model_id: info for info in model_infos if info.model_id.strip()
+        }
+        self._model_infos_by_provider[provider_id] = clean_infos
+        self._model_ids_by_provider[provider_id] = frozenset(clean_infos)
 
     def cached_model_ids(self) -> dict[str, frozenset[str]]:
         """Return a copy of cached raw provider model ids."""
         return dict(self._model_ids_by_provider)
 
+    def cached_model_supports_thinking(
+        self, provider_id: str, model_id: str
+    ) -> bool | None:
+        """Return cached thinking support when a provider exposes it."""
+        info = self._model_infos_by_provider.get(provider_id, {}).get(model_id)
+        if info is None:
+            return None
+        return info.supports_thinking
+
     def cached_prefixed_model_refs(self) -> tuple[str, ...]:
         """Return cached provider models in user-selectable ``provider/model`` form."""
-        refs: list[str] = []
+        return tuple(info.model_id for info in self.cached_prefixed_model_infos())
+
+    def cached_prefixed_model_infos(self) -> tuple[ProviderModelInfo, ...]:
+        """Return cached provider models with user-selectable prefixed ids."""
+        infos: list[ProviderModelInfo] = []
         for provider_id in SUPPORTED_PROVIDER_IDS:
-            refs.extend(
-                f"{provider_id}/{model_id}"
-                for model_id in sorted(self._model_ids_by_provider.get(provider_id, ()))
+            provider_infos = self._model_infos_by_provider.get(provider_id, {})
+            infos.extend(
+                ProviderModelInfo(
+                    model_id=f"{provider_id}/{info.model_id}",
+                    supports_thinking=info.supports_thinking,
+                )
+                for info in sorted(
+                    provider_infos.values(), key=lambda item: item.model_id
+                )
             )
-        return tuple(refs)
+        return tuple(infos)
 
     async def refresh_model_list_cache(
         self, settings: Settings, *, only_missing: bool = False
@@ -308,14 +337,14 @@ class ProviderRegistry:
     async def _refresh_model_ids(
         self, settings: Settings, provider_ids: tuple[str, ...]
     ) -> None:
-        tasks: dict[str, asyncio.Task[frozenset[str]]] = {}
+        tasks: dict[str, asyncio.Task[frozenset[ProviderModelInfo]]] = {}
         for provider_id in provider_ids:
             try:
                 provider = self.get(provider_id, settings)
             except Exception as exc:
                 _log_model_discovery_failure(provider_id, exc, settings)
                 continue
-            tasks[provider_id] = asyncio.create_task(provider.list_model_ids())
+            tasks[provider_id] = asyncio.create_task(provider.list_model_infos())
 
         if not tasks:
             return
@@ -327,7 +356,7 @@ class ProviderRegistry:
                     raise result
                 _log_model_discovery_failure(provider_id, result, settings)
                 continue
-            self.cache_model_ids(provider_id, result)
+            self.cache_model_infos(provider_id, result)
             logger.info(
                 "Provider model discovery cached: provider={} models={}",
                 provider_id,
@@ -342,7 +371,7 @@ class ProviderRegistry:
             refs_by_provider[ref.provider_id].append(ref)
 
         failures: list[str] = []
-        tasks: dict[str, asyncio.Task[frozenset[str]]] = {}
+        tasks: dict[str, asyncio.Task[frozenset[ProviderModelInfo]]] = {}
         for provider_id, provider_refs in refs_by_provider.items():
             try:
                 provider = self.get(provider_id, settings)
@@ -351,7 +380,7 @@ class ProviderRegistry:
                     _format_provider_query_failures(provider_refs, exc, settings)
                 )
                 continue
-            tasks[provider_id] = asyncio.create_task(provider.list_model_ids())
+            tasks[provider_id] = asyncio.create_task(provider.list_model_infos())
 
         if tasks:
             results = await asyncio.gather(*tasks.values(), return_exceptions=True)
@@ -366,11 +395,12 @@ class ProviderRegistry:
                         _format_provider_query_failures(provider_refs, result, settings)
                     )
                     continue
-                self.cache_model_ids(provider_id, result)
+                self.cache_model_infos(provider_id, result)
+                model_ids = self._model_ids_by_provider[provider_id]
                 failures.extend(
                     _format_missing_model_failure(ref)
                     for ref in provider_refs
-                    if ref.model_id not in result
+                    if ref.model_id not in model_ids
                 )
 
         if failures:
@@ -410,6 +440,7 @@ class ProviderRegistry:
         finally:
             self._providers.clear()
             self._model_ids_by_provider.clear()
+            self._model_infos_by_provider.clear()
         if len(errors) == 1:
             raise errors[0]
         if len(errors) > 1:

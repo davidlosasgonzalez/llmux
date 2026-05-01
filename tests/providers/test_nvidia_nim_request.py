@@ -1,5 +1,6 @@
 """Tests for providers/nvidia_nim/request.py."""
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
@@ -85,6 +86,40 @@ class TestBuildRequestBody:
         nim = NimSettings(parallel_tool_calls=False)
         body = build_request_body(req, nim, thinking_enabled=True)
         assert body["parallel_tool_calls"] is False
+
+    def test_tool_schema_boolean_subschemas_are_removed_without_mutating_request(
+        self, req
+    ):
+        tool_schema = {
+            "type": "object",
+            "properties": {
+                "query": {"type": "string", "default": False},
+                "blocked": False,
+                "nested": {"type": "object", "additionalProperties": False},
+                "choice": {"anyOf": [False, {"type": "string"}]},
+            },
+            "additionalProperties": False,
+            "required": ["query"],
+        }
+        req.tools = [
+            SimpleNamespace(
+                name="search",
+                description="search",
+                input_schema=tool_schema,
+            )
+        ]
+
+        body = build_request_body(req, NimSettings(), thinking_enabled=False)
+
+        parameters = body["tools"][0]["function"]["parameters"]
+        properties = parameters["properties"]
+        assert "additionalProperties" not in parameters
+        assert "blocked" not in properties
+        assert "additionalProperties" not in properties["nested"]
+        assert properties["choice"]["anyOf"] == [{"type": "string"}]
+        assert properties["query"]["default"] is False
+        assert tool_schema["additionalProperties"] is False
+        assert tool_schema["properties"]["nested"]["additionalProperties"] is False
 
     def test_reasoning_params_in_extra_body(self):
         req = MagicMock()

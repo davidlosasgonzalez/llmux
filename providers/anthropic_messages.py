@@ -27,7 +27,11 @@ from providers.error_mapping import (
     user_visible_message_for_mapped_provider_error,
 )
 from providers.exceptions import ModelListResponseError
-from providers.model_listing import extract_openai_model_ids
+from providers.model_listing import (
+    ProviderModelInfo,
+    extract_openai_model_ids,
+    model_infos_from_ids,
+)
 from providers.rate_limit import GlobalRateLimiter
 
 StreamChunkMode = Literal["line", "event"]
@@ -82,10 +86,14 @@ class AnthropicMessagesTransport(BaseProvider):
 
     async def list_model_ids(self) -> frozenset[str]:
         """Return model ids from an OpenAI-compatible ``/models`` endpoint."""
+        return frozenset(info.model_id for info in await self.list_model_infos())
+
+    async def list_model_infos(self) -> frozenset[ProviderModelInfo]:
+        """Return model ids plus optional metadata from a ``/models`` endpoint."""
         response = await self._send_model_list_request()
         try:
             payload = _model_list_json(response, provider_name=self._provider_name)
-            return self._extract_model_ids_from_model_list_payload(payload)
+            return self._extract_model_infos_from_model_list_payload(payload)
         finally:
             await response.aclose()
 
@@ -105,6 +113,14 @@ class AnthropicMessagesTransport(BaseProvider):
     ) -> frozenset[str]:
         """Parse the provider model-list response body."""
         return extract_openai_model_ids(payload, provider_name=self._provider_name)
+
+    def _extract_model_infos_from_model_list_payload(
+        self, payload: Any
+    ) -> frozenset[ProviderModelInfo]:
+        """Parse provider model metadata; default to unknown capabilities."""
+        return model_infos_from_ids(
+            self._extract_model_ids_from_model_list_payload(payload)
+        )
 
     def _request_headers(self) -> dict[str, str]:
         """Return headers for the native messages request."""

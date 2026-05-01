@@ -95,16 +95,21 @@ def _append_unique_model(
 
 
 def _append_provider_model_variants(
-    models: list[ModelResponse], seen: set[str], provider_model_ref: str
+    models: list[ModelResponse],
+    seen: set[str],
+    provider_model_ref: str,
+    *,
+    supports_thinking: bool | None = None,
 ) -> None:
-    _append_unique_model(
-        models,
-        seen,
-        _discovered_model_response(
-            gateway_model_id(provider_model_ref),
-            display_name=provider_model_ref,
-        ),
-    )
+    if supports_thinking is not False:
+        _append_unique_model(
+            models,
+            seen,
+            _discovered_model_response(
+                gateway_model_id(provider_model_ref),
+                display_name=provider_model_ref,
+            ),
+        )
     _append_unique_model(
         models,
         seen,
@@ -122,11 +127,26 @@ def _build_models_list_response(
     seen: set[str] = set()
 
     for ref in settings.configured_chat_model_refs():
-        _append_provider_model_variants(models, seen, ref.model_ref)
+        supports_thinking = None
+        if provider_registry is not None:
+            supports_thinking = provider_registry.cached_model_supports_thinking(
+                ref.provider_id, ref.model_id
+            )
+        _append_provider_model_variants(
+            models,
+            seen,
+            ref.model_ref,
+            supports_thinking=supports_thinking,
+        )
 
     if provider_registry is not None:
-        for model_ref in provider_registry.cached_prefixed_model_refs():
-            _append_provider_model_variants(models, seen, model_ref)
+        for model_info in provider_registry.cached_prefixed_model_infos():
+            _append_provider_model_variants(
+                models,
+                seen,
+                model_info.model_id,
+                supports_thinking=model_info.supports_thinking,
+            )
 
     for model in SUPPORTED_CLAUDE_MODELS:
         _append_unique_model(models, seen, model)

@@ -7,6 +7,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from config.constants import HTTP_CONNECT_TIMEOUT_DEFAULT
+from providers.model_listing import ProviderModelInfo, model_infos_from_ids
 
 
 class ProviderConfig(BaseModel):
@@ -108,6 +109,10 @@ class BaseProvider(ABC):
     @abstractmethod
     async def list_model_ids(self) -> frozenset[str]:
         """Return the model ids currently advertised by this provider."""
+
+    async def list_model_infos(self) -> frozenset[ProviderModelInfo]:
+        """Return advertised model ids with optional provider capability metadata."""
+        return model_infos_from_ids(await self.list_model_ids())
 
     @abstractmethod
     async def stream_response(
