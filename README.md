@@ -22,6 +22,18 @@ Free Claude Code routes Anthropic Messages API traffic from Claude Code to NVIDI
   <img src="pic.png" alt="Free Claude Code in action" width="700">
 </div>
 
+## Star History
+
+<div align="center">
+  <a href="https://star-history.com/#Alishahryar1/free-claude-code&Date">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=Alishahryar1/free-claude-code&type=Date&theme=dark">
+      <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=Alishahryar1/free-claude-code&type=Date">
+      <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=Alishahryar1/free-claude-code&type=Date" width="700">
+    </picture>
+  </a>
+</div>
+
 ## What You Get
 
 - Drop-in proxy for Claude Code's Anthropic API calls.
