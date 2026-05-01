@@ -48,7 +48,7 @@ Free Claude Code routes Anthropic Messages API traffic from Claude Code to NVIDI
 
 ### 1. Install Requirements
 
-Install [Claude Code](https://github.com/anthropics/claude-code) 2.1.126 or later, then install `uv` and Python 3.14.
+Install [Claude Code](https://github.com/anthropics/claude-code), then install `uv` and Python 3.14.
 
 macOS/Linux:
 
