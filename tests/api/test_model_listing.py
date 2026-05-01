@@ -34,17 +34,28 @@ def test_models_list_includes_configured_refs_cached_provider_models_and_aliases
     data = response.json()
     ids = [item["id"] for item in data["data"]]
 
-    assert ids[:3] == [
+    assert ids[:6] == [
         "anthropic/deepseek/deepseek-chat",
+        "claude-3-freecc-no-thinking/deepseek/deepseek-chat",
         "anthropic/open_router/anthropic/claude-opus",
+        "claude-3-freecc-no-thinking/open_router/anthropic/claude-opus",
         "anthropic/open_router/meta/llama-3.3",
+        "claude-3-freecc-no-thinking/open_router/meta/llama-3.3",
     ]
     assert ids.count("anthropic/deepseek/deepseek-chat") == 1
+    assert ids.count("claude-3-freecc-no-thinking/deepseek/deepseek-chat") == 1
     assert ids.count("anthropic/open_router/anthropic/claude-opus") == 1
+    assert (
+        ids.count("claude-3-freecc-no-thinking/open_router/anthropic/claude-opus") == 1
+    )
     display_names = {item["id"]: item["display_name"] for item in data["data"]}
     assert (
         display_names["anthropic/open_router/meta/llama-3.3"]
         == "open_router/meta/llama-3.3"
+    )
+    assert (
+        display_names["claude-3-freecc-no-thinking/open_router/meta/llama-3.3"]
+        == "open_router/meta/llama-3.3 (no thinking)"
     )
     assert "claude-sonnet-4-20250514" in ids
     assert data["first_id"] == ids[0]
@@ -64,8 +75,10 @@ def test_models_list_works_without_provider_registry():
 
     assert response.status_code == 200
     ids = [item["id"] for item in response.json()["data"]]
-    assert ids[:2] == [
+    assert ids[:4] == [
         "anthropic/deepseek/deepseek-chat",
+        "claude-3-freecc-no-thinking/deepseek/deepseek-chat",
         "anthropic/open_router/anthropic/claude-opus",
+        "claude-3-freecc-no-thinking/open_router/anthropic/claude-opus",
     ]
     assert "claude-sonnet-4-20250514" in ids

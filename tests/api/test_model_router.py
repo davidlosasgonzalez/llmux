@@ -131,6 +131,27 @@ def test_model_router_routes_gateway_encoded_provider_model_directly(settings):
     )
 
 
+def test_model_router_routes_no_thinking_gateway_model_directly(settings):
+    settings.enable_model_thinking = True
+
+    routed = ModelRouter(settings).resolve_messages_request(
+        MessagesRequest(
+            model="claude-3-freecc-no-thinking/nvidia_nim/deepseek-ai/deepseek-v4-pro",
+            max_tokens=100,
+            messages=[Message(role="user", content="hello")],
+        )
+    )
+
+    assert routed.request.model == "deepseek-ai/deepseek-v4-pro"
+    assert (
+        routed.resolved.original_model
+        == "claude-3-freecc-no-thinking/nvidia_nim/deepseek-ai/deepseek-v4-pro"
+    )
+    assert routed.resolved.provider_id == "nvidia_nim"
+    assert routed.resolved.provider_model == "deepseek-ai/deepseek-v4-pro"
+    assert routed.resolved.thinking_enabled is False
+
+
 def test_model_router_direct_prefixed_model_uses_provider_model_for_thinking(settings):
     settings.enable_model_thinking = False
     settings.enable_opus_thinking = True

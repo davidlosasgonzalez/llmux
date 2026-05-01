@@ -305,6 +305,8 @@ Claude Code 2.1.126 or later reads this proxy's `/v1/models` endpoint when `ANTH
 
 The proxy lists models for configured provider keys and referenced local providers. Picker-safe IDs are routed back to the real provider/model automatically, so no `.env` edit or separate launcher script is needed after startup.
 
+Each provider model also has a `(no thinking)` picker variant. Use it when a model does not support Claude Code thinking or fails with adaptive-thinking requests. It routes to the same upstream model while asking Claude Code to send a non-thinking request.
+
 ## Optional Integrations
 
 ### Discord And Telegram Bots

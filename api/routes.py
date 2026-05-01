@@ -9,6 +9,7 @@ from providers.registry import ProviderRegistry
 
 from . import dependencies
 from .dependencies import get_settings, require_api_key
+from .gateway_model_ids import gateway_model_id, no_thinking_gateway_model_id
 from .models.anthropic import MessagesRequest, TokenCountRequest
 from .models.responses import ModelResponse, ModelsListResponse
 from .services import ClaudeProxyService
@@ -16,7 +17,6 @@ from .services import ClaudeProxyService
 router = APIRouter()
 
 DISCOVERED_MODEL_CREATED_AT = "1970-01-01T00:00:00Z"
-GATEWAY_MODEL_ID_PREFIX = "anthropic"
 
 
 SUPPORTED_CLAUDE_MODELS = [
@@ -77,10 +77,6 @@ def _probe_response(allow: str) -> Response:
     return Response(status_code=204, headers={"Allow": allow})
 
 
-def _gateway_model_id(provider_model_ref: str) -> str:
-    return f"{GATEWAY_MODEL_ID_PREFIX}/{provider_model_ref}"
-
-
 def _discovered_model_response(model_id: str, *, display_name: str) -> ModelResponse:
     return ModelResponse(
         id=model_id,
@@ -98,6 +94,27 @@ def _append_unique_model(
     models.append(model)
 
 
+def _append_provider_model_variants(
+    models: list[ModelResponse], seen: set[str], provider_model_ref: str
+) -> None:
+    _append_unique_model(
+        models,
+        seen,
+        _discovered_model_response(
+            gateway_model_id(provider_model_ref),
+            display_name=provider_model_ref,
+        ),
+    )
+    _append_unique_model(
+        models,
+        seen,
+        _discovered_model_response(
+            no_thinking_gateway_model_id(provider_model_ref),
+            display_name=f"{provider_model_ref} (no thinking)",
+        ),
+    )
+
+
 def _build_models_list_response(
     settings: Settings, provider_registry: ProviderRegistry | None
 ) -> ModelsListResponse:
@@ -105,23 +122,11 @@ def _build_models_list_response(
     seen: set[str] = set()
 
     for ref in settings.configured_chat_model_refs():
-        _append_unique_model(
-            models,
-            seen,
-            _discovered_model_response(
-                _gateway_model_id(ref.model_ref), display_name=ref.model_ref
-            ),
-        )
+        _append_provider_model_variants(models, seen, ref.model_ref)
 
     if provider_registry is not None:
         for model_ref in provider_registry.cached_prefixed_model_refs():
-            _append_unique_model(
-                models,
-                seen,
-                _discovered_model_response(
-                    _gateway_model_id(model_ref), display_name=model_ref
-                ),
-            )
+            _append_provider_model_variants(models, seen, model_ref)
 
     for model in SUPPORTED_CLAUDE_MODELS:
         _append_unique_model(models, seen, model)
