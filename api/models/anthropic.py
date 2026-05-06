@@ -153,6 +153,8 @@ class MessagesRequest(BaseModel):
     output_config: dict[str, Any] | None = None
     mcp_servers: list[dict[str, Any]] | None = None
     extra_body: dict[str, Any] | None = None
+    # Beta feature flags sent by Claude Code as a body field; accepted but never forwarded.
+    betas: list[str] | None = Field(default=None, exclude=True)
 
 
 class TokenCountRequest(BaseModel):
@@ -169,3 +171,4 @@ class TokenCountRequest(BaseModel):
     context_management: dict[str, Any] | None = None
     output_config: dict[str, Any] | None = None
     mcp_servers: list[dict[str, Any]] | None = None
+    betas: list[str] | None = Field(default=None, exclude=True)
