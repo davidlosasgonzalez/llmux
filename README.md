@@ -130,7 +130,7 @@ provider_id/model/name
 | --- | --- | --- | --- | --- |
 | <img src="https://cdn.simpleicons.org/nvidia/76B900" alt="" width="18" height="18"> NVIDIA NIM | `nvidia_nim/...` | OpenAI chat translation | `NVIDIA_NIM_API_KEY` | `https://integrate.api.nvidia.com/v1` |
 | <img src="https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-avatar/avatars/kimi.webp" alt="" width="18" height="18"> Kimi | `kimi/...` | OpenAI chat translation | `KIMI_API_KEY` | `https://api.moonshot.ai/v1` |
-| Wafer | `wafer/...` | Anthropic Messages | `WAFER_API_KEY` | `https://pass.wafer.ai/v1` |
+| [Wafer](https://wafer.ai) | `wafer/...` | Anthropic Messages | `WAFER_API_KEY` | `https://pass.wafer.ai/v1` |
 | <img src="https://cdn.simpleicons.org/openrouter/6C47FF" alt="" width="18" height="18"> OpenRouter | `open_router/...` | Anthropic Messages | `OPENROUTER_API_KEY` | `https://openrouter.ai/api/v1` |
 | <img src="https://cdn.simpleicons.org/deepseek/4D6BFF" alt="" width="18" height="18"> DeepSeek | `deepseek/...` | Anthropic Messages | `DEEPSEEK_API_KEY` | `https://api.deepseek.com/anthropic` |
 | <img src="https://github.com/lmstudio-ai.png?size=64" alt="" width="18" height="18"> LM Studio | `lmstudio/...` | Anthropic Messages | none | `http://localhost:1234/v1` |
@@ -176,7 +176,7 @@ Browse [all models](https://openrouter.ai/models) or [free models](https://openr
 <details>
 <summary><b>Wafer</b></summary>
 
-Add your Wafer key and choose a model returned by Wafer Pass:
+Get a key from [wafer.ai](https://wafer.ai), then choose a model returned by Wafer Pass:
 
 ```dotenv
 WAFER_API_KEY="your-wafer-key"
