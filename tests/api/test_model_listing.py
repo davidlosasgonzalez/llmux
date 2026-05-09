@@ -123,6 +123,31 @@ def test_models_list_uses_cached_metadata_for_configured_openrouter_refs():
     assert ids[0] == "claude-3-freecc-no-thinking/open_router/plain-model"
 
 
+def test_models_list_includes_cached_wafer_models():
+    app = create_app(lifespan_enabled=False)
+    settings = _settings(
+        model="wafer/DeepSeek-V4-Pro",
+        model_opus=None,
+        model_haiku=None,
+    )
+    registry = ProviderRegistry()
+    registry.cache_model_ids("wafer", {"DeepSeek-V4-Pro", "MiniMax-M2.7"})
+    app.state.provider_registry = registry
+    app.dependency_overrides[get_settings] = lambda: settings
+
+    try:
+        response = TestClient(app).get("/v1/models")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert response.status_code == 200
+    ids = [item["id"] for item in response.json()["data"]]
+    assert "anthropic/wafer/DeepSeek-V4-Pro" in ids
+    assert "claude-3-freecc-no-thinking/wafer/DeepSeek-V4-Pro" in ids
+    assert "anthropic/wafer/MiniMax-M2.7" in ids
+    assert "claude-3-freecc-no-thinking/wafer/MiniMax-M2.7" in ids
+
+
 def test_models_list_works_without_provider_registry():
     app = create_app(lifespan_enabled=False)
     settings = _settings()

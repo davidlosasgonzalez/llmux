@@ -107,6 +107,24 @@ def test_build_base_native_body_includes_cache_control() -> None:
     assert body["tools"][0]["cache_control"] == {"type": "ephemeral"}
 
 
+def test_build_base_native_body_drops_unknown_top_level_client_hints() -> None:
+    raw = {
+        "model": "m",
+        "max_tokens": 20,
+        "messages": [{"role": "user", "content": "x"}],
+        "reasoning_effort": "none",
+        "unknown_client_hint": {"mode": "local"},
+    }
+    req = MessagesRequest.model_validate(raw)
+    body = build_base_native_anthropic_request_body(
+        req,
+        default_max_tokens=ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS,
+        thinking_enabled=False,
+    )
+    assert "reasoning_effort" not in body
+    assert "unknown_client_hint" not in body
+
+
 def test_pydantic_discriminator_still_distinguishes_blocks() -> None:
     m = Message.model_validate(
         {

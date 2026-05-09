@@ -20,6 +20,7 @@ def _settings(**overrides):
         "nvidia_nim_api_key": "",
         "open_router_api_key": "",
         "deepseek_api_key": "",
+        "wafer_api_key": "",
         "lm_studio_base_url": "",
         "llamacpp_base_url": "",
         "ollama_base_url": "http://localhost:11434",
@@ -81,6 +82,22 @@ def test_provider_smoke_models_cover_configured_providers_independent_of_model_m
     assert [model.provider for model in models] == ["deepseek"]
     assert models[0].full_model == PROVIDER_SMOKE_DEFAULT_MODELS["deepseek"]
     assert models[0].source == "provider_default"
+
+
+def test_wafer_provider_configuration_uses_api_key(monkeypatch) -> None:
+    monkeypatch.delenv("FCC_SMOKE_MODEL_WAFER", raising=False)
+    config = _smoke_config(
+        settings=_settings(
+            model="ollama/llama3.1",
+            ollama_base_url="",
+            wafer_api_key="wafer-key",
+        )
+    )
+
+    assert config.has_provider_configuration("wafer")
+    models = config.provider_smoke_models()
+    assert models[0].provider == "wafer"
+    assert models[0].full_model == PROVIDER_SMOKE_DEFAULT_MODELS["wafer"]
 
 
 def test_provider_smoke_model_override_accepts_model_name_without_prefix(
