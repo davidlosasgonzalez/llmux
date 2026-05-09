@@ -74,6 +74,12 @@ def _create_kimi(config: ProviderConfig, _settings: Settings) -> BaseProvider:
     return KimiProvider(config)
 
 
+def _create_wafer(config: ProviderConfig, _settings: Settings) -> BaseProvider:
+    from providers.wafer import WaferProvider
+
+    return WaferProvider(config)
+
+
 PROVIDER_FACTORIES: dict[str, ProviderFactory] = {
     "nvidia_nim": _create_nvidia_nim,
     "open_router": _create_open_router,
@@ -82,6 +88,7 @@ PROVIDER_FACTORIES: dict[str, ProviderFactory] = {
     "llamacpp": _create_llamacpp,
     "ollama": _create_ollama,
     "kimi": _create_kimi,
+    "wafer": _create_wafer,
 }
 
 if set(PROVIDER_DESCRIPTORS) != set(SUPPORTED_PROVIDER_IDS) or set(

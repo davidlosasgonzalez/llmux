@@ -99,7 +99,22 @@ def _serialize_value(value: Any) -> Any:
 def _dump_request_fields(request_data: Any) -> dict[str, Any]:
     """Extract the public request fields (OpenRouter-style explicit field list)."""
     if isinstance(request_data, BaseModel):
-        return request_data.model_dump(exclude_none=True)
+        raw = request_data.model_dump(exclude_none=True)
+        return {
+            field: raw[field]
+            for field in _REQUEST_FIELDS
+            if field in raw and raw[field] is not None
+        }
+
+    dump = getattr(request_data, "model_dump", None)
+    if callable(dump):
+        raw = dump(exclude_none=True)
+        if isinstance(raw, dict):
+            return {
+                field: raw[field]
+                for field in _REQUEST_FIELDS
+                if field in raw and raw[field] is not None
+            }
 
     dumped: dict[str, Any] = {}
     for field in _REQUEST_FIELDS:
@@ -204,7 +219,7 @@ def build_base_native_anthropic_request_body(
     thinking_enabled: bool,
 ) -> dict[str, Any]:
     """Serialize a Pydantic messages request to a generic native Anthropic body."""
-    body = request.model_dump(exclude_none=True)
+    body = dump_raw_messages_request(request)
 
     body.pop("extra_body", None)
 

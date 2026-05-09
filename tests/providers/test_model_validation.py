@@ -20,6 +20,7 @@ from providers.nvidia_nim import NvidiaNimProvider
 from providers.ollama import OllamaProvider
 from providers.open_router import OpenRouterProvider
 from providers.registry import ProviderRegistry
+from providers.wafer import WaferProvider
 
 
 def _settings(
@@ -31,6 +32,7 @@ def _settings(
     nvidia_nim_api_key: str = "",
     open_router_api_key: str = "",
     deepseek_api_key: str = "",
+    wafer_api_key: str = "",
 ) -> Settings:
     return Settings.model_construct(
         model=model,
@@ -40,6 +42,7 @@ def _settings(
         nvidia_nim_api_key=nvidia_nim_api_key,
         open_router_api_key=open_router_api_key,
         deepseek_api_key=deepseek_api_key,
+        wafer_api_key=wafer_api_key,
         log_api_error_tracebacks=False,
     )
 
@@ -97,6 +100,22 @@ async def test_deepseek_lists_models_from_root_endpoint() -> None:
     mock_get.assert_awaited_once_with(
         "https://api.deepseek.com/models",
         headers={"Authorization": "Bearer deepseek-key"},
+    )
+
+
+@pytest.mark.asyncio
+async def test_wafer_lists_models_from_default_models_endpoint() -> None:
+    provider = WaferProvider(ProviderConfig(api_key="wafer-key"))
+    with patch.object(
+        provider._client,
+        "get",
+        new_callable=AsyncMock,
+        return_value=_response(200, {"data": [{"id": "DeepSeek-V4-Pro"}]}),
+    ) as mock_get:
+        assert await provider.list_model_ids() == frozenset({"DeepSeek-V4-Pro"})
+
+    mock_get.assert_awaited_once_with(
+        "/models", headers={"Authorization": "Bearer wafer-key"}
     )
 
 

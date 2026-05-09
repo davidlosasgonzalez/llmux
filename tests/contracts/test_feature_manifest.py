@@ -11,6 +11,7 @@ from providers.lmstudio import LMStudioProvider
 from providers.nvidia_nim import NvidiaNimProvider
 from providers.ollama import OllamaProvider
 from providers.open_router import OpenRouterProvider
+from providers.wafer import WaferProvider
 from smoke.features import FEATURE_INVENTORY, README_FEATURES, feature_ids
 
 VALID_SOURCE = {"readme", "public_surface"}
@@ -73,6 +74,7 @@ def test_provider_and_platform_registries_include_advertised_builtins() -> None:
         "lmstudio": LMStudioProvider,
         "llamacpp": LlamaCppProvider,
         "ollama": OllamaProvider,
+        "wafer": WaferProvider,
     }
     for provider_class in provider_classes.values():
         assert issubclass(provider_class, BaseProvider)

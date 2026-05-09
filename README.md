@@ -12,7 +12,7 @@ Use Claude Code CLI, VS Code, JetBrains ACP, or chat bots through your own Anthr
 [![Code style: Ruff](https://img.shields.io/badge/code%20formatting-ruff-f5a623.svg?style=for-the-badge)](https://github.com/astral-sh/ruff)
 [![Logging: Loguru](https://img.shields.io/badge/logging-loguru-4ecdc4.svg?style=for-the-badge)](https://github.com/Delgan/loguru)
 
-Free Claude Code routes Anthropic Messages API traffic from Claude Code to NVIDIA NIM, OpenRouter, DeepSeek, LM Studio, llama.cpp, or Ollama. It keeps Claude Code's client-side protocol stable while letting you choose free, paid, or local models.
+Free Claude Code routes Anthropic Messages API traffic from Claude Code to NVIDIA NIM, Kimi, Wafer, OpenRouter, DeepSeek, LM Studio, llama.cpp, or Ollama. It keeps Claude Code's client-side protocol stable while letting you choose free, paid, or local models.
 
 [Quick Start](#quick-start) · [Providers](#choose-a-provider) · [Clients](#connect-claude-code) · [Troubleshooting](#troubleshooting) · [Development](#development)
 
@@ -37,7 +37,7 @@ Free Claude Code routes Anthropic Messages API traffic from Claude Code to NVIDI
 ## What You Get
 
 - Drop-in proxy for Claude Code's Anthropic API calls.
-- Six provider backends: NVIDIA NIM, OpenRouter, DeepSeek, LM Studio, llama.cpp, and Ollama.
+- Eight provider backends: NVIDIA NIM, Kimi, Wafer, OpenRouter, DeepSeek, LM Studio, llama.cpp, and Ollama.
 - Per-model routing: send Opus, Sonnet, Haiku, and fallback traffic to different providers.
 - Native Claude Code `/model` picker support through the proxy's `/v1/models` endpoint (Claude Code must opt in to Gateway model discovery; see [Model Picker](#model-picker)).
 - Streaming, tool use, reasoning/thinking block handling, and local request optimizations.
@@ -136,6 +136,7 @@ provider_id/model/name
 | --- | --- | --- | --- | --- |
 | <img src="https://cdn.simpleicons.org/nvidia/76B900" alt="" width="18" height="18"> NVIDIA NIM | `nvidia_nim/...` | OpenAI chat translation | `NVIDIA_NIM_API_KEY` | `https://integrate.api.nvidia.com/v1` |
 | <img src="https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-avatar/avatars/kimi.webp" alt="" width="18" height="18"> Kimi | `kimi/...` | OpenAI chat translation | `KIMI_API_KEY` | `https://api.moonshot.ai/v1` |
+| Wafer | `wafer/...` | Anthropic Messages | `WAFER_API_KEY` | `https://pass.wafer.ai/v1` |
 | <img src="https://cdn.simpleicons.org/openrouter/6C47FF" alt="" width="18" height="18"> OpenRouter | `open_router/...` | Anthropic Messages | `OPENROUTER_API_KEY` | `https://openrouter.ai/api/v1` |
 | <img src="https://cdn.simpleicons.org/deepseek/4D6BFF" alt="" width="18" height="18"> DeepSeek | `deepseek/...` | Anthropic Messages | `DEEPSEEK_API_KEY` | `https://api.deepseek.com/anthropic` |
 | <img src="https://github.com/lmstudio-ai.png?size=64" alt="" width="18" height="18"> LM Studio | `lmstudio/...` | Anthropic Messages | none | `http://localhost:1234/v1` |
@@ -175,6 +176,27 @@ MODEL="open_router/stepfun/step-3.5-flash:free"
 ```
 
 Browse [all models](https://openrouter.ai/models) or [free models](https://openrouter.ai/collections/free-models).
+
+</details>
+
+<details>
+<summary><b>Wafer</b></summary>
+
+Add your Wafer key and choose a model returned by Wafer Pass:
+
+```dotenv
+WAFER_API_KEY="your-wafer-key"
+MODEL="wafer/DeepSeek-V4-Pro"
+```
+
+Popular examples:
+
+- `wafer/DeepSeek-V4-Pro`
+- `wafer/MiniMax-M2.7`
+- `wafer/Qwen3.5-397B-A17B`
+- `wafer/GLM-5.1`
+
+This provider uses Wafer's Anthropic-compatible endpoint at `https://pass.wafer.ai/v1/messages`.
 
 </details>
 
@@ -249,11 +271,12 @@ Each tier can use a different provider:
 ```dotenv
 NVIDIA_NIM_API_KEY="nvapi-your-key"
 OPENROUTER_API_KEY="sk-or-your-key"
+WAFER_API_KEY="your-wafer-key"
 
 MODEL_OPUS="nvidia_nim/moonshotai/kimi-k2.5"
 MODEL_SONNET="open_router/deepseek/deepseek-r1-0528:free"
 MODEL_HAIKU="lmstudio/unsloth/GLM-4.7-Flash-GGUF"
-MODEL="nvidia_nim/z-ai/glm4.7"
+MODEL="wafer/DeepSeek-V4-Pro"
 ```
 
 </details>
@@ -393,6 +416,7 @@ Blank per-tier values inherit the fallback. Blank thinking overrides inherit `EN
 NVIDIA_NIM_API_KEY=""
 OPENROUTER_API_KEY=""
 DEEPSEEK_API_KEY=""
+WAFER_API_KEY=""
 LM_STUDIO_BASE_URL="http://localhost:1234/v1"
 LLAMACPP_BASE_URL="http://localhost:8080/v1"
 OLLAMA_BASE_URL="http://localhost:11434"
@@ -405,6 +429,7 @@ NVIDIA_NIM_PROXY=""
 OPENROUTER_PROXY=""
 LMSTUDIO_PROXY=""
 LLAMACPP_PROXY=""
+WAFER_PROXY=""
 ```
 
 ### Rate Limits And Timeouts
@@ -488,7 +513,7 @@ Free Claude Code proxy (:8082)
         |
         | provider-specific request/stream adapter
         v
-NIM / OpenRouter / DeepSeek / LM Studio / llama.cpp / Ollama
+NIM / Kimi / Wafer / OpenRouter / DeepSeek / LM Studio / llama.cpp / Ollama
 ```
 
 Important pieces:
@@ -496,7 +521,7 @@ Important pieces:
 - FastAPI exposes Anthropic-compatible routes such as `/v1/messages`, `/v1/messages/count_tokens`, and `/v1/models`.
 - Model routing resolves the Claude model name to `MODEL_OPUS`, `MODEL_SONNET`, `MODEL_HAIKU`, or `MODEL`.
 - NIM uses OpenAI chat streaming translated into Anthropic SSE.
-- OpenRouter, DeepSeek, LM Studio, llama.cpp, and Ollama use Anthropic Messages style transports.
+- Wafer, OpenRouter, DeepSeek, LM Studio, llama.cpp, and Ollama use Anthropic Messages style transports.
 - The proxy normalizes thinking blocks, tool calls, token usage metadata, and provider errors into the shape Claude Code expects.
 - Request optimizations answer trivial Claude Code probes locally to save latency and quota.
 
