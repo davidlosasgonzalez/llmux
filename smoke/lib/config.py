@@ -28,9 +28,11 @@ DEFAULT_TARGETS = frozenset(
     }
 )
 SIDE_EFFECT_TARGETS = frozenset({"discord", "telegram", "voice"})
-ALL_TARGETS = DEFAULT_TARGETS | SIDE_EFFECT_TARGETS
+OPT_IN_TARGETS = frozenset({"nvidia_nim_cli"})
+ALL_TARGETS = DEFAULT_TARGETS | SIDE_EFFECT_TARGETS | OPT_IN_TARGETS
 TARGET_ALIASES = {
     "contract": "api",
+    "nim_cli": "nvidia_nim_cli",
     "optimizations": "api",
     "thinking": "providers",
     "vscode": "clients",
@@ -47,6 +49,15 @@ PROVIDER_SMOKE_DEFAULT_MODELS: dict[str, str] = {
     "wafer": "wafer/DeepSeek-V4-Pro",
 }
 
+NVIDIA_NIM_CLI_DEFAULT_MODELS: tuple[str, ...] = (
+    "z-ai/glm-5.1",
+    "moonshotai/kimi-k2.6",
+    "minimaxai/minimax-m2.7",
+    "nvidia/nemotron-3-super-120b-a12b",
+    "deepseek-ai/deepseek-v4-pro",
+    "deepseek-ai/deepseek-v4-flash",
+)
+
 
 TARGET_REQUIRED_ENV: dict[str, tuple[str, ...]] = {
     "api": (),
@@ -62,6 +73,10 @@ TARGET_REQUIRED_ENV: dict[str, tuple[str, ...]] = {
     "lmstudio": ("LM_STUDIO_BASE_URL with a running LM Studio server",),
     "llamacpp": ("LLAMACPP_BASE_URL with a running llama-server",),
     "ollama": ("OLLAMA_BASE_URL with a running Ollama server",),
+    "nvidia_nim_cli": (
+        "NVIDIA_NIM_API_KEY",
+        "FCC_SMOKE_CLAUDE_BIN or claude on PATH",
+    ),
     "telegram": (
         "TELEGRAM_BOT_TOKEN",
         "ALLOWED_TELEGRAM_USER_ID or FCC_SMOKE_TELEGRAM_CHAT_ID",
@@ -161,6 +176,13 @@ class SmokeConfig:
             )
         return models
 
+    def nvidia_nim_cli_models(self) -> list[ProviderModel]:
+        """Return the NVIDIA NIM models for Claude Code CLI characterization."""
+        return [
+            ProviderModel(provider="nvidia_nim", full_model=full_model, source=source)
+            for full_model, source in nvidia_nim_cli_model_refs().items()
+        ]
+
     def _include_provider_in_smoke(
         self, provider: str, mapped_providers: set[str]
     ) -> bool:
@@ -195,6 +217,12 @@ def _parse_csv(raw: str | None) -> frozenset[str]:
     if not raw:
         return frozenset()
     return frozenset(part.strip() for part in raw.split(",") if part.strip())
+
+
+def _parse_csv_ordered(raw: str | None) -> tuple[str, ...]:
+    if not raw:
+        return ()
+    return tuple(part.strip() for part in raw.split(",") if part.strip())
 
 
 def _parse_targets(raw: str | None) -> frozenset[str]:
@@ -235,6 +263,36 @@ def _normalize_provider_model(provider: str, raw_model: str) -> str:
         )
         raise ValueError(msg)
     return f"{provider}/{model}"
+
+
+def nvidia_nim_cli_model_refs(
+    env: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    """Return normalized NIM CLI matrix model refs in deterministic order.
+
+    Values are returned as ``full_model -> source`` so callers can preserve both
+    de-duplicated order and provenance in reports.
+    """
+    source = env if env is not None else os.environ
+    explicit_models = _parse_csv_ordered(source.get("FCC_SMOKE_NIM_MODELS"))
+    extra_models = _parse_csv_ordered(source.get("FCC_SMOKE_NIM_EXTRA_MODELS"))
+
+    if "FCC_SMOKE_NIM_MODELS" in source and not explicit_models:
+        raise ValueError("FCC_SMOKE_NIM_MODELS must list at least one model")
+
+    models: list[tuple[str, str]] = []
+    base_models = explicit_models or NVIDIA_NIM_CLI_DEFAULT_MODELS
+    base_source = (
+        "FCC_SMOKE_NIM_MODELS" if explicit_models else "nvidia_nim_cli_default"
+    )
+    models.extend((model, base_source) for model in base_models)
+    models.extend((model, "FCC_SMOKE_NIM_EXTRA_MODELS") for model in extra_models)
+
+    normalized: dict[str, str] = {}
+    for raw_model, model_source in models:
+        full_model = _normalize_provider_model("nvidia_nim", raw_model)
+        normalized.setdefault(full_model, model_source)
+    return normalized
 
 
 def auth_headers(token: str | None = None) -> dict[str, str]:

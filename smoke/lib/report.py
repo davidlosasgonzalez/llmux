@@ -69,6 +69,8 @@ def classify_outcome(*, nodeid: str, outcome: str, detail: str) -> str:
 
     text = f"{nodeid}\n{detail}".lower()
     if outcome == "skipped":
+        if "smoke target disabled" in text:
+            return "target_disabled"
         if any(
             marker in text
             for marker in (

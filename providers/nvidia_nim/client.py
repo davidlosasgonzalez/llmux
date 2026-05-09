@@ -12,10 +12,12 @@ from providers.defaults import NVIDIA_NIM_DEFAULT_BASE
 from providers.openai_compat import OpenAIChatTransport
 
 from .request import (
+    body_without_nim_tool_argument_aliases,
     build_request_body,
     clone_body_without_chat_template,
     clone_body_without_reasoning_budget,
     clone_body_without_reasoning_content,
+    nim_tool_argument_aliases_from_body,
 )
 
 
@@ -40,6 +42,14 @@ class NvidiaNimProvider(OpenAIChatTransport):
             self._nim_settings,
             thinking_enabled=self._is_thinking_enabled(request, thinking_enabled),
         )
+
+    def _prepare_create_body(self, body: dict[str, Any]) -> dict[str, Any]:
+        """Strip private request metadata before calling NVIDIA NIM."""
+        return body_without_nim_tool_argument_aliases(body)
+
+    def _tool_argument_aliases(self, body: dict[str, Any]) -> dict[str, dict[str, str]]:
+        """Return NIM tool argument aliases captured while building this request."""
+        return nim_tool_argument_aliases_from_body(body)
 
     def _get_retry_request_body(self, error: Exception, body: dict) -> dict | None:
         """Retry once with a downgraded body when NIM rejects a known field."""

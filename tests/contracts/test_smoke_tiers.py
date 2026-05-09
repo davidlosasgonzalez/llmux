@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from smoke.lib.report import classify_outcome
 from smoke.lib.report_summary import format_summary, summarize_reports
 
 
@@ -32,3 +33,13 @@ def test_smoke_report_summary_counts_regression_classes(tmp_path: Path) -> None:
     assert summary.classifications["product_failure"] == 1
     assert summary.has_regression
     assert "status=regression" in format_summary(summary)
+
+
+def test_target_disabled_skip_is_not_missing_env() -> None:
+    classification = classify_outcome(
+        nodeid="smoke/product/test_api_product_live.py::test_api_basic_conversation_e2e",
+        outcome="skipped",
+        detail="Skipped: smoke target disabled: api",
+    )
+
+    assert classification == "target_disabled"

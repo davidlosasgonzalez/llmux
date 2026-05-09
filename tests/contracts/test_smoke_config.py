@@ -4,10 +4,14 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from smoke.lib.config import (
+    ALL_TARGETS,
     DEFAULT_TARGETS,
+    NVIDIA_NIM_CLI_DEFAULT_MODELS,
+    OPT_IN_TARGETS,
     PROVIDER_SMOKE_DEFAULT_MODELS,
     TARGET_REQUIRED_ENV,
     SmokeConfig,
+    nvidia_nim_cli_model_refs,
 )
 
 
@@ -50,6 +54,13 @@ def _smoke_config(**overrides) -> SmokeConfig:
 def test_ollama_is_default_smoke_target() -> None:
     assert "ollama" in DEFAULT_TARGETS
     assert "ollama" in TARGET_REQUIRED_ENV
+
+
+def test_nvidia_nim_cli_is_opt_in_smoke_target() -> None:
+    assert "nvidia_nim_cli" not in DEFAULT_TARGETS
+    assert "nvidia_nim_cli" in OPT_IN_TARGETS
+    assert "nvidia_nim_cli" in ALL_TARGETS
+    assert "nvidia_nim_cli" in TARGET_REQUIRED_ENV
 
 
 def test_ollama_provider_configuration_uses_base_url() -> None:
@@ -190,3 +201,67 @@ def test_provider_smoke_does_not_include_default_local_urls_when_unmapped(
     config = _smoke_config(settings=_settings(model="nvidia_nim/test"))
 
     assert config.provider_smoke_models() == []
+
+
+def test_nvidia_nim_cli_default_models_are_normalized() -> None:
+    refs = nvidia_nim_cli_model_refs({})
+
+    assert tuple(refs) == tuple(
+        f"nvidia_nim/{model}" for model in NVIDIA_NIM_CLI_DEFAULT_MODELS
+    )
+    assert "nvidia_nim/deepseek-ai/deepseek-v4-pro" in refs
+    assert "nvidia_nim/deepseek-ai/deepseek-v4-flash" in refs
+    assert set(refs.values()) == {"nvidia_nim_cli_default"}
+
+
+def test_nvidia_nim_cli_models_override_and_append() -> None:
+    refs = nvidia_nim_cli_model_refs(
+        {
+            "FCC_SMOKE_NIM_MODELS": "z-ai/glm-5.1,nvidia_nim/custom/model",
+            "FCC_SMOKE_NIM_EXTRA_MODELS": "moonshotai/kimi-k2.6,z-ai/glm-5.1",
+        }
+    )
+
+    assert tuple(refs) == (
+        "nvidia_nim/z-ai/glm-5.1",
+        "nvidia_nim/custom/model",
+        "nvidia_nim/moonshotai/kimi-k2.6",
+    )
+    assert refs["nvidia_nim/z-ai/glm-5.1"] == "FCC_SMOKE_NIM_MODELS"
+    assert refs["nvidia_nim/moonshotai/kimi-k2.6"] == ("FCC_SMOKE_NIM_EXTRA_MODELS")
+
+
+def test_nvidia_nim_cli_models_reject_empty_override() -> None:
+    try:
+        nvidia_nim_cli_model_refs({"FCC_SMOKE_NIM_MODELS": " , "})
+    except ValueError as exc:
+        assert "FCC_SMOKE_NIM_MODELS" in str(exc)
+    else:
+        raise AssertionError("expected empty NVIDIA NIM CLI model override to fail")
+
+
+def test_nvidia_nim_cli_models_reject_wrong_provider_prefix() -> None:
+    try:
+        nvidia_nim_cli_model_refs({"FCC_SMOKE_NIM_MODELS": "open_router/model"})
+    except ValueError as exc:
+        assert "nvidia_nim" in str(exc)
+    else:
+        raise AssertionError("expected wrong provider prefix to fail")
+
+
+def test_smoke_config_returns_nvidia_nim_cli_provider_models(monkeypatch) -> None:
+    monkeypatch.delenv("FCC_SMOKE_NIM_MODELS", raising=False)
+    monkeypatch.delenv("FCC_SMOKE_NIM_EXTRA_MODELS", raising=False)
+    config = _smoke_config(
+        settings=_settings(
+            model="nvidia_nim/z-ai/glm-5.1",
+            nvidia_nim_api_key="nim-key",
+            ollama_base_url="",
+        )
+    )
+
+    models = config.nvidia_nim_cli_models()
+
+    assert models[0].provider == "nvidia_nim"
+    assert models[0].full_model == "nvidia_nim/z-ai/glm-5.1"
+    assert models[0].source == "nvidia_nim_cli_default"

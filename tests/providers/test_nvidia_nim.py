@@ -8,6 +8,7 @@ from httpx import Request, Response
 from config.nim import NimSettings
 from providers.defaults import NVIDIA_NIM_DEFAULT_BASE
 from providers.nvidia_nim import NvidiaNimProvider
+from providers.nvidia_nim.request import NIM_TOOL_ARGUMENT_ALIASES_KEY
 
 
 # Mock data classes
@@ -45,6 +46,46 @@ class MockRequest:
         self.thinking.enabled = True
         for k, v in kwargs.items():
             setattr(self, k, v)
+
+
+def _input_json_deltas(events):
+    deltas = []
+    for event in events:
+        if "event: content_block_delta" not in event:
+            continue
+        for line in event.splitlines():
+            if not line.startswith("data: "):
+                continue
+            payload = json.loads(line[6:])
+            delta = payload.get("delta", {})
+            if delta.get("type") == "input_json_delta":
+                deltas.append(delta.get("partial_json", ""))
+    return deltas
+
+
+def _tool_call_chunk(
+    *,
+    name,
+    arguments,
+    tool_id="call_1",
+    index=0,
+    finish_reason=None,
+):
+    mock_tc = MagicMock()
+    mock_tc.index = index
+    mock_tc.id = tool_id
+    mock_tc.function.name = name
+    mock_tc.function.arguments = arguments
+
+    mock_chunk = MagicMock()
+    mock_chunk.choices = [
+        MagicMock(
+            delta=MagicMock(content=None, reasoning_content="", tool_calls=[mock_tc]),
+            finish_reason=finish_reason,
+        )
+    ]
+    mock_chunk.usage = None
+    return mock_chunk
 
 
 def _make_bad_request_error(message: str) -> openai.BadRequestError:
@@ -432,6 +473,195 @@ async def test_tool_call_stream(nim_provider):
         ]
         assert len(starts) == 1
         assert "search" in starts[0]
+
+
+@pytest.mark.asyncio
+async def test_stream_response_restores_aliased_tool_arguments(nim_provider):
+    """NIM-safe argument aliases are restored before Anthropic SSE emission."""
+    req = MockRequest(
+        tools=[
+            MockTool(
+                "Grep",
+                "Search file contents",
+                {
+                    "type": "object",
+                    "properties": {
+                        "pattern": {"type": "string"},
+                        "-A": {"type": "number"},
+                        "type": {"type": "string"},
+                    },
+                    "required": ["pattern"],
+                },
+            )
+        ]
+    )
+    mock_chunk = _tool_call_chunk(
+        name="Grep",
+        arguments=json.dumps({"pattern": "needle", "-A": 2, "_fcc_arg_type": "py"}),
+    )
+
+    async def mock_stream():
+        yield mock_chunk
+
+    with patch.object(
+        nim_provider._client.chat.completions, "create", new_callable=AsyncMock
+    ) as mock_create:
+        mock_create.return_value = mock_stream()
+
+        events = [e async for e in nim_provider.stream_response(req)]
+
+    await_args = mock_create.await_args
+    assert await_args is not None
+    create_kwargs = await_args.kwargs
+    assert NIM_TOOL_ARGUMENT_ALIASES_KEY not in create_kwargs
+    properties = create_kwargs["tools"][0]["function"]["parameters"]["properties"]
+    assert "-A" in properties
+    assert "type" not in properties
+    assert "_fcc_arg_A" not in properties
+    assert "_fcc_arg_type" in properties
+
+    deltas = _input_json_deltas(events)
+    assert len(deltas) == 1
+    assert json.loads(deltas[0]) == {"pattern": "needle", "-A": 2, "type": "py"}
+    assert "_fcc_arg_type" not in deltas[0]
+
+
+@pytest.mark.asyncio
+async def test_stream_response_buffers_chunked_aliased_tool_arguments(nim_provider):
+    """Chunked aliased args are emitted once as restored Claude Code args."""
+    req = MockRequest(
+        tools=[
+            MockTool(
+                "Grep",
+                "Search file contents",
+                {
+                    "type": "object",
+                    "properties": {
+                        "pattern": {"type": "string"},
+                        "type": {"type": "string"},
+                    },
+                    "required": ["pattern"],
+                },
+            )
+        ]
+    )
+    first_chunk = _tool_call_chunk(
+        name="Grep",
+        arguments='{"pattern": "needle", ',
+        tool_id="call_chunked",
+    )
+    second_chunk = _tool_call_chunk(
+        name=None,
+        arguments='"_fcc_arg_type": "py"}',
+        tool_id="call_chunked",
+    )
+
+    async def mock_stream():
+        yield first_chunk
+        yield second_chunk
+
+    with patch.object(
+        nim_provider._client.chat.completions, "create", new_callable=AsyncMock
+    ) as mock_create:
+        mock_create.return_value = mock_stream()
+
+        events = [e async for e in nim_provider.stream_response(req)]
+
+    deltas = _input_json_deltas(events)
+    assert len(deltas) == 1
+    assert json.loads(deltas[0]) == {"pattern": "needle", "type": "py"}
+
+
+@pytest.mark.asyncio
+async def test_stream_response_restores_nested_aliased_tool_arguments(nim_provider):
+    req = MockRequest(
+        tools=[
+            MockTool(
+                "NotionLike",
+                "Nested type schema",
+                {
+                    "type": "object",
+                    "properties": {
+                        "parent": {
+                            "type": "object",
+                            "properties": {
+                                "type": {"type": "string"},
+                                "id": {"type": "string"},
+                            },
+                            "required": ["type", "id"],
+                        }
+                    },
+                    "required": ["parent"],
+                },
+            )
+        ]
+    )
+    mock_chunk = _tool_call_chunk(
+        name="NotionLike",
+        arguments=json.dumps(
+            {"parent": {"_fcc_arg_type": "page_id", "id": "page_123"}}
+        ),
+    )
+
+    async def mock_stream():
+        yield mock_chunk
+
+    with patch.object(
+        nim_provider._client.chat.completions, "create", new_callable=AsyncMock
+    ) as mock_create:
+        mock_create.return_value = mock_stream()
+
+        events = [e async for e in nim_provider.stream_response(req)]
+
+    deltas = _input_json_deltas(events)
+    assert len(deltas) == 1
+    assert json.loads(deltas[0]) == {"parent": {"type": "page_id", "id": "page_123"}}
+
+
+@pytest.mark.asyncio
+async def test_stream_response_task_tool_still_forces_background_false(nim_provider):
+    req = MockRequest(
+        tools=[
+            MockTool(
+                "Task",
+                "Run a subagent",
+                {
+                    "type": "object",
+                    "properties": {
+                        "description": {"type": "string"},
+                        "prompt": {"type": "string"},
+                        "run_in_background": {"type": "boolean"},
+                    },
+                    "required": ["description", "prompt"],
+                },
+            )
+        ]
+    )
+    mock_chunk = _tool_call_chunk(
+        name="Task",
+        arguments=json.dumps(
+            {
+                "description": "Inspect",
+                "prompt": "Read the marker",
+                "run_in_background": True,
+            }
+        ),
+        tool_id="call_task",
+    )
+
+    async def mock_stream():
+        yield mock_chunk
+
+    with patch.object(
+        nim_provider._client.chat.completions, "create", new_callable=AsyncMock
+    ) as mock_create:
+        mock_create.return_value = mock_stream()
+
+        events = [e async for e in nim_provider.stream_response(req)]
+
+    deltas = _input_json_deltas(events)
+    assert len(deltas) == 1
+    assert json.loads(deltas[0])["run_in_background"] is False
 
 
 @pytest.mark.asyncio

@@ -58,10 +58,11 @@ Default targets do not send real bot messages or load voice backends:
 | `llamacpp` | local `/models` plus native `/messages` through proxy | running llama-server |
 | `ollama` | local `/api/tags` plus native Anthropic messages through proxy | running Ollama server |
 
-Side-effectful targets are opt-in:
+Heavy/side-effectful targets are opt-in:
 
 | Target | Product scenarios | Required environment |
 | --- | --- | --- |
+| `nvidia_nim_cli` | Claude Code CLI feature matrix across NIM models | `NVIDIA_NIM_API_KEY`, Claude CLI |
 | `telegram` | getMe, send, edit, delete, optional manual inbound | token and chat/user ID |
 | `discord` | channel access, send, edit, delete, optional manual inbound | token and channel ID |
 | `voice` | generated WAV through local Whisper or NVIDIA NIM transcription | `VOICE_NOTE_ENABLED=true`, `FCC_SMOKE_RUN_VOICE=1` |
@@ -90,6 +91,13 @@ uv run pytest smoke/product -n 0 -s --tb=short
 
 ```powershell
 $env:FCC_LIVE_SMOKE = "1"
+$env:FCC_SMOKE_TARGETS = "nvidia_nim_cli"
+$env:FCC_SMOKE_NIM_MODELS = "z-ai/glm-5.1,moonshotai/kimi-k2.6,minimaxai/minimax-m2.7,nvidia/nemotron-3-super-120b-a12b,deepseek-ai/deepseek-v4-pro,deepseek-ai/deepseek-v4-flash"
+uv run pytest smoke/product -n 0 -s --tb=short
+```
+
+```powershell
+$env:FCC_LIVE_SMOKE = "1"
 $env:FCC_SMOKE_TARGETS = "messaging,config,extensibility"
 uv run pytest smoke/product -n 0 -s --tb=short
 ```
@@ -106,6 +114,10 @@ uv run pytest smoke/product -n 0 -s --tb=short
   `FCC_SMOKE_MODEL_LLAMACPP`, `FCC_SMOKE_MODEL_OLLAMA`: optional per-provider
   smoke model overrides. Values may include the provider prefix or just the model
   name for that provider.
+- `FCC_SMOKE_NIM_MODELS`: optional comma-separated NVIDIA NIM CLI matrix models
+  that replace the default characterization set.
+- `FCC_SMOKE_NIM_EXTRA_MODELS`: optional comma-separated NVIDIA NIM CLI matrix
+  models appended to the default or replacement set.
 - `FCC_SMOKE_TIMEOUT_S`: per-request/subprocess timeout, default `45`.
 - `FCC_SMOKE_CLAUDE_BIN`: Claude CLI executable name, default `claude`.
 - `FCC_SMOKE_TELEGRAM_CHAT_ID`: Telegram chat/user ID for send/edit/delete.
@@ -129,10 +141,15 @@ names contain `KEY`, `TOKEN`, `SECRET`, `WEBHOOK`, or `AUTH`.
   opt-in flag is absent.
 - `upstream_unavailable`: a real provider, bot API, or local model server is not
   reachable.
+- `probe_timeout`: the smoke driver reached the target, but the CLI/probe did
+  not complete within the smoke timeout.
 - `product_failure`: the app accepted the scenario but returned the wrong shape,
   crashed, leaked state, or violated the product contract.
 - `harness_bug`: the smoke test or driver made an invalid assumption.
+- `target_disabled`: skipped because `FCC_SMOKE_TARGETS` intentionally selected
+  a different target.
 
-`product_failure` and `harness_bug` are failures. `missing_env` and
-`upstream_unavailable` are skips except when the user explicitly selected a
-provider in `FCC_SMOKE_PROVIDER_MATRIX`; selected-but-missing providers fail.
+`product_failure` and `harness_bug` are failures. `missing_env`,
+`upstream_unavailable`, and `probe_timeout` are skips except when the user
+explicitly selected a provider in `FCC_SMOKE_PROVIDER_MATRIX`;
+selected-but-missing providers fail.

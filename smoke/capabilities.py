@@ -411,7 +411,7 @@ CAPABILITY_CONTRACTS: tuple[CapabilityContract, ...] = (
         "stream-json events and session id mapping",
         "stderr/error event and process cleanup",
         ("tests/cli/test_cli.py",),
-        ("test_claude_cli_prompt_when_available",),
+        ("test_claude_cli_prompt_when_available", "test_nvidia_nim_cli_matrix_e2e"),
     ),
     CapabilityContract(
         "extensibility",
