@@ -128,18 +128,18 @@ provider_id/model/name
 
 | Provider | Prefix | Transport | Key | Default base URL |
 | --- | --- | --- | --- | --- |
-| <img src="https://cdn.simpleicons.org/nvidia/76B900" alt="" width="18" height="18"> NVIDIA NIM | `nvidia_nim/...` | OpenAI chat translation | `NVIDIA_NIM_API_KEY` | `https://integrate.api.nvidia.com/v1` |
-| <img src="https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-avatar/avatars/kimi.webp" alt="" width="18" height="18"> Kimi | `kimi/...` | OpenAI chat translation | `KIMI_API_KEY` | `https://api.moonshot.ai/v1` |
-| [Wafer](https://wafer.ai) | `wafer/...` | Anthropic Messages | `WAFER_API_KEY` | `https://pass.wafer.ai/v1` |
-| <img src="https://cdn.simpleicons.org/openrouter/6C47FF" alt="" width="18" height="18"> OpenRouter | `open_router/...` | Anthropic Messages | `OPENROUTER_API_KEY` | `https://openrouter.ai/api/v1` |
-| <img src="https://cdn.simpleicons.org/deepseek/4D6BFF" alt="" width="18" height="18"> DeepSeek | `deepseek/...` | Anthropic Messages | `DEEPSEEK_API_KEY` | `https://api.deepseek.com/anthropic` |
-| <img src="https://github.com/lmstudio-ai.png?size=64" alt="" width="18" height="18"> LM Studio | `lmstudio/...` | Anthropic Messages | none | `http://localhost:1234/v1` |
-| <img src="https://github.com/ggml-org.png?size=64" alt="" width="18" height="18"> llama.cpp | `llamacpp/...` | Anthropic Messages | none | `http://localhost:8080/v1` |
-| <img src="https://github.com/ollama.png?size=64" alt="" width="18" height="18"> Ollama | `ollama/...` | Anthropic Messages | none | `http://localhost:11434` |
+| <img src="https://cdn.simpleicons.org/nvidia/76B900" alt="" width="18" height="18">&nbsp;NVIDIA NIM | `nvidia_nim/...` | OpenAI chat translation | `NVIDIA_NIM_API_KEY` | `https://integrate.api.nvidia.com/v1` |
+| <img src="https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-avatar/avatars/kimi.webp" alt="" width="18" height="18">&nbsp;Kimi | `kimi/...` | OpenAI chat translation | `KIMI_API_KEY` | `https://api.moonshot.ai/v1` |
+| <img src="https://wafer.ai/favicon.ico" alt="" width="18" height="18">&nbsp;[Wafer](https://wafer.ai) | `wafer/...` | Anthropic Messages | `WAFER_API_KEY` | `https://pass.wafer.ai/v1` |
+| <img src="https://cdn.simpleicons.org/openrouter/6C47FF" alt="" width="18" height="18">&nbsp;OpenRouter | `open_router/...` | Anthropic Messages | `OPENROUTER_API_KEY` | `https://openrouter.ai/api/v1` |
+| <img src="https://cdn.simpleicons.org/deepseek/4D6BFF" alt="" width="18" height="18">&nbsp;DeepSeek | `deepseek/...` | Anthropic Messages | `DEEPSEEK_API_KEY` | `https://api.deepseek.com/anthropic` |
+| <img src="https://github.com/lmstudio-ai.png?size=64" alt="" width="18" height="18">&nbsp;LM Studio | `lmstudio/...` | Anthropic Messages | none | `http://localhost:1234/v1` |
+| <img src="https://github.com/ggml-org.png?size=64" alt="" width="18" height="18">&nbsp;llama.cpp | `llamacpp/...` | Anthropic Messages | none | `http://localhost:8080/v1` |
+| <img src="https://github.com/ollama.png?size=64" alt="" width="18" height="18">&nbsp;Ollama | `ollama/...` | Anthropic Messages | none | `http://localhost:11434` |
 
 
 <details>
-<summary><img src="https://cdn.simpleicons.org/nvidia/76B900" alt="" width="18" height="18"> <b>NVIDIA NIM</b></summary>
+<summary><img src="https://cdn.simpleicons.org/nvidia/76B900" alt="" width="18" height="18">&nbsp;<b>NVIDIA NIM</b></summary>
 
 Get a key at [build.nvidia.com/settings/api-keys](https://build.nvidia.com/settings/api-keys).
 
@@ -160,21 +160,21 @@ Browse models at [build.nvidia.com](https://build.nvidia.com/explore/discover).
 </details>
 
 <details>
-<summary><img src="https://cdn.simpleicons.org/openrouter/6C47FF" alt="" width="18" height="18"> <b>OpenRouter</b></summary>
+<summary><img src="https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-avatar/avatars/kimi.webp" alt="" width="18" height="18">&nbsp;<b>Kimi</b></summary>
 
-Get a key at [openrouter.ai/keys](https://openrouter.ai/keys).
+Get a key at [platform.moonshot.ai/console/api-keys](https://platform.moonshot.ai/console/api-keys).
 
 ```dotenv
-OPENROUTER_API_KEY="sk-or-your-key"
-MODEL="open_router/stepfun/step-3.5-flash:free"
+KIMI_API_KEY="your-kimi-key"
+MODEL="kimi/kimi-k2.5"
 ```
 
-Browse [all models](https://openrouter.ai/models) or [free models](https://openrouter.ai/collections/free-models).
+Browse models at [platform.moonshot.ai](https://platform.moonshot.ai).
 
 </details>
 
 <details>
-<summary><b>Wafer</b></summary>
+<summary><img src="https://wafer.ai/favicon.ico" alt="" width="18" height="18">&nbsp;<b>Wafer</b></summary>
 
 Get a key from [wafer.ai](https://wafer.ai), then choose a model returned by Wafer Pass:
 
@@ -195,7 +195,21 @@ This provider uses Wafer's Anthropic-compatible endpoint at `https://pass.wafer.
 </details>
 
 <details>
-<summary><img src="https://cdn.simpleicons.org/deepseek/4D6BFF" alt="" width="18" height="18"> <b>DeepSeek</b></summary>
+<summary><img src="https://cdn.simpleicons.org/openrouter/6C47FF" alt="" width="18" height="18">&nbsp;<b>OpenRouter</b></summary>
+
+Get a key at [openrouter.ai/keys](https://openrouter.ai/keys).
+
+```dotenv
+OPENROUTER_API_KEY="sk-or-your-key"
+MODEL="open_router/stepfun/step-3.5-flash:free"
+```
+
+Browse [all models](https://openrouter.ai/models) or [free models](https://openrouter.ai/collections/free-models).
+
+</details>
+
+<details>
+<summary><img src="https://cdn.simpleicons.org/deepseek/4D6BFF" alt="" width="18" height="18">&nbsp;<b>DeepSeek</b></summary>
 
 Get a key at [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys).
 
@@ -209,7 +223,7 @@ This provider uses DeepSeek's Anthropic-compatible endpoint, not the OpenAI chat
 </details>
 
 <details>
-<summary><img src="https://github.com/lmstudio-ai.png?size=64" alt="" width="18" height="18"> <b>LM Studio</b></summary>
+<summary><img src="https://github.com/lmstudio-ai.png?size=64" alt="" width="18" height="18">&nbsp;<b>LM Studio</b></summary>
 
 Start LM Studio's local server, load a model, then configure:
 
@@ -223,7 +237,7 @@ Use the model identifier shown by LM Studio. Prefer models with tool-use support
 </details>
 
 <details>
-<summary><img src="https://github.com/ggml-org.png?size=64" alt="" width="18" height="18"> <b>llama.cpp</b></summary>
+<summary><img src="https://github.com/ggml-org.png?size=64" alt="" width="18" height="18">&nbsp;<b>llama.cpp</b></summary>
 
 Start `llama-server` with an Anthropic-compatible `/v1/messages` endpoint and enough context for Claude Code requests.
 
@@ -237,7 +251,7 @@ For local coding models, context size matters. If llama.cpp returns HTTP 400 for
 </details>
 
 <details>
-<summary><img src="https://github.com/ollama.png?size=64" alt="" width="18" height="18"> <b>Ollama</b></summary>
+<summary><img src="https://github.com/ollama.png?size=64" alt="" width="18" height="18">&nbsp;<b>Ollama</b></summary>
 
 Run Ollama and pull a model:
 
