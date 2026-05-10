@@ -129,7 +129,7 @@ Pick one provider, enter its key or local URL in the Admin UI, and set `MODEL` t
 
 <a id="nvidia-nim-provider"></a>
 
-### 1. <img src="https://cdn.simpleicons.org/nvidia/76B900" alt="" width="18" height="18">&nbsp;NVIDIA NIM
+### 1. NVIDIA NIM
 
 Get a key at [build.nvidia.com/settings/api-keys](https://build.nvidia.com/settings/api-keys).
 
@@ -144,7 +144,7 @@ Popular examples:
 
 Browse models at [build.nvidia.com](https://build.nvidia.com/explore/discover).
 
-### 2. <img src="https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-avatar/avatars/kimi.webp" alt="" width="18" height="18">&nbsp;Kimi
+### 2. Kimi
 
 Get a key at [platform.moonshot.ai/console/api-keys](https://platform.moonshot.ai/console/api-keys).
 
@@ -152,7 +152,7 @@ In the Admin UI, paste it into `KIMI_API_KEY`, then set `MODEL` to a Kimi slug s
 
 Browse models at [platform.moonshot.ai](https://platform.moonshot.ai).
 
-### 3. <img src="https://wafer.ai/favicon.ico" alt="" width="18" height="18">&nbsp;Wafer
+### 3. Wafer
 
 Get a key from [wafer.ai](https://wafer.ai). In the Admin UI, paste it into `WAFER_API_KEY`, then set `MODEL` to a Wafer Pass model such as `wafer/DeepSeek-V4-Pro`.
 
@@ -165,7 +165,7 @@ Popular examples:
 
 This provider uses Wafer's Anthropic-compatible endpoint at `https://pass.wafer.ai/v1/messages`.
 
-### 4. <img src="https://cdn.simpleicons.org/openrouter/6C47FF" alt="" width="18" height="18">&nbsp;OpenRouter
+### 4. OpenRouter
 
 Get a key at [openrouter.ai/keys](https://openrouter.ai/keys).
 
@@ -173,7 +173,7 @@ In the Admin UI, paste it into `OPENROUTER_API_KEY`, then set `MODEL` to an Open
 
 Browse [all models](https://openrouter.ai/models) or [free models](https://openrouter.ai/collections/free-models).
 
-### 5. <img src="https://cdn.simpleicons.org/deepseek/4D6BFF" alt="" width="18" height="18">&nbsp;DeepSeek
+### 5. DeepSeek
 
 Get a key at [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys).
 
@@ -181,13 +181,13 @@ In the Admin UI, paste it into `DEEPSEEK_API_KEY`, then set `MODEL` to a DeepSee
 
 This provider uses DeepSeek's Anthropic-compatible endpoint, not the OpenAI chat-completions endpoint.
 
-### 6. <img src="https://github.com/lmstudio-ai.png?size=64" alt="" width="18" height="18">&nbsp;LM Studio
+### 6. LM Studio
 
 Start LM Studio's local server and load a model. In the Admin UI, keep or update `LM_STUDIO_BASE_URL`, then set `MODEL` to the model identifier shown by LM Studio, prefixed with `lmstudio/`.
 
 Prefer models with tool-use support for Claude Code workflows.
 
-### 7. <img src="https://github.com/ggml-org.png?size=64" alt="" width="18" height="18">&nbsp;llama.cpp
+### 7. llama.cpp
 
 Start `llama-server` with an Anthropic-compatible `/v1/messages` endpoint and enough context for Claude Code requests.
 
@@ -195,7 +195,7 @@ In the Admin UI, keep or update `LLAMACPP_BASE_URL`, then set `MODEL` to the loc
 
 For local coding models, context size matters. If llama.cpp returns HTTP 400 for normal Claude Code requests, increase `--ctx-size` and verify the model/server build supports the requested features.
 
-### 8. <img src="https://github.com/ollama.png?size=64" alt="" width="18" height="18">&nbsp;Ollama
+### 8. Ollama
 
 Run Ollama and pull a model:
 
