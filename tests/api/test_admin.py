@@ -19,6 +19,7 @@ def _local_client(app):
 def _set_home(monkeypatch, tmp_path: Path) -> None:
     monkeypatch.setenv("HOME", str(tmp_path))
     monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    monkeypatch.chdir(tmp_path)
 
 
 def _clear_process_config(monkeypatch) -> None:
@@ -28,6 +29,9 @@ def _clear_process_config(monkeypatch) -> None:
         "OPENROUTER_API_KEY",
         "ANTHROPIC_AUTH_TOKEN",
         "FCC_ENV_FILE",
+        "HOST",
+        "PORT",
+        "LOG_FILE",
     ):
         monkeypatch.delenv(key, raising=False)
 
@@ -103,6 +107,63 @@ def test_admin_apply_writes_complete_managed_env_and_masks_preview(
     assert "MODEL=open_router/test-model" in text
     assert "OPENROUTER_API_KEY=router-secret" in text
     assert "ANTHROPIC_AUTH_TOKEN=" in text
+    assert body["restart"] == {
+        "required": False,
+        "automatic": False,
+        "admin_url": None,
+        "fields": [],
+    }
+
+
+def test_admin_apply_restart_required_reports_automatic_restart(monkeypatch, tmp_path):
+    _set_home(monkeypatch, tmp_path)
+    _clear_process_config(monkeypatch)
+    app = create_app(lifespan_enabled=False)
+    callbacks: list[str] = []
+
+    async def restart_callback() -> None:
+        callbacks.append("restart")
+
+    app.state.admin_restart_callback = restart_callback
+
+    response = _local_client(app).post(
+        "/admin/api/config/apply",
+        json={"values": {"PORT": "9090"}},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["applied"] is True
+    assert body["pending_fields"] == ["PORT"]
+    assert body["restart"] == {
+        "required": True,
+        "automatic": True,
+        "admin_url": "http://127.0.0.1:9090/admin",
+        "fields": ["PORT"],
+    }
+    assert callbacks == ["restart"]
+
+
+def test_admin_apply_restart_required_reports_manual_fallback(monkeypatch, tmp_path):
+    _set_home(monkeypatch, tmp_path)
+    _clear_process_config(monkeypatch)
+    app = create_app(lifespan_enabled=False)
+
+    response = _local_client(app).post(
+        "/admin/api/config/apply",
+        json={"values": {"PORT": "9091"}},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["applied"] is True
+    assert body["pending_fields"] == ["PORT"]
+    assert body["restart"] == {
+        "required": True,
+        "automatic": False,
+        "admin_url": None,
+        "fields": ["PORT"],
+    }
 
 
 def test_admin_process_env_values_are_locked_and_not_written(monkeypatch, tmp_path):

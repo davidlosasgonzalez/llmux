@@ -1,7 +1,28 @@
 """Tests for cli/entrypoints.py — fcc-init scaffolding logic."""
 
+import subprocess
+import tomllib
 from pathlib import Path
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
+
+import pytest
+
+from config.settings import Settings
+
+
+def _launcher_settings(
+    *,
+    port: int = 8082,
+    token: str = "freecc",
+    claude_bin: str = "claude-test",
+) -> Settings:
+    return Settings.model_construct(
+        host="0.0.0.0",
+        port=port,
+        anthropic_auth_token=token,
+        claude_cli_bin=claude_bin,
+    )
 
 
 def _run_init(tmp_home: Path) -> tuple[str, Path]:
@@ -78,7 +99,142 @@ def test_init_skips_if_env_already_exists(tmp_path: Path) -> None:
 
 
 def test_init_prints_next_step_hint(tmp_path: Path) -> None:
-    """init() tells the user to run free-claude-code after editing .env."""
+    """init() tells the user to run fcc-server after editing .env."""
     output, _ = _run_init(tmp_path)
 
-    assert "free-claude-code" in output
+    assert "fcc-server" in output
+
+
+def test_cli_scripts_are_registered() -> None:
+    pyproject = tomllib.loads(
+        (Path(__file__).resolve().parents[2] / "pyproject.toml").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    scripts = pyproject["project"]["scripts"]
+    assert scripts["fcc-server"] == "cli.entrypoints:serve"
+    assert scripts["free-claude-code"] == "cli.entrypoints:serve"
+    assert scripts["fcc-claude"] == "cli.entrypoints:launch_claude"
+
+
+def test_serve_supervisor_restarts_when_app_requests_restart() -> None:
+    from cli import entrypoints
+
+    settings = _launcher_settings()
+    get_settings = MagicMock(side_effect=[settings, settings])
+    get_settings.cache_clear = MagicMock()
+    servers: list[object] = []
+
+    class FakeServer:
+        def __init__(self, config):
+            self.config = config
+            self.should_exit = False
+            servers.append(self)
+
+        def run(self):
+            if len(servers) == 1:
+                self.config.app.app.state.admin_restart_callback()
+                assert self.should_exit is True
+
+    def fake_config(app, **kwargs):
+        return SimpleNamespace(app=app, kwargs=kwargs)
+
+    with (
+        patch.object(entrypoints, "get_settings", get_settings),
+        patch.object(entrypoints.uvicorn, "Config", side_effect=fake_config),
+        patch.object(entrypoints.uvicorn, "Server", side_effect=FakeServer),
+        patch.object(entrypoints, "kill_all_best_effort") as kill_all,
+    ):
+        entrypoints.serve()
+
+    assert len(servers) == 2
+    get_settings.cache_clear.assert_called_once()
+    kill_all.assert_called_once()
+
+
+def test_claude_child_env_targets_current_proxy_config() -> None:
+    from cli.entrypoints import _claude_child_env
+
+    env = _claude_child_env(
+        _launcher_settings(port=9090, token=" proxy-token "),
+        {
+            "PATH": "keep",
+            "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
+            "ANTHROPIC_AUTH_TOKEN": "old-token",
+            "ANTHROPIC_API_KEY": "official-key",
+        },
+    )
+
+    assert env["PATH"] == "keep"
+    assert env["ANTHROPIC_BASE_URL"] == "http://127.0.0.1:9090"
+    assert env["ANTHROPIC_AUTH_TOKEN"] == "proxy-token"
+    assert env["CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"] == "1"
+    assert "ANTHROPIC_API_KEY" not in env
+
+
+def test_claude_child_env_removes_blank_configured_auth_token() -> None:
+    from cli.entrypoints import _claude_child_env
+
+    env = _claude_child_env(
+        _launcher_settings(token=""),
+        {
+            "ANTHROPIC_AUTH_TOKEN": "inherited-token",
+            "ANTHROPIC_API_KEY": "official-key",
+        },
+    )
+
+    assert "ANTHROPIC_AUTH_TOKEN" not in env
+    assert "ANTHROPIC_API_KEY" not in env
+
+
+def test_launch_claude_passes_args_and_child_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from cli.entrypoints import launch_claude
+
+    monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com")
+    monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "old-token")
+    monkeypatch.setenv("KEEP_ME", "yes")
+    settings = _launcher_settings(port=9191, token="proxy-token")
+
+    with (
+        patch("cli.entrypoints.get_settings", return_value=settings),
+        patch("cli.entrypoints._preflight_proxy", return_value=None),
+        patch(
+            "cli.entrypoints.subprocess.run",
+            return_value=subprocess.CompletedProcess(["claude-test"], 7),
+        ) as run,
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        launch_claude(["--model", "sonnet"])
+
+    assert exc_info.value.code == 7
+    run.assert_called_once()
+    assert run.call_args.args[0] == ["claude-test", "--model", "sonnet"]
+    child_env = run.call_args.kwargs["env"]
+    assert child_env["ANTHROPIC_BASE_URL"] == "http://127.0.0.1:9191"
+    assert child_env["ANTHROPIC_AUTH_TOKEN"] == "proxy-token"
+    assert child_env["CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"] == "1"
+    assert child_env["KEEP_ME"] == "yes"
+
+
+def test_launch_claude_unreachable_proxy_exits_with_hint(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from cli.entrypoints import launch_claude
+
+    settings = _launcher_settings(port=9393)
+    with (
+        patch("cli.entrypoints.get_settings", return_value=settings),
+        patch("cli.entrypoints._preflight_proxy", return_value="connection refused"),
+        patch("cli.entrypoints.subprocess.run") as run,
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        launch_claude([])
+
+    assert exc_info.value.code == 1
+    run.assert_not_called()
+    captured = capsys.readouterr()
+    assert "http://127.0.0.1:9393" in captured.err
+    assert "fcc-server" in captured.err

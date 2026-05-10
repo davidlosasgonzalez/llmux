@@ -995,6 +995,7 @@ def write_managed_env(updates: Mapping[str, Any]) -> dict[str, Any]:
         return validation | {"applied": False, "pending_fields": []}
 
     target_values = _target_values_with_updates(updates)
+    pending_fields = changed_pending_fields(updates)
     path = managed_env_path()
     path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = path.with_suffix(path.suffix + ".tmp")
@@ -1006,7 +1007,7 @@ def write_managed_env(updates: Mapping[str, Any]) -> dict[str, Any]:
         "errors": [],
         "env_preview": render_env_file(target_values, mask_secrets=True),
         "path": str(path),
-        "pending_fields": changed_pending_fields(updates),
+        "pending_fields": pending_fields,
     }
 
 

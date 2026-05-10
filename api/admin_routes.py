@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
+import inspect
 import ipaddress
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
 
 import httpx
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from config.settings import Settings
 from config.settings import get_settings as get_cached_settings
 from providers.registry import ProviderRegistry
 
@@ -22,6 +24,7 @@ from .admin_config import (
     validate_updates,
     write_managed_env,
 )
+from .admin_urls import local_admin_url
 
 router = APIRouter()
 
@@ -104,13 +107,25 @@ async def validate_admin_config(payload: AdminConfigPayload, request: Request):
 
 
 @router.post("/admin/api/config/apply")
-async def apply_admin_config(payload: AdminConfigPayload, request: Request):
+async def apply_admin_config(
+    payload: AdminConfigPayload,
+    request: Request,
+    background_tasks: BackgroundTasks,
+):
     require_loopback_admin(request)
     result = write_managed_env(_filtered_values(payload.values))
     if not result["applied"]:
         return result
 
     get_cached_settings.cache_clear()
+    restart = _restart_metadata(result["pending_fields"], request)
+    result["restart"] = restart
+    if restart["required"] and restart["automatic"]:
+        callback = request.app.state.admin_restart_callback
+        background_tasks.add_task(_invoke_admin_restart_callback, callback)
+        request.app.state.admin_pending_fields = []
+        return result
+
     old_registry = getattr(request.app.state, "provider_registry", None)
     if isinstance(old_registry, ProviderRegistry):
         await old_registry.cleanup()
@@ -198,6 +213,34 @@ async def refresh_models(request: Request):
 
 def _filtered_values(values: dict[str, Any]) -> dict[str, Any]:
     return {key: value for key, value in values.items() if key in FIELD_BY_KEY}
+
+
+async def _invoke_admin_restart_callback(callback: Any) -> None:
+    result = callback()
+    if inspect.isawaitable(result):
+        await result
+
+
+def _restart_metadata(fields: list[str], request: Request) -> dict[str, Any]:
+    callback = getattr(request.app.state, "admin_restart_callback", None)
+    automatic = bool(fields and callable(callback))
+    return {
+        "required": bool(fields),
+        "automatic": automatic,
+        "admin_url": _next_admin_url() if automatic else None,
+        "fields": fields,
+    }
+
+
+def _next_admin_url() -> str:
+    fields = {
+        field["key"]: field["value"] for field in load_config_response()["fields"]
+    }
+    settings = Settings.model_construct(
+        host=fields.get("HOST") or "0.0.0.0",
+        port=int(fields.get("PORT") or 8082),
+    )
+    return local_admin_url(settings)
 
 
 def _local_provider_url(provider_id: str, values: dict[str, str]) -> str:

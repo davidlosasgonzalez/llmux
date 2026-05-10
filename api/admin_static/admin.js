@@ -339,11 +339,20 @@ async function apply() {
     showValidationResult(result);
     return;
   }
-  const pending = result.pending_fields || [];
+  const restart = result.restart || {};
+  if (restart.required && restart.automatic) {
+    showMessage("Applied. Restarting server...", "ok");
+    byId("applyButton").disabled = true;
+    setTimeout(() => {
+      window.location.href = restart.admin_url || "/admin";
+    }, 1600);
+    return;
+  }
+  const pending = restart.required ? restart.fields || [] : result.pending_fields || [];
   await load();
   showMessage(
     pending.length
-      ? `Applied. Pending manual runtime action: ${pending.join(", ")}`
+      ? `Applied. Restart fcc-server to use: ${pending.join(", ")}`
       : "Applied",
     "ok",
   );

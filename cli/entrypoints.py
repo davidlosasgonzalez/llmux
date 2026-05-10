@@ -2,7 +2,24 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
+from collections.abc import Mapping, Sequence
 from pathlib import Path
+from urllib.error import HTTPError, URLError
+from urllib.request import Request, urlopen
+
+import uvicorn
+
+from api.admin_urls import local_proxy_root_url
+from api.app import GracefulLifespanApp, create_app
+from cli.process_registry import kill_all_best_effort
+from config.settings import Settings, get_settings
+
+PROXY_PREFLIGHT_PATH = "/health"
+PROXY_PREFLIGHT_TIMEOUT_SECONDS = 1.5
+SERVER_GRACEFUL_SHUTDOWN_SECONDS = 5
 
 
 def _load_env_template() -> str:
@@ -21,24 +38,43 @@ def _load_env_template() -> str:
 
 
 def serve() -> None:
-    """Start the FastAPI server (registered as `free-claude-code` script)."""
-    import uvicorn
-
-    from cli.process_registry import kill_all_best_effort
-    from config.settings import get_settings
-
-    settings = get_settings()
+    """Start the FastAPI server (registered as `fcc-server` script)."""
     try:
-        uvicorn.run(
-            "api.app:create_asgi_app",
-            factory=True,
-            host=settings.host,
-            port=settings.port,
-            log_level="debug",
-            timeout_graceful_shutdown=5,
-        )
+        while True:
+            settings = get_settings()
+            if not _run_supervised_server(settings):
+                return
+            get_settings.cache_clear()
     finally:
         kill_all_best_effort()
+
+
+def _run_supervised_server(settings: Settings) -> bool:
+    """Run one uvicorn server instance; return whether admin requested restart."""
+
+    restart_requested = False
+    server_holder: dict[str, uvicorn.Server] = {}
+
+    def request_restart() -> None:
+        nonlocal restart_requested
+        restart_requested = True
+        if server := server_holder.get("server"):
+            server.should_exit = True
+
+    app = create_app(lifespan_enabled=False)
+    app.state.admin_restart_callback = request_restart
+    asgi_app = GracefulLifespanApp(app)
+    config = uvicorn.Config(
+        asgi_app,
+        host=settings.host,
+        port=settings.port,
+        log_level="debug",
+        timeout_graceful_shutdown=SERVER_GRACEFUL_SHUTDOWN_SECONDS,
+    )
+    server = uvicorn.Server(config)
+    server_holder["server"] = server
+    server.run()
+    return restart_requested
 
 
 def init() -> None:
@@ -55,6 +91,73 @@ def init() -> None:
     template = _load_env_template()
     env_file.write_text(template, encoding="utf-8")
     print(f"Config created at {env_file}")
-    print(
-        "Edit it to set your API keys and model preferences, then run: free-claude-code"
-    )
+    print("Edit it to set your API keys and model preferences, then run: fcc-server")
+
+
+def _claude_child_env(
+    settings: Settings, base_env: Mapping[str, str]
+) -> dict[str, str]:
+    """Return a Claude Code environment that targets this proxy."""
+
+    env = {
+        key: value
+        for key, value in base_env.items()
+        if not key.startswith("ANTHROPIC_")
+    }
+    env["ANTHROPIC_BASE_URL"] = local_proxy_root_url(settings)
+    env["CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"] = "1"
+    if token := settings.anthropic_auth_token.strip():
+        env["ANTHROPIC_AUTH_TOKEN"] = token
+    return env
+
+
+def _preflight_proxy(proxy_root_url: str) -> str | None:
+    """Return an error message when the local proxy health check is unreachable."""
+
+    url = f"{proxy_root_url.rstrip('/')}{PROXY_PREFLIGHT_PATH}"
+    request = Request(url, method="GET")
+    try:
+        with urlopen(request, timeout=PROXY_PREFLIGHT_TIMEOUT_SECONDS) as response:
+            status_code = response.getcode()
+    except HTTPError as exc:
+        return f"returned HTTP {exc.code}"
+    except URLError as exc:
+        return str(exc.reason)
+    except OSError as exc:
+        return str(exc)
+
+    if not 200 <= status_code < 300:
+        return f"returned HTTP {status_code}"
+    return None
+
+
+def launch_claude(argv: Sequence[str] | None = None) -> None:
+    """Launch Claude Code with Free Claude Code proxy environment variables."""
+
+    settings = get_settings()
+    proxy_root_url = local_proxy_root_url(settings)
+    if error := _preflight_proxy(proxy_root_url):
+        print(
+            f"Free Claude Code proxy is not reachable at {proxy_root_url}: {error}",
+            file=sys.stderr,
+        )
+        print("Start it in another terminal with: fcc-server", file=sys.stderr)
+        raise SystemExit(1)
+
+    args = list(sys.argv[1:] if argv is None else argv)
+    command = [settings.claude_cli_bin, *args]
+    env = _claude_child_env(settings, os.environ)
+    try:
+        result = subprocess.run(command, env=env, check=False)
+    except FileNotFoundError:
+        print(
+            f"Could not find Claude Code command: {settings.claude_cli_bin}",
+            file=sys.stderr,
+        )
+        print(
+            "Install Claude Code with: npm install -g @anthropic-ai/claude-code",
+            file=sys.stderr,
+        )
+        raise SystemExit(127) from None
+
+    raise SystemExit(result.returncode)

@@ -14,7 +14,7 @@ Use Claude Code CLI, VS Code, JetBrains ACP, or chat bots through your own Anthr
 
 Free Claude Code routes Anthropic Messages API traffic from Claude Code to NVIDIA NIM, Kimi, Wafer, OpenRouter, DeepSeek, LM Studio, llama.cpp, or Ollama. It keeps Claude Code's client-side protocol stable while letting you choose free, paid, or local models.
 
-[Quick Start](#quick-start) · [Local Admin UI](#local-admin-ui) · [Providers](#choose-a-provider) · [Clients](#connect-claude-code) · [Configuration](#configuration-reference) · [Troubleshooting](#troubleshooting) · [Development](#development)
+[Quick Start](#quick-start) · [Providers](#choose-a-provider) · [Clients](#connect-claude-code) · [Configuration](#configuration-reference) · [Troubleshooting](#troubleshooting) · [Development](#development)
 
 </div>
 
@@ -42,14 +42,21 @@ Free Claude Code routes Anthropic Messages API traffic from Claude Code to NVIDI
 - Native Claude Code `/model` picker support through the proxy's `/v1/models` endpoint (Claude Code must opt in to Gateway model discovery; see [Model Picker](#model-picker)).
 - Streaming, tool use, reasoning/thinking block handling, and local request optimizations.
 - Optional Discord or Telegram bot wrapper for remote coding sessions.
+- Optional Usage through the VSCode extension.
 - Optional voice-note transcription through local Whisper or NVIDIA NIM.
 - Local **Admin UI** at `/admin` to edit supported proxy settings, validate changes, and check providers (loopback access only).
 
 ## Quick Start
 
-### 1. Install Requirements
+### 1. Install the latest version of [Claude Code](https://code.claude.com/docs/en/overview)
 
-Install [Claude Code](https://github.com/anthropics/claude-code), then install `uv` and Python 3.14.
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+### 2. Install Runtime Requirements
+
+Install the latest version of [uv](https://docs.astral.sh/uv/getting-started/installation/) and Python 3.14.
 
 macOS/Linux:
 
@@ -67,7 +74,7 @@ uv self update
 uv python install 3.14
 ```
 
-### 2. Install The Proxy
+### 3. Install The Proxy
 
 ```bash
 uv tool install git+https://github.com/Alishahryar1/free-claude-code.git
@@ -75,10 +82,10 @@ uv tool install git+https://github.com/Alishahryar1/free-claude-code.git
 
 Use the same command to update the proxy.
 
-### 3. Start The Proxy
+### 4. Start The Proxy
 
 ```bash
-free-claude-code
+fcc-server
 ```
 
 After startup, the terminal prints the proxy and admin URLs:
@@ -90,7 +97,7 @@ Admin UI: http://127.0.0.1:8082/admin
 
 Many terminals make these clickable. Use your configured `PORT` if it is not `8082`.
 
-### 4. Open The Admin UI
+### 5. Open The Admin UI
 
 Open the **Admin UI** URL from the terminal output.
 
@@ -98,35 +105,21 @@ Open the **Admin UI** URL from the terminal output.
   <img src="assets/admin-page.png" alt="Local admin UI for proxy settings" width="700">
 </div>
 
-### 5. Configure Provider And Model
+### 6. Configure Provider And Model
 
 In the Admin UI, paste your provider key, set `MODEL`, then click **Validate** and **Apply**. Values are saved to `~/.config/free-claude-code/.env`.
 
-### 6. Run Claude Code
-
-Point `ANTHROPIC_BASE_URL` at the proxy root. Do not append `/v1`. Use the same `ANTHROPIC_AUTH_TOKEN` you configured in the Admin UI.
-
-PowerShell:
-
-```powershell
-$env:ANTHROPIC_AUTH_TOKEN="freecc"; $env:ANTHROPIC_BASE_URL="http://localhost:8082"; $env:CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY="1"; claude
-```
-
-Bash:
+### 7. Run Claude Code
 
 ```bash
-ANTHROPIC_AUTH_TOKEN="freecc" ANTHROPIC_BASE_URL="http://localhost:8082" CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1 claude
+fcc-claude
 ```
 
-## Local Admin UI
-
-The Admin UI is local-only: non-loopback clients, or requests with a non-local `Origin`, receive **403**.
-
-It can load masked config values, validate/apply changes, show runtime status, probe local backends (LM Studio, llama.cpp, Ollama), test providers, list models, and refresh the model cache.
+`fcc-claude` reads the current configured port and auth token each time it starts, sets the Claude Code environment variables, and then launches the real `claude` command.
 
 ## Choose A Provider
 
-Use these examples when setting `MODEL` in the [Admin UI](#local-admin-ui) or in `.env`.
+Use these examples when setting `MODEL` in the Admin UI or in `.env`.
 
 Model values use this format:
 
@@ -303,9 +296,13 @@ MODEL="wafer/DeepSeek-V4-Pro"
 
 ### Claude Code CLI
 
+For terminal use, prefer the installed launcher:
+
 ```bash
-ANTHROPIC_AUTH_TOKEN="freecc" ANTHROPIC_BASE_URL="http://localhost:8082" CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1 claude
+fcc-claude
 ```
+
+Keep `fcc-server` running while you work. The Admin UI manages proxy config, restarts the server when runtime settings change, and `fcc-claude` reads the current Admin UI-managed port and auth token every time it starts.
 
 ### VS Code Extension
 
@@ -344,13 +341,13 @@ Restart the IDE after changing the file.
 
 Claude Code 2.1.126 or later can populate `/model` from this proxy's Gateway `/v1/models` response when `ANTHROPIC_BASE_URL` points here. In **2.1.126–2.1.128** that discovery was automatic; **newer releases** require **`CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1`** in the same environment as `ANTHROPIC_*`. Omit the flag if you only set models via proxy config and never use `/model` discovery.
 
-Start Claude Code with that variable set (see [Quick Start](#4-run-claude-code)), run `/model`, and choose any discovered provider model.
+Start Claude Code with that variable set (see [Run Claude Code](#7-run-claude-code)), run `/model`, and choose any discovered provider model.
 
 <div align="center">
   <img src="assets/cc-model-picker.png" alt="Claude Code model picker showing gateway models" width="700">
 </div>
 
-The proxy lists models for configured provider keys and referenced local providers. Picker-safe IDs are routed back to the real provider/model automatically, so no `.env` edit or separate launcher script is needed after startup.
+The proxy lists models for configured provider keys and referenced local providers. Picker-safe IDs are routed back to the real provider/model automatically, so no `.env` edit is needed after startup.
 
 Each provider model also has a `(no thinking)` picker variant. Use it when a model does not support Claude Code thinking or fails with adaptive-thinking requests. It routes to the same upstream model while asking Claude Code to send a non-thinking request.
 
@@ -596,8 +593,10 @@ Run them in that order before pushing. CI enforces the same checks.
 
 `pyproject.toml` installs:
 
-- `free-claude-code`: starts the proxy with configured host and port.
+- `fcc-server`: starts the proxy with configured host and port.
 - `fcc-init`: optional file-based config scaffold at `~/.config/free-claude-code/.env`.
+- `fcc-claude`: launches Claude Code with the configured local proxy URL, auth token, and model discovery flag.
+- `free-claude-code`: compatibility alias for `fcc-server`.
 
 ### Extending
 
