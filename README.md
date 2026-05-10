@@ -100,7 +100,7 @@ Open the **Admin UI** URL from the terminal output.
 
 ### 5. Configure Provider And Model
 
-In the Admin UI, paste your provider key, set `MODEL`, set `ANTHROPIC_AUTH_TOKEN`, then click **Validate** and **Apply**. Values are saved to `~/.config/free-claude-code/.env`.
+In the Admin UI, paste your provider key, set `MODEL`, then click **Validate** and **Apply**. Values are saved to `~/.config/free-claude-code/.env`.
 
 ### 6. Run Claude Code
 
