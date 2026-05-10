@@ -19,7 +19,7 @@ Free Claude Code routes Anthropic Messages API traffic from Claude Code to NVIDI
 </div>
 
 <div align="center">
-  <img src="pic.png" alt="Free Claude Code in action" width="700">
+  <img src="assets/pic.png" alt="Free Claude Code in action" width="700">
 </div>
 
 ## Star History
@@ -95,7 +95,7 @@ Many terminals make these clickable. Use your configured `PORT` if it is not `80
 Open the **Admin UI** URL from the terminal output.
 
 <div align="center">
-  <img src="screenshots/admin-page.png" alt="Local admin UI for proxy settings" width="700">
+  <img src="assets/admin-page.png" alt="Local admin UI for proxy settings" width="700">
 </div>
 
 ### 5. Configure Provider And Model
@@ -347,7 +347,7 @@ Claude Code 2.1.126 or later can populate `/model` from this proxy's Gateway `/v
 Start Claude Code with that variable set (see [Quick Start](#4-run-claude-code)), run `/model`, and choose any discovered provider model.
 
 <div align="center">
-  <img src="cc-model-picker.png" alt="Claude Code model picker showing gateway models" width="700">
+  <img src="assets/cc-model-picker.png" alt="Claude Code model picker showing gateway models" width="700">
 </div>
 
 The proxy lists models for configured provider keys and referenced local providers. Picker-safe IDs are routed back to the real provider/model automatically, so no `.env` edit or separate launcher script is needed after startup.
@@ -540,17 +540,11 @@ Confirm the extension environment variables are set, then reload the extension o
 
 ## How It Works
 
-```text
-Claude Code CLI / IDE
-        |
-        | Anthropic Messages API
-        v
-Free Claude Code proxy (:8082)
-        |
-        | provider-specific request/stream adapter
-        v
-NIM / Kimi / Wafer / OpenRouter / DeepSeek / LM Studio / llama.cpp / Ollama
-```
+<div align="center">
+  <img src="assets/how-it-works.svg" alt="Free Claude Code request flow architecture" width="900">
+</div>
+
+Diagram source: [`assets/how-it-works.mmd`](assets/how-it-works.mmd).
 
 Important pieces:
 
