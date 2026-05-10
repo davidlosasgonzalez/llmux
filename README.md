@@ -67,11 +67,10 @@ uv self update
 uv python install 3.14
 ```
 
-### 2. Clone The Repo
+### 2. Install The Proxy
 
 ```bash
-git clone https://github.com/Alishahryar1/free-claude-code.git
-cd free-claude-code
+uv tool install git+https://github.com/Alishahryar1/free-claude-code.git
 ```
 
 No `.env` copy is needed for the normal setup path. The Admin UI writes config for you.
@@ -79,14 +78,6 @@ No `.env` copy is needed for the normal setup path. The Admin UI writes config f
 ### 3. Start The Proxy
 
 ```bash
-uv run uvicorn server:app --host 0.0.0.0 --port 8082
-```
-
-Package install alternative:
-
-```bash
-uv tool install git+https://github.com/Alishahryar1/free-claude-code.git
-fcc-init
 free-claude-code
 ```
 
@@ -586,6 +577,16 @@ free-claude-code/
 └── tests/                 # Unit and contract tests
 ```
 
+### Run From Source
+
+Use this path if you are developing or want to run directly from a checkout:
+
+```bash
+git clone https://github.com/Alishahryar1/free-claude-code.git
+cd free-claude-code
+uv run uvicorn server:app --host 0.0.0.0 --port 8082
+```
+
 ### Commands
 
 ```bash
@@ -602,7 +603,7 @@ Run them in that order before pushing. CI enforces the same checks.
 `pyproject.toml` installs:
 
 - `free-claude-code`: starts the proxy with configured host and port.
-- `fcc-init`: creates the user config template at `~/.config/free-claude-code/.env`.
+- `fcc-init`: optional file-based config scaffold at `~/.config/free-claude-code/.env`.
 
 ### Extending
 
