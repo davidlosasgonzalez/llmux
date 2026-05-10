@@ -131,7 +131,7 @@ Use these examples when setting `MODEL` in the [Admin UI](#local-admin-ui) or in
 Model values use this format:
 
 ```text
-provider_id/model/name
+provider/lab/model
 ```
 
 `MODEL` is the fallback. `MODEL_OPUS`, `MODEL_SONNET`, and `MODEL_HAIKU` override routing for requests that Claude Code sends for those tiers.
