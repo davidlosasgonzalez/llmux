@@ -14,7 +14,7 @@ Use Claude Code CLI, VS Code, JetBrains ACP, or chat bots through your own Anthr
 
 Free Claude Code routes Anthropic Messages API traffic from Claude Code to NVIDIA NIM, Kimi, Wafer, OpenRouter, DeepSeek, LM Studio, llama.cpp, or Ollama. It keeps Claude Code's client-side protocol stable while letting you choose free, paid, or local models.
 
-[Quick Start](#quick-start) · [Providers](#choose-a-provider) · [Clients](#connect-claude-code) · [Troubleshooting](#troubleshooting) · [Development](#development)
+[Quick Start](#quick-start) · [Local Admin UI](#local-admin-ui) · [Providers](#choose-a-provider) · [Clients](#connect-claude-code) · [Troubleshooting](#troubleshooting) · [Development](#development)
 
 </div>
 
@@ -43,6 +43,7 @@ Free Claude Code routes Anthropic Messages API traffic from Claude Code to NVIDI
 - Streaming, tool use, reasoning/thinking block handling, and local request optimizations.
 - Optional Discord or Telegram bot wrapper for remote coding sessions.
 - Optional voice-note transcription through local Whisper or NVIDIA NIM.
+- Local **Admin UI** at `/admin` to edit supported proxy settings, validate changes, and check providers (loopback access only).
 
 ## Quick Start
 
@@ -115,6 +116,20 @@ Bash:
 ```bash
 ANTHROPIC_AUTH_TOKEN="freecc" ANTHROPIC_BASE_URL="http://localhost:8082" CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1 claude
 ```
+
+## Local Admin UI
+
+With the proxy running, open **`http://127.0.0.1:8082/admin`** in a browser on the same machine (use your configured `PORT` from `.env` if it is not `8082`). Startup logs also print this URL. The page is **localhost-only**: requests that are not from a loopback client (or with a non-local `Origin`) receive **403**.
+
+Use it to:
+
+- Load the current config (API keys and secrets are **masked** in the UI).
+- Validate edits and **apply** them to the managed user env file under `~/.config/free-claude-code/`.
+- See runtime status, probe local backends (LM Studio, llama.cpp, Ollama), list models for a provider, and refresh the cached model list.
+
+<div align="center">
+  <img src="screenshots/admin-page.png" alt="Local admin UI for proxy settings" width="700">
+</div>
 
 ## Choose A Provider
 
