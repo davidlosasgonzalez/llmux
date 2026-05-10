@@ -261,8 +261,6 @@ Restart the IDE after changing the file.
 
 ### 4. Model Picker
 
-To use Claude Code's `/model` picker, start Claude Code with `CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1`, run `/model`, and choose any listed provider model.
-
 <div align="center">
   <img src="assets/cc-model-picker.png" alt="Claude Code model picker showing gateway models" width="700">
 </div>
