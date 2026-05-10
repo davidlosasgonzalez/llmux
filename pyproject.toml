@@ -46,6 +46,7 @@ packages = ["api", "cli", "config", "core", "messaging", "providers"]
 
 [tool.hatch.build.targets.wheel.force-include]
 ".env.example" = "cli/env.example"
+"api/admin_static" = "api/admin_static"
 
 [tool.uv.sources]
 torch = { index = "pytorch-cu130" }

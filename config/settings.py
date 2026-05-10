@@ -29,8 +29,8 @@ class ConfiguredChatModelRef:
 def _env_files() -> tuple[Path, ...]:
     """Return env file paths in priority order (later overrides earlier)."""
     files: list[Path] = [
-        Path.home() / ".config" / "free-claude-code" / ".env",
         Path(".env"),
+        Path.home() / ".config" / "free-claude-code" / ".env",
     ]
     if explicit := os.environ.get("FCC_ENV_FILE"):
         files.append(Path(explicit))

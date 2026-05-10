@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Free Claude Code Admin</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="/admin/assets/admin.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-mark">FC</div>
+          <div>
+            <h1>Free Claude Code</h1>
+            <p>Server Control</p>
+          </div>
+        </div>
+        <nav id="sectionNav" class="section-nav" aria-label="Settings sections"></nav>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Local Admin</p>
+            <h2>Runtime Config</h2>
+          </div>
+          <div class="server-state">
+            <span id="serverStatus" class="status-pill neutral">Loading</span>
+            <span id="modelBadge" class="model-badge"></span>
+          </div>
+        </header>
+
+        <section class="provider-strip" aria-label="Provider status">
+          <div class="strip-header">
+            <h3>Providers</h3>
+            <button id="refreshLocal" class="ghost-button" type="button">Check local</button>
+          </div>
+          <div id="providerGrid" class="provider-grid"></div>
+        </section>
+
+        <section id="formSections" class="form-sections" aria-label="Configuration"></section>
+
+        <section class="env-panel">
+          <div class="section-heading">
+            <div>
+              <h3>Generated Env</h3>
+              <p>Read-only preview of the managed config file.</p>
+            </div>
+          </div>
+          <pre id="envPreview" class="env-preview"></pre>
+        </section>
+      </main>
+
+      <footer class="action-bar">
+        <div class="action-meta">
+          <strong id="dirtyState">No changes</strong>
+          <span id="configPath"></span>
+        </div>
+        <div id="messageArea" class="message-area"></div>
+        <div class="action-buttons">
+          <button id="validateButton" class="secondary-button" type="button">Validate</button>
+          <button id="applyButton" class="primary-button" type="button" disabled>Apply</button>
+        </div>
+      </footer>
+    </div>
+    <script src="/admin/assets/admin.js"></script>
+  </body>
+</html>

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any
 from fastapi import FastAPI
 from loguru import logger
 
+from api.admin_urls import local_admin_url
 from config.settings import Settings, get_settings
 from providers.exceptions import ServiceUnavailableError
 from providers.registry import ProviderRegistry
@@ -100,11 +101,12 @@ class AppRuntime:
 
     async def startup(self) -> None:
         logger.info("Starting Claude Code Proxy...")
+        logger.info("Admin UI: {} (local-only)", local_admin_url(self.settings))
         self._provider_registry = ProviderRegistry()
         self.app.state.provider_registry = self._provider_registry
         try:
             warn_if_process_auth_token(self.settings)
-            await self._provider_registry.validate_configured_models(self.settings)
+            await self._validate_configured_models_best_effort()
             self._provider_registry.start_model_list_refresh(self.settings)
             await self._start_messaging_if_configured()
             self._publish_state()
@@ -116,6 +118,21 @@ class AppRuntime:
                 log_verbose_errors=self.settings.log_api_error_tracebacks,
             )
             raise
+
+    async def _validate_configured_models_best_effort(self) -> None:
+        """Warm validation status without blocking first-run/admin access."""
+        if self._provider_registry is None:
+            return
+        try:
+            await self._provider_registry.validate_configured_models(self.settings)
+        except ServiceUnavailableError as exc:
+            self.app.state.startup_validation_error = exc.message
+            logger.warning(
+                "Configured provider model validation failed during startup; "
+                "server will continue and requests will fail at provider resolution "
+                "when config is incomplete. {}",
+                exc.message,
+            )
 
     async def shutdown(self) -> None:
         verbose = self.settings.log_api_error_tracebacks
