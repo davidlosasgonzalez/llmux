@@ -28,11 +28,13 @@ DEFAULT_TARGETS = frozenset(
     }
 )
 SIDE_EFFECT_TARGETS = frozenset({"discord", "telegram", "voice"})
-OPT_IN_TARGETS = frozenset({"nvidia_nim_cli"})
+OPT_IN_TARGETS = frozenset({"nvidia_nim_cli", "openrouter_free_cli"})
 ALL_TARGETS = DEFAULT_TARGETS | SIDE_EFFECT_TARGETS | OPT_IN_TARGETS
 TARGET_ALIASES = {
     "contract": "api",
     "nim_cli": "nvidia_nim_cli",
+    "openrouter_cli": "openrouter_free_cli",
+    "openrouter_free": "openrouter_free_cli",
     "optimizations": "api",
     "thinking": "providers",
     "vscode": "clients",
@@ -58,6 +60,14 @@ NVIDIA_NIM_CLI_DEFAULT_MODELS: tuple[str, ...] = (
     "deepseek-ai/deepseek-v4-flash",
 )
 
+OPENROUTER_FREE_CLI_DEFAULT_MODELS: tuple[str, ...] = (
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "openai/gpt-oss-120b:free",
+    "minimax/minimax-m2.5:free",
+    "inclusionai/ring-2.6-1t:free",
+    "poolside/laguna-m.1:free",
+)
+
 
 TARGET_REQUIRED_ENV: dict[str, tuple[str, ...]] = {
     "api": (),
@@ -75,6 +85,10 @@ TARGET_REQUIRED_ENV: dict[str, tuple[str, ...]] = {
     "ollama": ("OLLAMA_BASE_URL with a running Ollama server",),
     "nvidia_nim_cli": (
         "NVIDIA_NIM_API_KEY",
+        "FCC_SMOKE_CLAUDE_BIN or claude on PATH",
+    ),
+    "openrouter_free_cli": (
+        "OPENROUTER_API_KEY",
         "FCC_SMOKE_CLAUDE_BIN or claude on PATH",
     ),
     "telegram": (
@@ -181,6 +195,13 @@ class SmokeConfig:
         return [
             ProviderModel(provider="nvidia_nim", full_model=full_model, source=source)
             for full_model, source in nvidia_nim_cli_model_refs().items()
+        ]
+
+    def openrouter_free_cli_models(self) -> list[ProviderModel]:
+        """Return OpenRouter free models for Claude Code CLI characterization."""
+        return [
+            ProviderModel(provider="open_router", full_model=full_model, source=source)
+            for full_model, source in openrouter_free_cli_model_refs().items()
         ]
 
     def _include_provider_in_smoke(
@@ -291,6 +312,40 @@ def nvidia_nim_cli_model_refs(
     normalized: dict[str, str] = {}
     for raw_model, model_source in models:
         full_model = _normalize_provider_model("nvidia_nim", raw_model)
+        normalized.setdefault(full_model, model_source)
+    return normalized
+
+
+def openrouter_free_cli_model_refs(
+    env: Mapping[str, str] | None = None,
+) -> dict[str, str]:
+    """Return normalized OpenRouter free CLI matrix model refs in deterministic order."""
+    source = env if env is not None else os.environ
+    explicit_models = _parse_csv_ordered(source.get("FCC_SMOKE_OPENROUTER_FREE_MODELS"))
+    extra_models = _parse_csv_ordered(
+        source.get("FCC_SMOKE_OPENROUTER_FREE_EXTRA_MODELS")
+    )
+
+    if "FCC_SMOKE_OPENROUTER_FREE_MODELS" in source and not explicit_models:
+        raise ValueError(
+            "FCC_SMOKE_OPENROUTER_FREE_MODELS must list at least one model"
+        )
+
+    models: list[tuple[str, str]] = []
+    base_models = explicit_models or OPENROUTER_FREE_CLI_DEFAULT_MODELS
+    base_source = (
+        "FCC_SMOKE_OPENROUTER_FREE_MODELS"
+        if explicit_models
+        else "openrouter_free_cli_default"
+    )
+    models.extend((model, base_source) for model in base_models)
+    models.extend(
+        (model, "FCC_SMOKE_OPENROUTER_FREE_EXTRA_MODELS") for model in extra_models
+    )
+
+    normalized: dict[str, str] = {}
+    for raw_model, model_source in models:
+        full_model = _normalize_provider_model("open_router", raw_model)
         normalized.setdefault(full_model, model_source)
     return normalized
 

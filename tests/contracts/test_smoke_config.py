@@ -7,11 +7,13 @@ from smoke.lib.config import (
     ALL_TARGETS,
     DEFAULT_TARGETS,
     NVIDIA_NIM_CLI_DEFAULT_MODELS,
+    OPENROUTER_FREE_CLI_DEFAULT_MODELS,
     OPT_IN_TARGETS,
     PROVIDER_SMOKE_DEFAULT_MODELS,
     TARGET_REQUIRED_ENV,
     SmokeConfig,
     nvidia_nim_cli_model_refs,
+    openrouter_free_cli_model_refs,
 )
 
 
@@ -61,6 +63,10 @@ def test_nvidia_nim_cli_is_opt_in_smoke_target() -> None:
     assert "nvidia_nim_cli" in OPT_IN_TARGETS
     assert "nvidia_nim_cli" in ALL_TARGETS
     assert "nvidia_nim_cli" in TARGET_REQUIRED_ENV
+    assert "openrouter_free_cli" not in DEFAULT_TARGETS
+    assert "openrouter_free_cli" in OPT_IN_TARGETS
+    assert "openrouter_free_cli" in ALL_TARGETS
+    assert "openrouter_free_cli" in TARGET_REQUIRED_ENV
 
 
 def test_ollama_provider_configuration_uses_base_url() -> None:
@@ -265,3 +271,77 @@ def test_smoke_config_returns_nvidia_nim_cli_provider_models(monkeypatch) -> Non
     assert models[0].provider == "nvidia_nim"
     assert models[0].full_model == "nvidia_nim/z-ai/glm-5.1"
     assert models[0].source == "nvidia_nim_cli_default"
+
+
+def test_openrouter_free_cli_default_models_are_normalized() -> None:
+    refs = openrouter_free_cli_model_refs({})
+
+    assert tuple(refs) == tuple(
+        f"open_router/{model}" for model in OPENROUTER_FREE_CLI_DEFAULT_MODELS
+    )
+    assert "open_router/nvidia/nemotron-3-super-120b-a12b:free" in refs
+    assert "open_router/poolside/laguna-m.1:free" in refs
+    assert set(refs.values()) == {"openrouter_free_cli_default"}
+
+
+def test_openrouter_free_cli_models_override_and_append() -> None:
+    refs = openrouter_free_cli_model_refs(
+        {
+            "FCC_SMOKE_OPENROUTER_FREE_MODELS": (
+                "openai/gpt-oss-120b:free,open_router/custom/model:free"
+            ),
+            "FCC_SMOKE_OPENROUTER_FREE_EXTRA_MODELS": (
+                "poolside/laguna-m.1:free,openai/gpt-oss-120b:free"
+            ),
+        }
+    )
+
+    assert tuple(refs) == (
+        "open_router/openai/gpt-oss-120b:free",
+        "open_router/custom/model:free",
+        "open_router/poolside/laguna-m.1:free",
+    )
+    assert refs["open_router/openai/gpt-oss-120b:free"] == (
+        "FCC_SMOKE_OPENROUTER_FREE_MODELS"
+    )
+    assert refs["open_router/poolside/laguna-m.1:free"] == (
+        "FCC_SMOKE_OPENROUTER_FREE_EXTRA_MODELS"
+    )
+
+
+def test_openrouter_free_cli_models_reject_empty_override() -> None:
+    try:
+        openrouter_free_cli_model_refs({"FCC_SMOKE_OPENROUTER_FREE_MODELS": " , "})
+    except ValueError as exc:
+        assert "FCC_SMOKE_OPENROUTER_FREE_MODELS" in str(exc)
+    else:
+        raise AssertionError("expected empty OpenRouter free CLI override to fail")
+
+
+def test_openrouter_free_cli_models_reject_wrong_provider_prefix() -> None:
+    try:
+        openrouter_free_cli_model_refs(
+            {"FCC_SMOKE_OPENROUTER_FREE_MODELS": "nvidia_nim/model"}
+        )
+    except ValueError as exc:
+        assert "open_router" in str(exc)
+    else:
+        raise AssertionError("expected wrong provider prefix to fail")
+
+
+def test_smoke_config_returns_openrouter_free_cli_provider_models(monkeypatch) -> None:
+    monkeypatch.delenv("FCC_SMOKE_OPENROUTER_FREE_MODELS", raising=False)
+    monkeypatch.delenv("FCC_SMOKE_OPENROUTER_FREE_EXTRA_MODELS", raising=False)
+    config = _smoke_config(
+        settings=_settings(
+            model="open_router/openai/gpt-oss-120b:free",
+            open_router_api_key="openrouter-key",
+            ollama_base_url="",
+        )
+    )
+
+    models = config.openrouter_free_cli_models()
+
+    assert models[0].provider == "open_router"
+    assert models[0].full_model == "open_router/nvidia/nemotron-3-super-120b-a12b:free"
+    assert models[0].source == "openrouter_free_cli_default"

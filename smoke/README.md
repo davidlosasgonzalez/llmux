@@ -63,6 +63,7 @@ Heavy/side-effectful targets are opt-in:
 | Target | Product scenarios | Required environment |
 | --- | --- | --- |
 | `nvidia_nim_cli` | Claude Code CLI feature matrix across NIM models | `NVIDIA_NIM_API_KEY`, Claude CLI |
+| `openrouter_free_cli` | Claude Code CLI feature matrix across OpenRouter free models | `OPENROUTER_API_KEY`, Claude CLI |
 | `telegram` | getMe, send, edit, delete, optional manual inbound | token and chat/user ID |
 | `discord` | channel access, send, edit, delete, optional manual inbound | token and channel ID |
 | `voice` | generated WAV through local Whisper or NVIDIA NIM transcription | `VOICE_NOTE_ENABLED=true`, `FCC_SMOKE_RUN_VOICE=1` |
@@ -98,6 +99,13 @@ uv run pytest smoke/product -n 0 -s --tb=short
 
 ```powershell
 $env:FCC_LIVE_SMOKE = "1"
+$env:FCC_SMOKE_TARGETS = "openrouter_free_cli"
+$env:FCC_SMOKE_OPENROUTER_FREE_MODELS = "nvidia/nemotron-3-super-120b-a12b:free,openai/gpt-oss-120b:free,minimax/minimax-m2.5:free,inclusionai/ring-2.6-1t:free,poolside/laguna-m.1:free"
+uv run pytest smoke/product -n 0 -s --tb=short
+```
+
+```powershell
+$env:FCC_LIVE_SMOKE = "1"
 $env:FCC_SMOKE_TARGETS = "messaging,config,extensibility"
 uv run pytest smoke/product -n 0 -s --tb=short
 ```
@@ -118,6 +126,10 @@ uv run pytest smoke/product -n 0 -s --tb=short
   that replace the default characterization set.
 - `FCC_SMOKE_NIM_EXTRA_MODELS`: optional comma-separated NVIDIA NIM CLI matrix
   models appended to the default or replacement set.
+- `FCC_SMOKE_OPENROUTER_FREE_MODELS`: optional comma-separated OpenRouter free
+  CLI matrix models that replace the default characterization set.
+- `FCC_SMOKE_OPENROUTER_FREE_EXTRA_MODELS`: optional comma-separated OpenRouter
+  free CLI matrix models appended to the default or replacement set.
 - `FCC_SMOKE_TIMEOUT_S`: per-request/subprocess timeout, default `45`.
 - `FCC_SMOKE_CLAUDE_BIN`: Claude CLI executable name, default `claude`.
 - `FCC_SMOKE_TELEGRAM_CHAT_ID`: Telegram chat/user ID for send/edit/delete.

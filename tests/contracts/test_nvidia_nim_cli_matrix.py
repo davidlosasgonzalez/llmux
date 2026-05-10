@@ -4,13 +4,15 @@ import json
 from pathlib import Path
 
 from config.settings import Settings
-from smoke.lib.config import DEFAULT_TARGETS, SmokeConfig
-from smoke.lib.nvidia_nim_cli import (
+from smoke.lib.claude_cli_matrix import (
     ClaudeCliRun,
+    _build_claude_cli_command,
+    _subagent_probe_options,
     make_outcome,
     regression_failures,
     write_matrix_report,
 )
+from smoke.lib.config import DEFAULT_TARGETS, SmokeConfig
 
 
 def _smoke_config(tmp_path: Path) -> SmokeConfig:
@@ -51,7 +53,12 @@ def test_nvidia_nim_cli_matrix_report_shape_and_redaction(
         log_path=tmp_path / "server.log",
     )
 
-    path = write_matrix_report(_smoke_config(tmp_path), [outcome])
+    path = write_matrix_report(
+        _smoke_config(tmp_path),
+        [outcome],
+        target="nvidia_nim_cli",
+        filename_prefix="nvidia-nim-cli",
+    )
     payload = json.loads(path.read_text(encoding="utf-8"))
 
     assert path.name.startswith("nvidia-nim-cli-matrix-test-worker-")
@@ -62,7 +69,54 @@ def test_nvidia_nim_cli_matrix_report_shape_and_redaction(
     assert saved["classification"] == "passed"
     assert saved["request_count"] == 1
     assert saved["token_evidence"]["marker_present"] is True
+    assert saved["token_evidence"]["agent_catalog_present"] is False
+    assert saved["token_evidence"]["agent_tool_count"] == 0
+    assert saved["token_evidence"]["agent_result_count"] == 0
     assert "secret-nim-key" not in path.read_text(encoding="utf-8")
+
+
+def test_openrouter_free_cli_matrix_report_shape_and_redaction(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv("OPENROUTER_API_KEY", "secret-openrouter-key")
+    run = ClaudeCliRun(
+        command=("claude", "-p", "redacted"),
+        returncode=0,
+        stdout="FCC_OPENROUTER_FREE_BASIC secret-openrouter-key",
+        stderr="",
+        duration_s=1.25,
+    )
+    outcome = make_outcome(
+        model="openai/gpt-oss-120b:free",
+        full_model="open_router/openai/gpt-oss-120b:free",
+        source="openrouter_free_cli_default",
+        feature="basic_text",
+        marker="FCC_OPENROUTER_FREE_BASIC",
+        run=run,
+        log_delta='POST /v1/messages HTTP/1.1" 200 OK secret-openrouter-key',
+        log_path=tmp_path / "server.log",
+    )
+
+    path = write_matrix_report(
+        _smoke_config(tmp_path),
+        [outcome],
+        target="openrouter_free_cli",
+        filename_prefix="openrouter-free-cli",
+    )
+    payload = json.loads(path.read_text(encoding="utf-8"))
+
+    assert path.name.startswith("openrouter-free-cli-matrix-test-worker-")
+    assert payload["target"] == "openrouter_free_cli"
+    assert payload["models"] == ["open_router/openai/gpt-oss-120b:free"]
+    saved = payload["outcomes"][0]
+    assert saved["feature"] == "basic_text"
+    assert saved["classification"] == "passed"
+    assert saved["request_count"] == 1
+    assert saved["token_evidence"]["marker_present"] is True
+    assert saved["token_evidence"]["agent_catalog_present"] is False
+    assert saved["token_evidence"]["agent_tool_count"] == 0
+    assert saved["token_evidence"]["agent_result_count"] == 0
+    assert "secret-openrouter-key" not in path.read_text(encoding="utf-8")
 
 
 def test_nvidia_nim_cli_matrix_regression_detection(tmp_path: Path) -> None:
@@ -143,6 +197,140 @@ def test_nvidia_nim_cli_raw_payload_log_counts_as_proxy_request(
     assert regression_failures([outcome]) == []
 
 
+def test_cli_matrix_missing_agent_catalog_is_harness_bug(tmp_path: Path) -> None:
+    run = ClaudeCliRun(
+        command=("claude", "-p", "x"),
+        returncode=0,
+        stdout="ordinary answer",
+        stderr="",
+        duration_s=0.1,
+    )
+    outcome = make_outcome(
+        model="openai/gpt-oss-120b:free",
+        full_model="open_router/openai/gpt-oss-120b:free",
+        source="openrouter_free_cli_default",
+        feature="subagent_task",
+        marker="FCC_OPENROUTER_FREE_TASK",
+        run=run,
+        log_delta=(
+            "API_REQUEST: request_id=req_1 model=openai/gpt-oss-120b:free "
+            "messages=1\n"
+            "FULL_PAYLOAD [req_1]: {'messages': [], 'tools': [{'name': 'Read'}], "
+            "'tool_choice': None}"
+        ),
+        log_path=tmp_path / "server.log",
+        requires_agent=True,
+    )
+
+    assert outcome.classification == "harness_bug"
+    assert outcome.token_evidence["agent_catalog_present"] is False
+
+
+def test_cli_matrix_agent_catalog_without_agent_use_is_model_feature_failure(
+    tmp_path: Path,
+) -> None:
+    marker = "FCC_OPENROUTER_FREE_TASK"
+    run = ClaudeCliRun(
+        command=("claude", "-p", "x"),
+        returncode=0,
+        stdout=(
+            f'{marker}\n{{"type":"tool_use","name":"Read"}}\n{{"type":"tool_result"}}'
+        ),
+        stderr="",
+        duration_s=0.1,
+    )
+    outcome = make_outcome(
+        model="openai/gpt-oss-120b:free",
+        full_model="open_router/openai/gpt-oss-120b:free",
+        source="openrouter_free_cli_default",
+        feature="subagent_task",
+        marker=marker,
+        run=run,
+        log_delta=(
+            "API_REQUEST: request_id=req_1 model=openai/gpt-oss-120b:free "
+            "messages=1\n"
+            "FULL_PAYLOAD [req_1]: {'messages': [], 'tools': "
+            "[{'name': 'Agent'}, {'name': 'Read'}], 'tool_choice': None}"
+        ),
+        log_path=tmp_path / "server.log",
+        requires_tool_result=True,
+        requires_agent=True,
+    )
+
+    assert outcome.classification == "model_feature_failure"
+    assert outcome.token_evidence["agent_catalog_present"] is True
+    assert outcome.token_evidence["agent_tool_count"] == 0
+
+
+def test_cli_matrix_agent_use_result_and_marker_pass(tmp_path: Path) -> None:
+    marker = "FCC_OPENROUTER_FREE_TASK"
+    run = ClaudeCliRun(
+        command=("claude", "-p", "x"),
+        returncode=0,
+        stdout=(
+            f'{marker}\n{{"type":"tool_use","name":"Agent"}}\n'
+            '{"type":"tool_result","content":"agentId: abc123"}'
+        ),
+        stderr="",
+        duration_s=0.1,
+    )
+    outcome = make_outcome(
+        model="openai/gpt-oss-120b:free",
+        full_model="open_router/openai/gpt-oss-120b:free",
+        source="openrouter_free_cli_default",
+        feature="subagent_task",
+        marker=marker,
+        run=run,
+        log_delta=(
+            "API_REQUEST: request_id=req_1 model=openai/gpt-oss-120b:free "
+            "messages=1\n"
+            "FULL_PAYLOAD [req_1]: {'messages': [], 'tools': "
+            "[{'name': 'Agent'}, {'name': 'Read'}], 'tool_choice': None}"
+        ),
+        log_path=tmp_path / "server.log",
+        requires_tool_result=True,
+        requires_agent=True,
+    )
+
+    assert outcome.classification == "passed"
+    assert outcome.token_evidence["agent_catalog_present"] is True
+    assert outcome.token_evidence["agent_tool_count"] == 1
+    assert outcome.token_evidence["agent_result_count"] == 1
+
+
+def test_cli_matrix_agent_prompt_text_without_tool_evidence_does_not_pass(
+    tmp_path: Path,
+) -> None:
+    marker = "FCC_OPENROUTER_FREE_TASK"
+    run = ClaudeCliRun(
+        command=("claude", "-p", "x"),
+        returncode=0,
+        stdout=f"{marker}\nAgent should read the file.",
+        stderr="",
+        duration_s=0.1,
+    )
+    outcome = make_outcome(
+        model="openai/gpt-oss-120b:free",
+        full_model="open_router/openai/gpt-oss-120b:free",
+        source="openrouter_free_cli_default",
+        feature="subagent_task",
+        marker=marker,
+        run=run,
+        log_delta=(
+            "API_REQUEST: request_id=req_1 model=openai/gpt-oss-120b:free "
+            "messages=1\n"
+            "FULL_PAYLOAD [req_1]: {'messages': [], 'tools': "
+            "[{'name': 'Agent'}, {'name': 'Read'}], 'tool_choice': None}"
+        ),
+        log_path=tmp_path / "server.log",
+        requires_agent=True,
+    )
+
+    assert outcome.classification == "model_feature_failure"
+    assert outcome.token_evidence["agent_catalog_present"] is True
+    assert outcome.token_evidence["agent_tool_count"] == 0
+
+
 def test_nvidia_nim_cli_timeout_is_not_model_missing(
     tmp_path: Path,
 ) -> None:
@@ -194,3 +382,89 @@ def test_nvidia_nim_cli_success_beats_verbose_timeout_words(tmp_path: Path) -> N
 
     assert outcome.classification == "passed"
     assert outcome.request_count == 1
+
+
+def test_cli_matrix_uuid_429_does_not_count_as_upstream_unavailable(
+    tmp_path: Path,
+) -> None:
+    run = ClaudeCliRun(
+        command=("claude", "-p", "x"),
+        returncode=0,
+        stdout='{"uuid":"d3c76eea-3634-4299-aec0-e7634b3716da"}',
+        stderr="",
+        duration_s=0.1,
+    )
+    outcome = make_outcome(
+        model="openai/gpt-oss-120b:free",
+        full_model="open_router/openai/gpt-oss-120b:free",
+        source="openrouter_free_cli_default",
+        feature="subagent_task",
+        marker="FCC_OPENROUTER_FREE_TASK",
+        run=run,
+        log_delta="API_REQUEST: request_id=req_1 model=openai/gpt-oss-120b:free messages=2",
+        log_path=tmp_path / "server.log",
+        requires_task=True,
+    )
+
+    assert outcome.classification == "model_feature_failure"
+
+
+def test_cli_matrix_real_http_429_counts_as_upstream_unavailable(
+    tmp_path: Path,
+) -> None:
+    run = ClaudeCliRun(
+        command=("claude", "-p", "x"),
+        returncode=0,
+        stdout="ordinary answer",
+        stderr="",
+        duration_s=0.1,
+    )
+    outcome = make_outcome(
+        model="openai/gpt-oss-120b:free",
+        full_model="open_router/openai/gpt-oss-120b:free",
+        source="openrouter_free_cli_default",
+        feature="subagent_task",
+        marker="FCC_OPENROUTER_FREE_TASK",
+        run=run,
+        log_delta=(
+            "API_REQUEST: request_id=req_1 model=openai/gpt-oss-120b:free "
+            'messages=2 upstream HTTP/1.1" 429 Too Many Requests'
+        ),
+        log_path=tmp_path / "server.log",
+        requires_task=True,
+    )
+
+    assert outcome.classification == "upstream_unavailable"
+
+
+def test_cli_matrix_default_command_uses_bare_mode() -> None:
+    command = _build_claude_cli_command(
+        claude_bin="claude",
+        prompt="hello",
+        tools="Read",
+    )
+
+    assert command[:2] == ("claude", "--bare")
+    assert "--tools" in command
+    assert "Read" in command
+
+
+def test_cli_matrix_subagent_command_uses_agent_without_bare_or_task() -> None:
+    bare, tools, pre_tool_args, extra_args = _subagent_probe_options("{}")
+    command = _build_claude_cli_command(
+        claude_bin="claude",
+        prompt="hello",
+        tools=tools,
+        bare=bare,
+        pre_tool_args=pre_tool_args,
+        extra_args=extra_args,
+    )
+
+    assert "--bare" not in command
+    assert command[command.index("--setting-sources") + 1] == "local"
+    assert "--strict-mcp-config" in command
+    assert command[command.index("--mcp-config") + 1] == '{"mcpServers":{}}'
+    assert command[command.index("--tools") + 1] == "Agent,Read"
+    assert command[command.index("--allowedTools") + 1] == "Agent,Read"
+    assert command[command.index("--agents") + 1] == "{}"
+    assert "Task,Read" not in command
