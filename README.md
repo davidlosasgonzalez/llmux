@@ -74,7 +74,13 @@ uv self update
 uv python install 3.14
 ```
 
-### 3. Install The Proxy
+### 3. Get An NVIDIA NIM API Key
+
+Create a free NVIDIA NIM API key, then keep it ready for the Admin UI setup step.
+
+See [NVIDIA NIM provider setup](#nvidia-nim-provider).
+
+### 4. Install The Proxy
 
 ```bash
 uv tool install git+https://github.com/Alishahryar1/free-claude-code.git
@@ -82,7 +88,7 @@ uv tool install git+https://github.com/Alishahryar1/free-claude-code.git
 
 Use the same command to update the proxy.
 
-### 4. Start The Proxy
+### 5. Start The Proxy
 
 ```bash
 fcc-server
@@ -97,7 +103,7 @@ Admin UI: http://127.0.0.1:8082/admin
 
 Many terminals make these clickable. Use your configured `PORT` if it is not `8082`.
 
-### 5. Open The Admin UI
+### 6. Open The Admin UI And Configure NVIDIA NIM
 
 Open the **Admin UI** URL from the terminal output.
 
@@ -105,9 +111,9 @@ Open the **Admin UI** URL from the terminal output.
   <img src="assets/admin-page.png" alt="Local admin UI for proxy settings" width="700">
 </div>
 
-### 6. Configure Provider And Model
+Paste your NVIDIA NIM API key into `NVIDIA_NIM_API_KEY`, then click **Validate** and **Apply**.
 
-In the Admin UI, paste your provider key, set `MODEL`, then click **Validate** and **Apply**. Values are saved to `~/.config/free-claude-code/.env`.
+The default model is already set to `nvidia_nim/z-ai/glm4.7`. You can change it later from the same Admin UI.
 
 ### 7. Run Claude Code
 
@@ -119,37 +125,15 @@ fcc-claude
 
 ## Choose A Provider
 
-Use these examples when setting `MODEL` in the Admin UI or in `.env`.
+Pick one provider, enter its key or local URL in the Admin UI, and set `MODEL` to a provider-prefixed model slug. `MODEL` is the fallback. `MODEL_OPUS`, `MODEL_SONNET`, and `MODEL_HAIKU` can override routing for Claude Code's model tiers.
 
-Model values use this format:
+<a id="nvidia-nim-provider"></a>
 
-```text
-provider/lab/model
-```
-
-`MODEL` is the fallback. `MODEL_OPUS`, `MODEL_SONNET`, and `MODEL_HAIKU` override routing for requests that Claude Code sends for those tiers.
-
-| Provider | Prefix | Transport | Key | Default base URL |
-| --- | --- | --- | --- | --- |
-| <img src="https://cdn.simpleicons.org/nvidia/76B900" alt="" width="18" height="18">&nbsp;NVIDIA NIM | `nvidia_nim/...` | OpenAI chat translation | `NVIDIA_NIM_API_KEY` | `https://integrate.api.nvidia.com/v1` |
-| <img src="https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-avatar/avatars/kimi.webp" alt="" width="18" height="18">&nbsp;Kimi | `kimi/...` | OpenAI chat translation | `KIMI_API_KEY` | `https://api.moonshot.ai/v1` |
-| <img src="https://wafer.ai/favicon.ico" alt="" width="18" height="18">&nbsp;[Wafer](https://wafer.ai) | `wafer/...` | Anthropic Messages | `WAFER_API_KEY` | `https://pass.wafer.ai/v1` |
-| <img src="https://cdn.simpleicons.org/openrouter/6C47FF" alt="" width="18" height="18">&nbsp;OpenRouter | `open_router/...` | Anthropic Messages | `OPENROUTER_API_KEY` | `https://openrouter.ai/api/v1` |
-| <img src="https://cdn.simpleicons.org/deepseek/4D6BFF" alt="" width="18" height="18">&nbsp;DeepSeek | `deepseek/...` | Anthropic Messages | `DEEPSEEK_API_KEY` | `https://api.deepseek.com/anthropic` |
-| <img src="https://github.com/lmstudio-ai.png?size=64" alt="" width="18" height="18">&nbsp;LM Studio | `lmstudio/...` | Anthropic Messages | none | `http://localhost:1234/v1` |
-| <img src="https://github.com/ggml-org.png?size=64" alt="" width="18" height="18">&nbsp;llama.cpp | `llamacpp/...` | Anthropic Messages | none | `http://localhost:8080/v1` |
-| <img src="https://github.com/ollama.png?size=64" alt="" width="18" height="18">&nbsp;Ollama | `ollama/...` | Anthropic Messages | none | `http://localhost:11434` |
-
-
-<details>
-<summary><img src="https://cdn.simpleicons.org/nvidia/76B900" alt="" width="18" height="18">&nbsp;<b>NVIDIA NIM</b></summary>
+### 1. <img src="https://cdn.simpleicons.org/nvidia/76B900" alt="" width="18" height="18">&nbsp;NVIDIA NIM
 
 Get a key at [build.nvidia.com/settings/api-keys](https://build.nvidia.com/settings/api-keys).
 
-```dotenv
-NVIDIA_NIM_API_KEY="nvapi-your-key"
-MODEL="nvidia_nim/z-ai/glm4.7"
-```
+In the Admin UI, paste it into `NVIDIA_NIM_API_KEY`. The default `MODEL` is `nvidia_nim/z-ai/glm4.7`.
 
 Popular examples:
 
@@ -160,31 +144,17 @@ Popular examples:
 
 Browse models at [build.nvidia.com](https://build.nvidia.com/explore/discover).
 
-</details>
-
-<details>
-<summary><img src="https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-avatar/avatars/kimi.webp" alt="" width="18" height="18">&nbsp;<b>Kimi</b></summary>
+### 2. <img src="https://raw.githubusercontent.com/lobehub/lobe-icons/refs/heads/master/packages/static-avatar/avatars/kimi.webp" alt="" width="18" height="18">&nbsp;Kimi
 
 Get a key at [platform.moonshot.ai/console/api-keys](https://platform.moonshot.ai/console/api-keys).
 
-```dotenv
-KIMI_API_KEY="your-kimi-key"
-MODEL="kimi/kimi-k2.5"
-```
+In the Admin UI, paste it into `KIMI_API_KEY`, then set `MODEL` to a Kimi slug such as `kimi/kimi-k2.5`.
 
 Browse models at [platform.moonshot.ai](https://platform.moonshot.ai).
 
-</details>
+### 3. <img src="https://wafer.ai/favicon.ico" alt="" width="18" height="18">&nbsp;Wafer
 
-<details>
-<summary><img src="https://wafer.ai/favicon.ico" alt="" width="18" height="18">&nbsp;<b>Wafer</b></summary>
-
-Get a key from [wafer.ai](https://wafer.ai), then choose a model returned by Wafer Pass:
-
-```dotenv
-WAFER_API_KEY="your-wafer-key"
-MODEL="wafer/DeepSeek-V4-Pro"
-```
+Get a key from [wafer.ai](https://wafer.ai). In the Admin UI, paste it into `WAFER_API_KEY`, then set `MODEL` to a Wafer Pass model such as `wafer/DeepSeek-V4-Pro`.
 
 Popular examples:
 
@@ -195,66 +165,37 @@ Popular examples:
 
 This provider uses Wafer's Anthropic-compatible endpoint at `https://pass.wafer.ai/v1/messages`.
 
-</details>
-
-<details>
-<summary><img src="https://cdn.simpleicons.org/openrouter/6C47FF" alt="" width="18" height="18">&nbsp;<b>OpenRouter</b></summary>
+### 4. <img src="https://cdn.simpleicons.org/openrouter/6C47FF" alt="" width="18" height="18">&nbsp;OpenRouter
 
 Get a key at [openrouter.ai/keys](https://openrouter.ai/keys).
 
-```dotenv
-OPENROUTER_API_KEY="sk-or-your-key"
-MODEL="open_router/stepfun/step-3.5-flash:free"
-```
+In the Admin UI, paste it into `OPENROUTER_API_KEY`, then set `MODEL` to an OpenRouter slug such as `open_router/stepfun/step-3.5-flash:free`.
 
 Browse [all models](https://openrouter.ai/models) or [free models](https://openrouter.ai/collections/free-models).
 
-</details>
-
-<details>
-<summary><img src="https://cdn.simpleicons.org/deepseek/4D6BFF" alt="" width="18" height="18">&nbsp;<b>DeepSeek</b></summary>
+### 5. <img src="https://cdn.simpleicons.org/deepseek/4D6BFF" alt="" width="18" height="18">&nbsp;DeepSeek
 
 Get a key at [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys).
 
-```dotenv
-DEEPSEEK_API_KEY="your-deepseek-key"
-MODEL="deepseek/deepseek-chat"
-```
+In the Admin UI, paste it into `DEEPSEEK_API_KEY`, then set `MODEL` to a DeepSeek slug such as `deepseek/deepseek-chat`.
 
 This provider uses DeepSeek's Anthropic-compatible endpoint, not the OpenAI chat-completions endpoint.
 
-</details>
+### 6. <img src="https://github.com/lmstudio-ai.png?size=64" alt="" width="18" height="18">&nbsp;LM Studio
 
-<details>
-<summary><img src="https://github.com/lmstudio-ai.png?size=64" alt="" width="18" height="18">&nbsp;<b>LM Studio</b></summary>
+Start LM Studio's local server and load a model. In the Admin UI, keep or update `LM_STUDIO_BASE_URL`, then set `MODEL` to the model identifier shown by LM Studio, prefixed with `lmstudio/`.
 
-Start LM Studio's local server, load a model, then configure:
+Prefer models with tool-use support for Claude Code workflows.
 
-```dotenv
-LM_STUDIO_BASE_URL="http://localhost:1234/v1"
-MODEL="lmstudio/your-loaded-model"
-```
-
-Use the model identifier shown by LM Studio. Prefer models with tool-use support for Claude Code workflows.
-
-</details>
-
-<details>
-<summary><img src="https://github.com/ggml-org.png?size=64" alt="" width="18" height="18">&nbsp;<b>llama.cpp</b></summary>
+### 7. <img src="https://github.com/ggml-org.png?size=64" alt="" width="18" height="18">&nbsp;llama.cpp
 
 Start `llama-server` with an Anthropic-compatible `/v1/messages` endpoint and enough context for Claude Code requests.
 
-```dotenv
-LLAMACPP_BASE_URL="http://localhost:8080/v1"
-MODEL="llamacpp/local-model"
-```
+In the Admin UI, keep or update `LLAMACPP_BASE_URL`, then set `MODEL` to the local model slug, prefixed with `llamacpp/`.
 
 For local coding models, context size matters. If llama.cpp returns HTTP 400 for normal Claude Code requests, increase `--ctx-size` and verify the model/server build supports the requested features.
 
-</details>
-
-<details>
-<summary><img src="https://github.com/ollama.png?size=64" alt="" width="18" height="18">&nbsp;<b>Ollama</b></summary>
+### 8. <img src="https://github.com/ollama.png?size=64" alt="" width="18" height="18">&nbsp;Ollama
 
 Run Ollama and pull a model:
 
@@ -263,34 +204,15 @@ ollama pull llama3.1
 ollama serve
 ```
 
-Then configure the proxy. `OLLAMA_BASE_URL` is the Ollama server root; do not append `/v1`.
+In the Admin UI, keep or update `OLLAMA_BASE_URL`, then set `MODEL` to the same tag shown by `ollama list`, prefixed with `ollama/`.
 
-```dotenv
-OLLAMA_BASE_URL="http://localhost:11434"
-MODEL="ollama/llama3.1"
-```
+`OLLAMA_BASE_URL` is the Ollama server root; do not append `/v1`. Example model slugs include `ollama/llama3.1` and `ollama/llama3.1:8b`.
 
-Use the same tag shown by `ollama list`, for example `ollama/llama3.1:8b`.
+### 9. Mix Providers By Model Tier
 
-</details>
+Each model tier can use a different provider by setting `MODEL_OPUS`, `MODEL_SONNET`, and `MODEL_HAIKU` in the Admin UI. Leave a tier blank to inherit `MODEL`.
 
-<details>
-<summary><b>Mix providers by model tier</b></summary>
-
-Each tier can use a different provider:
-
-```dotenv
-NVIDIA_NIM_API_KEY="nvapi-your-key"
-OPENROUTER_API_KEY="sk-or-your-key"
-WAFER_API_KEY="your-wafer-key"
-
-MODEL_OPUS="nvidia_nim/moonshotai/kimi-k2.5"
-MODEL_SONNET="open_router/deepseek/deepseek-r1-0528:free"
-MODEL_HAIKU="lmstudio/unsloth/GLM-4.7-Flash-GGUF"
-MODEL="wafer/DeepSeek-V4-Pro"
-```
-
-</details>
+For example, you can route Opus to `nvidia_nim/moonshotai/kimi-k2.5`, Sonnet to `open_router/deepseek/deepseek-r1-0528:free`, Haiku to `lmstudio/unsloth/GLM-4.7-Flash-GGUF`, and keep the fallback `MODEL` on `wafer/DeepSeek-V4-Pro`.
 
 ## Connect Claude Code
 
