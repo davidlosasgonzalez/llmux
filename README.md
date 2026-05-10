@@ -73,7 +73,7 @@ uv python install 3.14
 uv tool install git+https://github.com/Alishahryar1/free-claude-code.git
 ```
 
-No `.env` copy is needed for the normal setup path. The Admin UI writes config for you.
+Use the same command to update the proxy.
 
 ### 3. Start The Proxy
 
