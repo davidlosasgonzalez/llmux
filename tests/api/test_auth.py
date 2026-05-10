@@ -73,3 +73,23 @@ def test_anthropic_auth_token_applies_to_models_endpoint():
     assert "data" in r.json()
 
     app.dependency_overrides.clear()
+
+
+def test_root_get_requires_auth_but_root_probes_are_public():
+    client = TestClient(app)
+    settings = Settings()
+    settings.anthropic_auth_token = "root-token"
+    app.dependency_overrides[get_settings] = lambda: settings
+
+    response = client.get("/")
+    assert response.status_code == 401
+
+    head = client.head("/")
+    assert head.status_code == 204
+    assert head.headers["Allow"] == "GET, HEAD, OPTIONS"
+
+    options = client.options("/")
+    assert options.status_code == 204
+    assert options.headers["Allow"] == "GET, HEAD, OPTIONS"
+
+    app.dependency_overrides.clear()

@@ -207,8 +207,8 @@ async def root(
 
 
 @router.api_route("/", methods=["HEAD", "OPTIONS"])
-async def probe_root(_auth=Depends(require_api_key)):
-    """Respond to compatibility probes for the root endpoint."""
+async def probe_root():
+    """Respond to unauthenticated local compatibility probes for the root endpoint."""
     return _probe_response("GET, HEAD, OPTIONS")
 
 
