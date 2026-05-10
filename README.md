@@ -74,7 +74,7 @@ git clone https://github.com/Alishahryar1/free-claude-code.git
 cd free-claude-code
 ```
 
-You do not need to copy or edit `.env` to get started—the **Admin UI** writes a managed config for you (see step 5).
+No `.env` copy is needed for the normal setup path. The Admin UI writes config for you.
 
 ### 3. Start The Proxy
 
@@ -90,11 +90,18 @@ fcc-init
 free-claude-code
 ```
 
-`fcc-init` seeds `~/.config/free-claude-code/.env` from the bundled template. After startup completes, the terminal prints plain URLs such as `Server URL: http://127.0.0.1:8082` and `Admin UI: http://127.0.0.1:8082/admin`; many terminals detect those as links. Use your configured `PORT` if it is not `8082`.
+After startup, the terminal prints the proxy and admin URLs:
+
+```text
+Server URL: http://127.0.0.1:8082
+Admin UI: http://127.0.0.1:8082/admin
+```
+
+Many terminals make these clickable. Use your configured `PORT` if it is not `8082`.
 
 ### 4. Open The Admin UI
 
-On the same machine as the proxy, open the **Admin UI** URL from the terminal output (default **`http://127.0.0.1:8082/admin`**). The page is **localhost-only**: non-loopback clients (or a non-local `Origin` header) receive **403**.
+Open the **Admin UI** URL from the terminal output.
 
 <div align="center">
   <img src="screenshots/admin-page.png" alt="Local admin UI for proxy settings" width="700">
@@ -102,18 +109,11 @@ On the same machine as the proxy, open the **Admin UI** URL from the terminal ou
 
 ### 5. Configure Provider And Model
 
-In the Admin UI:
-
-- Set your provider API key (or local base URL for LM Studio, llama.cpp, or Ollama).
-- Set **`MODEL`** to a value like `nvidia_nim/z-ai/glm4.7` or `open_router/...` (see [Choose A Provider](#choose-a-provider) for examples).
-- Set **`ANTHROPIC_AUTH_TOKEN`** to any shared secret you will pass from Claude Code (for example `freecc`).
-- Use **Validate**, then **Apply**. That writes the managed user env file at **`~/.config/free-claude-code/.env`**.
-
-You normally do not need to hand-edit `.env` files.
+In the Admin UI, paste your provider key, set `MODEL`, set `ANTHROPIC_AUTH_TOKEN`, then click **Validate** and **Apply**. Values are saved to `~/.config/free-claude-code/.env`.
 
 ### 6. Run Claude Code
 
-Point `ANTHROPIC_BASE_URL` at the proxy root. Do not append `/v1`. Use the **same** `ANTHROPIC_AUTH_TOKEN` you configured in the Admin UI. Set `CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1` if you use `/model` to list models from this proxy (see [Model Picker](#model-picker)).
+Point `ANTHROPIC_BASE_URL` at the proxy root. Do not append `/v1`. Use the same `ANTHROPIC_AUTH_TOKEN` you configured in the Admin UI.
 
 PowerShell:
 
@@ -129,15 +129,13 @@ ANTHROPIC_AUTH_TOKEN="freecc" ANTHROPIC_BASE_URL="http://localhost:8082" CLAUDE_
 
 ## Local Admin UI
 
-Details beyond the Quick Start:
+The Admin UI is local-only: non-loopback clients, or requests with a non-local `Origin`, receive **403**.
 
-- Load the current config; API keys and secrets are **masked** in the UI.
-- **Validate** partial edits and **Apply** to update `~/.config/free-claude-code/.env`.
-- Runtime **status**, local backend probes (LM Studio, llama.cpp, Ollama), **test provider** / list models, and **refresh** the cached model list.
+It can load masked config values, validate/apply changes, show runtime status, probe local backends (LM Studio, llama.cpp, Ollama), test providers, list models, and refresh the model cache.
 
 ## Choose A Provider
 
-Configure provider keys and `MODEL` in the [Admin UI](#local-admin-ui) (recommended) or via [manual `.env` setup](#configuration-reference). The table and sections below are a **model and key reference**, not a required first-run path.
+Use these examples when setting `MODEL` in the [Admin UI](#local-admin-ui) or in `.env`.
 
 Model values use this format:
 
@@ -426,7 +424,7 @@ Use `WHISPER_DEVICE="nvidia_nim"` with the `voice` extra and `NVIDIA_NIM_API_KEY
 
 ### Manual `.env` Setup (Headless)
 
-If you prefer files over the Admin UI, copy the template and edit `.env` in the repo and/or **`~/.config/free-claude-code/.env`**. Later files override earlier ones: repo **`.env`**, then **`~/.config/free-claude-code/.env`**, then **`FCC_ENV_FILE`** when set.
+Use this only if you prefer file-based config or are running headless. The Admin UI is easier for first setup.
 
 ```bash
 cp .env.example .env
@@ -440,7 +438,7 @@ MODEL="nvidia_nim/z-ai/glm4.7"
 ANTHROPIC_AUTH_TOKEN="freecc"
 ```
 
-Use any local secret for `ANTHROPIC_AUTH_TOKEN`; Claude Code sends the same value back to this proxy. Leave it empty only for local/private testing.
+Config precedence is repo `.env`, then `~/.config/free-claude-code/.env`, then `FCC_ENV_FILE` when set. `ANTHROPIC_AUTH_TOKEN` can be any local secret; pass the same value to Claude Code.
 
 ### Model Routing
 
