@@ -14,7 +14,7 @@ Use Claude Code CLI, VS Code, JetBrains ACP, or chat bots through your own Anthr
 
 Free Claude Code routes Anthropic Messages API traffic from Claude Code to NVIDIA NIM, Kimi, Wafer, OpenRouter, DeepSeek, LM Studio, llama.cpp, or Ollama. It keeps Claude Code's client-side protocol stable while letting you choose free, paid, or local models.
 
-[Quick Start](#quick-start) · [Providers](#choose-a-provider) · [Clients](#connect-claude-code) · [Configuration](#configuration-reference) · [Troubleshooting](#troubleshooting) · [Development](#development)
+[Quick Start](#quick-start) · [Providers](#choose-a-provider) · [Clients](#connect-claude-code) · [Configuration](#configuration-reference) · [Development](#development)
 
 </div>
 
@@ -294,7 +294,7 @@ MODEL="wafer/DeepSeek-V4-Pro"
 
 ## Connect Claude Code
 
-### Claude Code CLI
+### 1. Claude Code CLI
 
 For terminal use, prefer the installed launcher:
 
@@ -304,7 +304,7 @@ fcc-claude
 
 Keep `fcc-server` running while you work. The Admin UI manages proxy config, restarts the server when runtime settings change, and `fcc-claude` reads the current Admin UI-managed port and auth token every time it starts.
 
-### VS Code Extension
+### 2. VS Code Extension
 
 Open Settings, search for `claude-code.environmentVariables`, choose **Edit in settings.json**, and add:
 
@@ -318,7 +318,7 @@ Open Settings, search for `claude-code.environmentVariables`, choose **Edit in s
 
 Reload the extension. If the extension shows a login screen, choose the Anthropic Console path once; the local proxy still handles model traffic after the environment variables are active.
 
-### JetBrains ACP
+### 3. JetBrains ACP
 
 Edit the installed Claude ACP config:
 
@@ -337,7 +337,7 @@ Set the environment for `acp.registry.claude-acp`:
 
 Restart the IDE after changing the file.
 
-### Model Picker
+### 4. Model Picker
 
 Claude Code 2.1.126 or later can populate `/model` from this proxy's Gateway `/v1/models` response when `ANTHROPIC_BASE_URL` points here. In **2.1.126–2.1.128** that discovery was automatic; **newer releases** require **`CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY=1`** in the same environment as `ANTHROPIC_*`. Omit the flag if you only set models via proxy config and never use `/model` discovery.
 
@@ -353,7 +353,7 @@ Each provider model also has a `(no thinking)` picker variant. Use it when a mod
 
 ## Optional Integrations
 
-### Discord And Telegram Bots
+### 1. Discord And Telegram Bots
 
 The bot wrapper runs Claude Code sessions remotely, streams progress, supports reply-based conversation branches, and can stop or clear tasks.
 
@@ -387,7 +387,7 @@ Useful commands:
 - `/clear` resets sessions; reply to clear one branch.
 - `/stats` shows session state.
 
-### Voice Notes
+### 2. Voice Notes
 
 Voice notes work on Discord and Telegram. Choose one backend:
 
@@ -410,7 +410,7 @@ Use `WHISPER_DEVICE="nvidia_nim"` with the `voice` extra and `NVIDIA_NIM_API_KEY
 
 [`.env.example`](.env.example) is the canonical list of variables. The sections below are the ones most users change.
 
-### Manual `.env` Setup (Headless)
+### 1. Manual `.env` Setup (Headless)
 
 Use this only if you prefer file-based config or are running headless. The Admin UI is easier for first setup.
 
@@ -428,7 +428,7 @@ ANTHROPIC_AUTH_TOKEN="freecc"
 
 Config precedence is repo `.env`, then `~/.config/free-claude-code/.env`, then `FCC_ENV_FILE` when set. `ANTHROPIC_AUTH_TOKEN` can be any local secret; pass the same value to Claude Code.
 
-### Model Routing
+### 2. Model Routing
 
 ```dotenv
 MODEL="nvidia_nim/z-ai/glm4.7"
@@ -443,7 +443,7 @@ ENABLE_HAIKU_THINKING=
 
 Blank per-tier values inherit the fallback. Blank thinking overrides inherit `ENABLE_MODEL_THINKING`.
 
-### Provider Keys And URLs
+### 3. Provider Keys And URLs
 
 ```dotenv
 NVIDIA_NIM_API_KEY=""
@@ -465,7 +465,7 @@ LLAMACPP_PROXY=""
 WAFER_PROXY=""
 ```
 
-### Rate Limits And Timeouts
+### 4. Rate Limits And Timeouts
 
 ```dotenv
 PROVIDER_RATE_LIMIT=1
@@ -478,7 +478,7 @@ HTTP_CONNECT_TIMEOUT=10
 
 Use lower limits for free hosted providers; local providers can usually tolerate higher concurrency if the machine can handle it.
 
-### Security And Diagnostics
+### 5. Security And Diagnostics
 
 ```dotenv
 ANTHROPIC_AUTH_TOKEN=
@@ -492,7 +492,7 @@ LOG_MESSAGING_ERROR_DETAILS=false
 
 Raw logging flags can expose prompts, tool arguments, paths, and model output. Keep them off unless you are debugging locally.
 
-### Local Web Tools
+### 6. Local Web Tools
 
 ```dotenv
 ENABLE_WEB_SERVER_TOOLS=true
@@ -501,39 +501,6 @@ WEB_FETCH_ALLOW_PRIVATE_NETWORKS=false
 ```
 
 These tools perform outbound HTTP from the proxy. Keep private-network access disabled unless you are in a controlled lab environment.
-
-## Troubleshooting
-
-### Claude Code says `undefined ... input_tokens`, `$.speed`, or malformed response
-
-Update to the latest commit first. Older versions could emit invalid usage metadata in streaming responses. Then check:
-
-- `ANTHROPIC_BASE_URL` is `http://localhost:8082`, not `http://localhost:8082/v1`.
-- The proxy is returning Server-Sent Events for `/v1/messages`.
-- `server.log` contains no upstream 400/500 response before the malformed-response error.
-
-### llama.cpp or LM Studio returns HTTP 400
-
-This usually means the local runtime rejected the Anthropic Messages request before the proxy could stream a model answer.
-
-Check:
-
-- The local server supports `POST /v1/messages`.
-- The model and runtime support the requested context length and tools.
-- llama.cpp was started with enough `--ctx-size` for Claude Code prompts.
-- The configured base URL includes `/v1` for LM Studio and llama.cpp.
-
-### Provider disconnects during streaming
-
-Errors like `incomplete chunked read`, `server disconnected`, or a peer closing the body usually come from the upstream provider or gateway. Reduce concurrency, raise timeouts, or retry later.
-
-### Tool calls work on one model but not another
-
-Tool support is model and provider dependent. Some OpenAI-compatible models emit malformed tool-call deltas, omit tool names, or return tool calls as plain text. Try another model or provider before assuming the proxy is broken.
-
-### The VS Code extension still shows a login screen
-
-Confirm the extension environment variables are set, then reload the extension or restart VS Code. The browser login flow may still appear once; the local proxy is used when `ANTHROPIC_BASE_URL` is active in the extension process.
 
 ## How It Works
 
@@ -554,7 +521,7 @@ Important pieces:
 
 ## Development
 
-### Project Structure
+### 1. Project Structure
 
 ```text
 free-claude-code/
@@ -568,7 +535,7 @@ free-claude-code/
 └── tests/                 # Unit and contract tests
 ```
 
-### Run From Source
+### 2. Run From Source
 
 Use this path if you are developing or want to run directly from a checkout:
 
@@ -578,7 +545,7 @@ cd free-claude-code
 uv run uvicorn server:app --host 0.0.0.0 --port 8082
 ```
 
-### Commands
+### 3. Commands
 
 ```bash
 uv run ruff format
@@ -589,7 +556,7 @@ uv run pytest
 
 Run them in that order before pushing. CI enforces the same checks.
 
-### Package Scripts
+### 4. Package Scripts
 
 `pyproject.toml` installs:
 
@@ -598,7 +565,7 @@ Run them in that order before pushing. CI enforces the same checks.
 - `fcc-claude`: launches Claude Code with the configured local proxy URL, auth token, and model discovery flag.
 - `free-claude-code`: compatibility alias for `fcc-server`.
 
-### Extending
+### 5. Extending
 
 - Add OpenAI-compatible providers by extending `OpenAIChatTransport`.
 - Add Anthropic Messages providers by extending `AnthropicMessagesTransport`.
