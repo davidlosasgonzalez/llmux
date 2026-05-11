@@ -23,6 +23,7 @@ from core.anthropic import (
     append_request_id,
     map_stop_reason,
 )
+from core.trace import provider_chat_body_snapshot, trace_event
 from providers.base import BaseProvider, ProviderConfig
 from providers.error_mapping import (
     map_error,
@@ -353,13 +354,16 @@ class OpenAIChatTransport(BaseProvider):
         body = self._build_request_body(request, thinking_enabled=thinking_enabled)
         thinking_enabled = self._is_thinking_enabled(request, thinking_enabled)
         req_tag = f" request_id={request_id}" if request_id else ""
-        logger.info(
-            "{}_STREAM:{} model={} msgs={} tools={}",
-            tag,
-            req_tag,
-            body.get("model"),
-            len(body.get("messages", [])),
-            len(body.get("tools", [])),
+        trace_event(
+            stage="provider",
+            event="provider.request.sent",
+            source="provider",
+            provider=self._provider_name,
+            gateway_model=request.model,
+            downstream_model=body.get("model"),
+            message_count=len(body.get("messages", [])),
+            tool_count=len(body.get("tools", [])),
+            body=provider_chat_body_snapshot(body),
         )
 
         yield sse.message_start()
@@ -455,7 +459,7 @@ class OpenAIChatTransport(BaseProvider):
             except asyncio.CancelledError, GeneratorExit:
                 raise
             except Exception as e:
-                self._log_stream_transport_error(tag, req_tag, e)
+                self._log_stream_transport_error(tag, req_tag, e, request_id=request_id)
                 mapped_e = map_error(e, rate_limiter=self._global_rate_limiter)
                 base_message = user_visible_message_for_mapped_provider_error(
                     mapped_e,
@@ -463,11 +467,13 @@ class OpenAIChatTransport(BaseProvider):
                     read_timeout_s=self._config.http_read_timeout,
                 )
                 error_message = append_request_id(base_message, request_id)
-                logger.info(
-                    "{}_STREAM: Emitting SSE error event for {}{}",
-                    tag,
-                    type(e).__name__,
-                    req_tag,
+                trace_event(
+                    stage="provider",
+                    event="provider.response.error",
+                    source="provider",
+                    provider=tag,
+                    error_message=error_message,
+                    mapped_error_type=type(mapped_e).__name__,
                 )
                 for event in sse.close_all_blocks():
                     yield event
@@ -552,5 +558,14 @@ class OpenAIChatTransport(BaseProvider):
                     provider_input,
                     provider_input - input_tokens,
                 )
+        trace_event(
+            stage="provider",
+            event="provider.response.completed",
+            source="provider",
+            provider=self._provider_name,
+            finish_reason=(None if finish_reason is None else str(finish_reason)),
+            output_tokens=output_tokens,
+            prompt_tokens_estimate=input_tokens,
+        )
         yield sse.message_delta(map_stop_reason(finish_reason), output_tokens)
         yield sse.message_stop()

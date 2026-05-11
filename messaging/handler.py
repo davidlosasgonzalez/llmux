@@ -11,6 +11,7 @@ import asyncio
 from loguru import logger
 
 from core.anthropic import format_user_error_preview, get_user_facing_error_message
+from core.trace import trace_event
 
 from .cli_event_constants import STATUS_MESSAGE_PREFIXES
 from .command_dispatcher import (
@@ -102,26 +103,17 @@ class ClaudeMessageHandler:
         Determines if this is a new conversation or reply,
         creates/extends the message tree, and queues for processing.
         """
-        raw = incoming.text or ""
-        if self._log_raw_messaging_content:
-            text_preview = raw[:80]
-            if len(raw) > 80:
-                text_preview += "..."
-            logger.info(
-                "HANDLER_ENTRY: chat_id={} message_id={} reply_to={} text_preview={!r}",
-                incoming.chat_id,
-                incoming.message_id,
-                incoming.reply_to_message_id,
-                text_preview,
-            )
-        else:
-            logger.info(
-                "HANDLER_ENTRY: chat_id={} message_id={} reply_to={} text_len={}",
-                incoming.chat_id,
-                incoming.message_id,
-                incoming.reply_to_message_id,
-                len(raw),
-            )
+        platform_name = getattr(self.platform, "name", "messaging")
+        trace_event(
+            stage="ingress",
+            event="turn.received",
+            source=platform_name,
+            chat_id=incoming.chat_id,
+            platform_message_id=incoming.message_id,
+            reply_to_message_id=incoming.reply_to_message_id,
+            thread_id=getattr(incoming, "message_thread_id", None),
+            message_text=incoming.text or "",
+        )
 
         with logger.contextualize(
             chat_id=incoming.chat_id, node_id=incoming.message_id
@@ -240,8 +232,16 @@ class ClaudeMessageHandler:
         )
 
         if was_queued and status_msg_id:
-            # Update status to show queue position
             queue_size = self.tree_queue.get_queue_size(node_id)
+            trace_event(
+                stage="routing",
+                event="turn.queued",
+                source=getattr(self.platform, "name", "messaging"),
+                chat_id=incoming.chat_id,
+                platform_message_id=node_id,
+                status_message_id=status_msg_id,
+                queue_size=queue_size,
+            )
             await self.platform.queue_edit_message(
                 incoming.chat_id,
                 status_msg_id,
@@ -343,10 +343,18 @@ class ClaudeMessageHandler:
         last_status: str | None = None
 
         parent_session_id = None
+        platform_nm = getattr(self.platform, "name", "messaging")
         if tree and node.parent_id:
             parent_session_id = tree.get_parent_session_id(node_id)
             if parent_session_id:
-                logger.info(f"Will fork from parent session: {parent_session_id}")
+                trace_event(
+                    stage="claude_cli",
+                    event="claude_cli.fork.from_parent_session",
+                    source=platform_nm,
+                    chat_id=chat_id,
+                    node_id=node_id,
+                    parent_session_id=parent_session_id,
+                )
 
         editor = ThrottledTranscriptEditor(
             platform=self.platform,
@@ -377,6 +385,33 @@ class ClaudeMessageHandler:
                     temp_session_id = session_or_temp_id
                 else:
                     captured_session_id = session_or_temp_id
+
+                sess_evt = (
+                    "claude_cli.session.pending_created"
+                    if is_new
+                    else "claude_cli.session.reused"
+                )
+                trace_event(
+                    stage="claude_cli",
+                    event=sess_evt,
+                    source=platform_nm,
+                    chat_id=chat_id,
+                    node_id=node_id,
+                    status_message_id=status_msg_id,
+                    session_handle=str(session_or_temp_id),
+                    parent_resume_session_id=parent_session_id,
+                    fork_requested=bool(parent_session_id),
+                )
+                trace_event(
+                    stage="claude_cli",
+                    event="claude_cli.request.sent",
+                    source=platform_nm,
+                    chat_id=chat_id,
+                    node_id=node_id,
+                    prompt=incoming.text,
+                    fork_session_arg=bool(parent_session_id),
+                    resume_session_arg=parent_session_id,
+                )
             except RuntimeError as e:
                 error_message = get_user_facing_error_message(e)
                 transcript.apply({"type": "error", "message": error_message})
@@ -390,10 +425,15 @@ class ClaudeMessageHandler:
                         MessageState.ERROR,
                         error_message=error_message,
                     )
+                trace_event(
+                    stage="claude_cli",
+                    event="claude_cli.session.limit_reached",
+                    source=platform_nm,
+                    chat_id=chat_id,
+                    node_id=node_id,
+                )
                 return
 
-            logger.info(f"HANDLER: Starting CLI task processing for node {node_id}")
-            event_count = 0
             async for event_data in cli_session.start_task(
                 incoming.text,
                 session_id=parent_session_id,
@@ -404,9 +444,6 @@ class ClaudeMessageHandler:
                         f"HANDLER: Non-dict event received: {type(event_data)}"
                     )
                     continue
-                event_count += 1
-                if event_count % 10 == 0:
-                    logger.debug(f"HANDLER: Processed {event_count} events so far")
 
                 (
                     captured_session_id,
@@ -426,7 +463,6 @@ class ClaudeMessageHandler:
                 parsed_list = parse_cli_event(
                     event_data, log_raw_cli=self._log_raw_cli_diagnostics
                 )
-                logger.debug(f"HANDLER: Parsed {len(parsed_list)} events from CLI")
 
                 for parsed in parsed_list:
                     (
@@ -448,6 +484,13 @@ class ClaudeMessageHandler:
                     )
 
         except asyncio.CancelledError:
+            trace_event(
+                stage="claude_cli",
+                event="turn.processor.cancelled",
+                source=platform_nm,
+                chat_id=chat_id,
+                node_id=node_id,
+            )
             logger.warning(f"HANDLER: Task cancelled for node {node_id}")
             cancel_reason = None
             if isinstance(node.context, dict):
@@ -466,6 +509,14 @@ class ClaudeMessageHandler:
                     node_id, MessageState.ERROR, error_message="Cancelled by user"
                 )
         except Exception as e:
+            trace_event(
+                stage="claude_cli",
+                event="turn.processor.exception",
+                source=platform_nm,
+                chat_id=chat_id,
+                node_id=node_id,
+                exc_type=type(e).__name__,
+            )
             logger.error(
                 "HANDLER: Task failed with exception: {}",
                 format_exception_for_log(
@@ -480,7 +531,14 @@ class ClaudeMessageHandler:
                     node_id, error_msg, "Parent task failed"
                 )
         finally:
-            logger.info(f"HANDLER: _process_node completed for node {node_id}")
+            trace_event(
+                stage="routing",
+                event="turn.processor.finished",
+                source=platform_nm,
+                chat_id=chat_id,
+                node_id=node_id,
+                claude_session_id=captured_session_id or temp_session_id,
+            )
             # Free the session-manager slot. Session IDs are persisted in the tree and
             # can be resumed later by ID; we don't need to keep a CLISession instance
             # around after this node completes.

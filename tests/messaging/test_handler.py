@@ -14,10 +14,11 @@ def handler(mock_platform, mock_cli_manager, mock_session_store):
 
 
 @pytest.mark.asyncio
-async def test_handle_message_default_logs_text_len_not_content(
+async def test_handle_message_turn_trace_includes_full_message_text(
     mock_platform, mock_cli_manager, mock_session_store, incoming_message_factory
 ):
-    secret = "user-secret-content-never-log-default"
+    """turn.received always records the verbatim user message (local debugging)."""
+    secret = "user-message-content-visible-in-trace"
     handler = ClaudeMessageHandler(
         mock_platform,
         mock_cli_manager,
@@ -27,33 +28,33 @@ async def test_handle_message_default_logs_text_len_not_content(
     incoming = incoming_message_factory(text=secret)
     with (
         patch.object(handler, "_handle_message_impl", new_callable=AsyncMock),
-        patch("messaging.handler.logger.info") as log_info,
+        patch("messaging.handler.trace_event") as trace_mock,
     ):
         await handler.handle_message(incoming)
-    blob = " ".join(str(c) for c in log_info.call_args_list)
-    assert secret not in blob
-    assert "text_len=" in blob
+    kwargs = trace_mock.call_args.kwargs
+    assert kwargs["event"] == "turn.received"
+    assert kwargs["message_text"] == secret
 
 
 @pytest.mark.asyncio
-async def test_handle_message_raw_content_logging_includes_preview(
+async def test_handle_message_log_raw_messaging_does_not_change_turn_received_shape(
     mock_platform, mock_cli_manager, mock_session_store, incoming_message_factory
 ):
-    secret = "visible-preview-xyz"
+    """LOG_RAW_MESSAGING_CONTENT is adapter-only; ingress TRACE always includes text."""
+    text = "visible-either-way"
     handler = ClaudeMessageHandler(
         mock_platform,
         mock_cli_manager,
         mock_session_store,
         log_raw_messaging_content=True,
     )
-    incoming = incoming_message_factory(text=secret)
+    incoming = incoming_message_factory(text=text)
     with (
         patch.object(handler, "_handle_message_impl", new_callable=AsyncMock),
-        patch("messaging.handler.logger.info") as log_info,
+        patch("messaging.handler.trace_event") as trace_mock,
     ):
         await handler.handle_message(incoming)
-    blob = " ".join(str(c) for c in log_info.call_args_list)
-    assert secret in blob
+    assert trace_mock.call_args.kwargs["message_text"] == text
 
 
 def test_get_initial_status_new_conversation(handler):

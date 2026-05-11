@@ -9,6 +9,8 @@ from typing import Any
 
 from loguru import logger
 
+from core.trace import trace_event
+
 from .process_registry import register_pid, unregister_pid
 
 # Cap stderr capture so a runaway child cannot exhaust memory; pipe is still drained.
@@ -136,7 +138,6 @@ class CLISession:
                     "--dangerously-skip-permissions",
                     "--verbose",
                 ]
-                logger.info(f"Resuming Claude session {session_id}")
             else:
                 cmd = [
                     self.claude_bin,
@@ -147,7 +148,6 @@ class CLISession:
                     "--dangerously-skip-permissions",
                     "--verbose",
                 ]
-                logger.info("Starting new Claude session")
 
             if self.allowed_dirs:
                 for d in self.allowed_dirs:
@@ -156,6 +156,22 @@ class CLISession:
             if self.plans_directory is not None:
                 settings_json = json.dumps({"plansDirectory": self.plans_directory})
                 cmd.extend(["--settings", settings_json])
+
+            trace_event(
+                stage="claude_cli",
+                event="claude_cli.process.launch",
+                source="claude_cli",
+                resume_session_id=(
+                    session_id
+                    if session_id and not session_id.startswith("pending_")
+                    else None
+                ),
+                fork_session=fork_session,
+                prompt=prompt,
+                cwd=self.workspace,
+                claude_binary=self.claude_bin,
+                cli_argv=cmd,
+            )
 
             try:
                 self.process = await asyncio.create_subprocess_exec(

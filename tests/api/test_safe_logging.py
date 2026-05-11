@@ -70,11 +70,7 @@ def test_sse_builder_default_debug_has_no_serialized_json_content():
         sse = SSEBuilder("msg_x", "m", 1, log_raw_events=False)
         sse.message_start()
 
-    assert mock_debug.call_count == 1
-    message = str(mock_debug.call_args)
-    assert "serialized_bytes=" in message
-    assert "role" not in message
-    assert "assistant" not in message
+    assert mock_debug.call_count == 0
 
 
 def test_sse_builder_raw_logging_includes_event_body_when_enabled():

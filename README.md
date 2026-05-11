@@ -406,6 +406,8 @@ LOG_MESSAGING_ERROR_DETAILS=false
 
 Raw logging flags can expose prompts, tool arguments, paths, and model output. Keep them off unless you are debugging locally.
 
+Structured TRACE rows append fields such as `"trace": true`, `stage`, `event`, and `source` and include conversation context needed to follow Claude Code flows end-to-end. Dictionary keys resembling credentials (for example `api_key` / `authorization` values nested in structured payloads) are redacted; arbitrary prose you type into prompts may still appear verbatim.
+
 ### 6. Local Web Tools
 
 ```dotenv

@@ -5,6 +5,7 @@ from loguru import logger
 
 from config.settings import Settings
 from core.anthropic import get_token_count
+from core.trace import trace_event
 from providers.registry import ProviderRegistry
 
 from . import dependencies
@@ -231,6 +232,7 @@ async def list_models(
     _auth=Depends(require_api_key),
 ):
     """List the model ids this proxy advertises to Claude-compatible clients."""
+    trace_event(stage="ingress", event="api.models.list", source="api")
     registry = getattr(request.app.state, "provider_registry", None)
     provider_registry = registry if isinstance(registry, ProviderRegistry) else None
     return _build_models_list_response(settings, provider_registry)
@@ -250,5 +252,11 @@ async def stop_cli(request: Request, _auth=Depends(require_api_key)):
         raise HTTPException(status_code=503, detail="Messaging system not initialized")
 
     count = await handler.stop_all_tasks()
+    trace_event(
+        stage="ingress",
+        event="api.cli.stop_via_handler",
+        source="api",
+        cancelled_nodes=count,
+    )
     logger.info("STOP_CLI: source=handler cancelled_count={}", count)
     return {"status": "stopped", "cancelled_count": count}

@@ -56,8 +56,6 @@ class CLISessionManager:
         self._real_to_temp: dict[str, str] = {}
         self._lock = asyncio.Lock()
 
-        logger.info("CLISessionManager initialized")
-
     async def get_or_create_session(
         self, session_id: str | None = None
     ) -> tuple[CLISession, str, bool]:
@@ -87,7 +85,6 @@ class CLISessionManager:
                 log_raw_cli_diagnostics=self._log_raw_cli_diagnostics,
             )
             self._pending_sessions[temp_id] = new_session
-            logger.info(f"Created new session: {temp_id}")
 
             return new_session, temp_id, True
 

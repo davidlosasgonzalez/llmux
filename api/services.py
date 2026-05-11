@@ -14,6 +14,7 @@ from loguru import logger
 from config.settings import Settings
 from core.anthropic import get_token_count, get_user_facing_error_message
 from core.anthropic.sse import ANTHROPIC_SSE_RESPONSE_HEADERS
+from core.trace import api_messages_request_snapshot, trace_event, traced_async_stream
 from providers.base import BaseProvider
 from providers.exceptions import InvalidRequestError, ProviderError
 
@@ -118,7 +119,12 @@ class ClaudeProxyService:
                 input_tokens = self._token_counter(
                     routed.request.messages, routed.request.system, routed.request.tools
                 )
-                logger.info("Optimization: Handling Anthropic web server tool")
+                trace_event(
+                    stage="routing",
+                    event="api.optimization.web_server_tool",
+                    source="api",
+                    model=routed.request.model,
+                )
                 egress = WebFetchEgressPolicy(
                     allow_private_network_targets=self._settings.web_fetch_allow_private_networks,
                     allowed_schemes=self._settings.web_fetch_allowed_scheme_set(),
@@ -134,6 +140,12 @@ class ClaudeProxyService:
 
             optimized = try_optimizations(routed.request, self._settings)
             if optimized is not None:
+                trace_event(
+                    stage="routing",
+                    event="api.optimization.short_circuit",
+                    source="api",
+                    model=routed.request.model,
+                )
                 return optimized
             logger.debug("No optimization matched, routing to provider")
 
@@ -143,29 +155,57 @@ class ClaudeProxyService:
                 thinking_enabled=routed.resolved.thinking_enabled,
             )
 
-            request_id = f"req_{uuid.uuid4().hex[:12]}"
-            logger.info(
-                "API_REQUEST: request_id={} model={} messages={}",
-                request_id,
-                routed.request.model,
-                len(routed.request.messages),
+            trace_event(
+                stage="routing",
+                event="api.route.resolved",
+                source="api",
+                provider_id=routed.resolved.provider_id,
+                provider_model=routed.resolved.provider_model,
+                provider_model_ref=routed.resolved.provider_model_ref,
+                gateway_model=routed.request.model,
+                thinking_enabled=routed.resolved.thinking_enabled,
             )
-            if self._settings.log_raw_api_payloads:
-                logger.debug(
-                    "FULL_PAYLOAD [{}]: {}", request_id, routed.request.model_dump()
+
+            request_id = f"req_{uuid.uuid4().hex[:12]}"
+            with logger.contextualize(request_id=request_id):
+                trace_event(
+                    stage="ingress",
+                    event="api.request.received",
+                    source="api",
+                    message_count=len(routed.request.messages),
+                    snapshot=api_messages_request_snapshot(routed.request),
                 )
 
-            input_tokens = self._token_counter(
-                routed.request.messages, routed.request.system, routed.request.tools
-            )
-            return anthropic_sse_streaming_response(
-                provider.stream_response(
-                    routed.request,
-                    input_tokens=input_tokens,
-                    request_id=request_id,
-                    thinking_enabled=routed.resolved.thinking_enabled,
-                ),
-            )
+                if self._settings.log_raw_api_payloads:
+                    logger.debug(
+                        "FULL_PAYLOAD [{}]: {}", request_id, routed.request.model_dump()
+                    )
+
+                input_tokens = self._token_counter(
+                    routed.request.messages,
+                    routed.request.system,
+                    routed.request.tools,
+                )
+
+                streamed = traced_async_stream(
+                    provider.stream_response(
+                        routed.request,
+                        input_tokens=input_tokens,
+                        request_id=request_id,
+                        thinking_enabled=routed.resolved.thinking_enabled,
+                    ),
+                    stage="egress",
+                    source="api",
+                    complete_event="api.response.stream_completed",
+                    interrupted_event="api.response.stream_interrupted",
+                    chunk_event=None,
+                    extra={
+                        "request_id": request_id,
+                        "provider_id": routed.resolved.provider_id,
+                        "gateway_model": routed.request.model,
+                    },
+                )
+                return anthropic_sse_streaming_response(streamed)
 
         except ProviderError:
             raise
@@ -188,12 +228,23 @@ class ClaudeProxyService:
                 tokens = self._token_counter(
                     routed.request.messages, routed.request.system, routed.request.tools
                 )
-                logger.info(
-                    "COUNT_TOKENS: request_id={} model={} messages={} input_tokens={}",
-                    request_id,
-                    routed.request.model,
-                    len(routed.request.messages),
-                    tokens,
+                trace_event(
+                    stage="routing",
+                    event="api.route.resolved",
+                    source="api",
+                    kind="count_tokens",
+                    provider_id=routed.resolved.provider_id,
+                    provider_model=routed.resolved.provider_model,
+                    provider_model_ref=routed.resolved.provider_model_ref,
+                    gateway_model=routed.request.model,
+                )
+                trace_event(
+                    stage="ingress",
+                    event="api.count_tokens.completed",
+                    source="api",
+                    message_count=len(routed.request.messages),
+                    input_tokens=tokens,
+                    snapshot=api_messages_request_snapshot(routed.request),
                 )
                 return TokenCountResponse(input_tokens=tokens)
             except ProviderError:

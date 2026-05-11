@@ -13,6 +13,7 @@ from starlette.types import Receive, Scope, Send
 
 from config.logging_config import configure_logging
 from config.settings import get_settings
+from core.trace import extract_claude_session_id_from_headers, trace_event
 from providers.exceptions import ProviderError
 
 from .admin_routes import router as admin_router
@@ -95,6 +96,18 @@ def create_app(*, lifespan_enabled: bool = True) -> FastAPI:
         app_kwargs["lifespan"] = lifespan
     app = FastAPI(**app_kwargs)
 
+    @app.middleware("http")
+    async def trace_http_correlation(request: Request, call_next):
+        """Attach HTTP identifiers and optional Claude session id to logs."""
+        claude_sid = extract_claude_session_id_from_headers(request.headers)
+        with logger.contextualize(
+            http_method=request.method,
+            http_path=request.url.path,
+            claude_session_id=claude_sid,
+        ):
+            response = await call_next(request)
+        return response
+
     # Register routes
     app.include_router(admin_router)
     app.include_router(router)
@@ -111,14 +124,16 @@ def create_app(*, lifespan_enabled: bool = True) -> FastAPI:
 
         message_summary, tool_names = summarize_request_validation_body(body)
 
-        logger.debug(
-            "Request validation failed: path={} query={} error_locs={} error_types={} message_summary={} tool_names={}",
-            request.url.path,
-            str(request.url.query),
-            [list(error.get("loc", ())) for error in exc.errors()],
-            [str(error.get("type", "")) for error in exc.errors()],
-            message_summary,
-            tool_names,
+        trace_event(
+            stage="ingress",
+            event="server.request.validation_failed",
+            source="api",
+            path=request.url.path,
+            query=dict(request.query_params),
+            error_locs=[list(error.get("loc", ())) for error in exc.errors()],
+            error_types=[str(error.get("type", "")) for error in exc.errors()],
+            message_summary=message_summary,
+            tool_names=tool_names,
         )
         return await request_validation_exception_handler(request, exc)
 
