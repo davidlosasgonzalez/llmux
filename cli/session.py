@@ -11,7 +11,7 @@ from loguru import logger
 
 from core.trace import trace_event
 
-from .process_registry import register_pid, unregister_pid
+from .process_registry import kill_pid_tree_best_effort, register_pid, unregister_pid
 
 # Cap stderr capture so a runaway child cannot exhaust memory; pipe is still drained.
 _MAX_STDERR_CAPTURE_BYTES = 256 * 1024
@@ -325,7 +325,7 @@ class CLISession:
         if self.process and self.process.returncode is None:
             try:
                 logger.info(f"Stopping Claude CLI process {self.process.pid}")
-                self.process.terminate()
+                kill_pid_tree_best_effort(self.process.pid)
                 try:
                     await asyncio.wait_for(self.process.wait(), timeout=5.0)
                 except TimeoutError:

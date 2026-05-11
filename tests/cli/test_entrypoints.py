@@ -1,6 +1,5 @@
 """Tests for cli/entrypoints.py — fcc-init scaffolding logic."""
 
-import subprocess
 import tomllib
 from pathlib import Path
 from types import SimpleNamespace
@@ -201,22 +200,50 @@ def test_launch_claude_passes_args_and_child_env(
     with (
         patch("cli.entrypoints.get_settings", return_value=settings),
         patch("cli.entrypoints._preflight_proxy", return_value=None),
-        patch(
-            "cli.entrypoints.subprocess.run",
-            return_value=subprocess.CompletedProcess(["claude-test"], 7),
-        ) as run,
+        patch("cli.entrypoints.subprocess.Popen") as popen,
+        patch("cli.entrypoints.register_pid") as register_pid,
+        patch("cli.entrypoints.unregister_pid") as unregister_pid,
         pytest.raises(SystemExit) as exc_info,
     ):
+        process = popen.return_value
+        process.pid = 12345
+        process.wait.return_value = 7
         launch_claude(["--model", "sonnet"])
 
     assert exc_info.value.code == 7
-    run.assert_called_once()
-    assert run.call_args.args[0] == ["claude-test", "--model", "sonnet"]
-    child_env = run.call_args.kwargs["env"]
+    popen.assert_called_once()
+    assert popen.call_args.args[0] == ["claude-test", "--model", "sonnet"]
+    child_env = popen.call_args.kwargs["env"]
     assert child_env["ANTHROPIC_BASE_URL"] == "http://127.0.0.1:9191"
     assert child_env["ANTHROPIC_AUTH_TOKEN"] == "proxy-token"
     assert child_env["CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"] == "1"
     assert child_env["KEEP_ME"] == "yes"
+    register_pid.assert_called_once_with(12345)
+    unregister_pid.assert_called_once_with(12345)
+
+
+def test_launch_claude_keyboard_interrupt_kills_child_tree() -> None:
+    from cli.entrypoints import launch_claude
+
+    settings = _launcher_settings(port=9191, token="proxy-token")
+
+    with (
+        patch("cli.entrypoints.get_settings", return_value=settings),
+        patch("cli.entrypoints._preflight_proxy", return_value=None),
+        patch("cli.entrypoints.subprocess.Popen") as popen,
+        patch("cli.entrypoints.register_pid"),
+        patch("cli.entrypoints.kill_pid_tree_best_effort") as kill_tree,
+        patch("cli.entrypoints.unregister_pid") as unregister_pid,
+        pytest.raises(KeyboardInterrupt),
+    ):
+        process = popen.return_value
+        process.pid = 12345
+        process.wait.side_effect = [KeyboardInterrupt, 0]
+
+        launch_claude([])
+
+    kill_tree.assert_called_once_with(12345)
+    unregister_pid.assert_called_once_with(12345)
 
 
 def test_launch_claude_unreachable_proxy_exits_with_hint(

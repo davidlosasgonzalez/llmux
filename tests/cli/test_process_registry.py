@@ -1,4 +1,5 @@
 import os
+import subprocess
 from unittest.mock import patch
 
 
@@ -76,3 +77,16 @@ def test_process_registry_kill_all_best_effort_windows_noop_when_taskkill_missin
 
     monkeypatch.setattr(subprocess, "run", _boom)
     pr.kill_all_best_effort()
+
+
+def test_process_registry_kill_pid_tree_windows_uses_taskkill(monkeypatch):
+    from cli import process_registry as pr
+
+    calls = []
+    monkeypatch.setattr(os, "name", "nt", raising=False)
+    monkeypatch.setattr(subprocess, "run", lambda *a, **kw: calls.append((a, kw)))
+
+    pr.kill_pid_tree_best_effort(12345)
+
+    assert calls
+    assert calls[0][0][0] == ["taskkill", "/PID", "12345", "/T", "/F"]

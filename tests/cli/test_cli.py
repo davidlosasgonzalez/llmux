@@ -390,10 +390,11 @@ class TestCLISession:
 
         session.process = mock_process
 
-        stopped = await session.stop()
+        with patch("cli.session.kill_pid_tree_best_effort") as kill_tree:
+            stopped = await session.stop()
 
         assert stopped is True
-        mock_process.terminate.assert_called_once()
+        kill_tree.assert_called_once_with(mock_process.pid)
         mock_process.wait.assert_called()
 
     @pytest.mark.asyncio
@@ -417,10 +418,11 @@ class TestCLISession:
 
         session.process = mock_process
 
-        stopped = await session.stop()
+        with patch("cli.session.kill_pid_tree_best_effort") as kill_tree:
+            stopped = await session.stop()
 
         assert stopped is True
-        mock_process.terminate.assert_called()
+        kill_tree.assert_called_once_with(mock_process.pid)
         mock_process.kill.assert_called()
 
     @pytest.mark.asyncio
@@ -591,12 +593,14 @@ class TestCLISession:
 
         mock_process = MagicMock()
         mock_process.returncode = None
-        # Raise exception on terminate
-        mock_process.terminate.side_effect = RuntimeError("Permission denied")
 
         session.process = mock_process
 
-        stopped = await session.stop()
+        with patch(
+            "cli.session.kill_pid_tree_best_effort",
+            side_effect=RuntimeError("Permission denied"),
+        ):
+            stopped = await session.stop()
         assert stopped is False
 
 

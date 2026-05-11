@@ -14,7 +14,12 @@ import uvicorn
 
 from api.admin_urls import local_proxy_root_url
 from api.app import GracefulLifespanApp, create_app
-from cli.process_registry import kill_all_best_effort
+from cli.process_registry import (
+    kill_all_best_effort,
+    kill_pid_tree_best_effort,
+    register_pid,
+    unregister_pid,
+)
 from config.settings import Settings, get_settings
 
 PROXY_PREFLIGHT_PATH = "/health"
@@ -147,8 +152,12 @@ def launch_claude(argv: Sequence[str] | None = None) -> None:
     args = list(sys.argv[1:] if argv is None else argv)
     command = [settings.claude_cli_bin, *args]
     env = _claude_child_env(settings, os.environ)
+    process: subprocess.Popen[bytes] | None = None
     try:
-        result = subprocess.run(command, env=env, check=False)
+        process = subprocess.Popen(command, env=env)
+        if process.pid:
+            register_pid(process.pid)
+        return_code = process.wait()
     except FileNotFoundError:
         print(
             f"Could not find Claude Code command: {settings.claude_cli_bin}",
@@ -159,5 +168,13 @@ def launch_claude(argv: Sequence[str] | None = None) -> None:
             file=sys.stderr,
         )
         raise SystemExit(127) from None
+    except KeyboardInterrupt:
+        if process is not None and process.pid:
+            kill_pid_tree_best_effort(process.pid)
+            process.wait()
+        raise
+    finally:
+        if process is not None and process.pid:
+            unregister_pid(process.pid)
 
-    raise SystemExit(result.returncode)
+    raise SystemExit(return_code)
