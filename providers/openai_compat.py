@@ -106,7 +106,7 @@ class OpenAIChatTransport(BaseProvider):
         """Release HTTP client resources."""
         client = getattr(self, "_client", None)
         if client is not None:
-            await client.aclose()
+            await client.close()
 
     async def list_model_ids(self) -> frozenset[str]:
         """Return model ids from the provider's OpenAI-compatible models endpoint."""
