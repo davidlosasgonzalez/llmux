@@ -83,7 +83,7 @@ See [NVIDIA NIM provider setup](#nvidia-nim-provider).
 ### 4. Install The Proxy
 
 ```bash
-uv tool install git+https://github.com/Alishahryar1/free-claude-code.git
+uv tool install --force git+https://github.com/Alishahryar1/free-claude-code.git
 ```
 
 Use the same command to update the proxy.
