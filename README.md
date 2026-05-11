@@ -86,7 +86,7 @@ See [NVIDIA NIM provider setup](#nvidia-nim-provider).
 uv tool install --force git+https://github.com/Alishahryar1/free-claude-code.git
 ```
 
-Use the same command to update the proxy.
+Use the same command to update to the latest version.
 
 ### 5. Start The Proxy
 
