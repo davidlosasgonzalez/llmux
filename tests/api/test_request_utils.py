@@ -335,6 +335,14 @@ class TestGetTokenCount:
         # "Hello world" is ~2-3 tokens plus overhead
         assert count >= 3
 
+    def test_special_token_text_is_counted_as_plain_text(self):
+        """Tiktoken special-token strings should not break token estimates."""
+        msg = MagicMock()
+        msg.content = "<|endoftext|>"
+
+        count = get_token_count([msg], system="<|endoftext|>")
+        assert count > 0
+
     def test_message_with_system_prompt(self):
         """Test token count includes system prompt."""
         msg = MagicMock()
