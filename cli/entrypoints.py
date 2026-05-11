@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 import sys
 from collections.abc import Mapping, Sequence
@@ -153,7 +154,19 @@ def launch_claude(argv: Sequence[str] | None = None) -> None:
         raise SystemExit(1)
 
     args = list(sys.argv[1:] if argv is None else argv)
-    command = [settings.claude_cli_bin, *args]
+    claude_command = shutil.which(settings.claude_cli_bin)
+    if claude_command is None:
+        print(
+            f"Could not find Claude Code command: {settings.claude_cli_bin}",
+            file=sys.stderr,
+        )
+        print(
+            "Install Claude Code with: npm install -g @anthropic-ai/claude-code",
+            file=sys.stderr,
+        )
+        raise SystemExit(127)
+
+    command = [claude_command, *args]
     env = _claude_child_env(settings, os.environ)
     process: subprocess.Popen[bytes] | None = None
     try:

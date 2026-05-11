@@ -222,6 +222,7 @@ def test_launch_claude_passes_args_and_child_env(
     with (
         patch("cli.entrypoints.get_settings", return_value=settings),
         patch("cli.entrypoints._preflight_proxy", return_value=None),
+        patch("cli.entrypoints.shutil.which", return_value="resolved-claude.cmd"),
         patch("cli.entrypoints.subprocess.Popen") as popen,
         patch("cli.entrypoints.register_pid") as register_pid,
         patch("cli.entrypoints.unregister_pid") as unregister_pid,
@@ -234,7 +235,7 @@ def test_launch_claude_passes_args_and_child_env(
 
     assert exc_info.value.code == 7
     popen.assert_called_once()
-    assert popen.call_args.args[0] == ["claude-test", "--model", "sonnet"]
+    assert popen.call_args.args[0] == ["resolved-claude.cmd", "--model", "sonnet"]
     child_env = popen.call_args.kwargs["env"]
     assert child_env["ANTHROPIC_BASE_URL"] == "http://127.0.0.1:9191"
     assert child_env["ANTHROPIC_AUTH_TOKEN"] == "proxy-token"
@@ -252,6 +253,7 @@ def test_launch_claude_keyboard_interrupt_kills_child_tree() -> None:
     with (
         patch("cli.entrypoints.get_settings", return_value=settings),
         patch("cli.entrypoints._preflight_proxy", return_value=None),
+        patch("cli.entrypoints.shutil.which", return_value="resolved-claude.cmd"),
         patch("cli.entrypoints.subprocess.Popen") as popen,
         patch("cli.entrypoints.register_pid"),
         patch("cli.entrypoints.kill_pid_tree_best_effort") as kill_tree,
@@ -266,6 +268,28 @@ def test_launch_claude_keyboard_interrupt_kills_child_tree() -> None:
 
     kill_tree.assert_called_once_with(12345)
     unregister_pid.assert_called_once_with(12345)
+
+
+def test_launch_claude_exits_when_command_cannot_be_resolved(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from cli.entrypoints import launch_claude
+
+    settings = _launcher_settings(claude_bin="claude-missing")
+    with (
+        patch("cli.entrypoints.get_settings", return_value=settings),
+        patch("cli.entrypoints._preflight_proxy", return_value=None),
+        patch("cli.entrypoints.shutil.which", return_value=None),
+        patch("cli.entrypoints.subprocess.Popen") as popen,
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        launch_claude([])
+
+    assert exc_info.value.code == 127
+    popen.assert_not_called()
+    captured = capsys.readouterr()
+    assert "Could not find Claude Code command: claude-missing" in captured.err
+    assert "npm install -g @anthropic-ai/claude-code" in captured.err
 
 
 def test_launch_claude_unreachable_proxy_exits_with_hint(
