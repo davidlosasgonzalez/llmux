@@ -1,4 +1,4 @@
-"""Native Anthropic transport: HTTP 429 and 503 are retried inside execute_with_retry."""
+"""Native Anthropic transport: HTTP 429 and upstream 5xx are retried inside execute_with_retry."""
 
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -80,9 +80,12 @@ async def test_native_stream_retries_on_http_429_then_streams(provider_config):
         GlobalRateLimiter.reset_instance()
 
 
+@pytest.mark.parametrize("status_code", [500, 502, 503, 504])
 @pytest.mark.asyncio
-async def test_native_stream_retries_on_http_503_then_streams(provider_config):
-    """First response 503 (closed), second 200 streams; send is called twice."""
+async def test_native_stream_retries_on_http_5xx_then_streams(
+    provider_config, status_code
+):
+    """First response is retryable 5xx (closed); second 200 streams; send twice."""
     GlobalRateLimiter.reset_instance()
     try:
         provider = NativeProvider(provider_config)
@@ -94,14 +97,14 @@ async def test_native_stream_retries_on_http_503_then_streams(provider_config):
             "",
         ]
         ok_response = FakeResponse(lines=ok_lines)
-        unavailable = FakeResponse(status_code=503, text="Service Unavailable")
+        bad = FakeResponse(status_code=status_code, text="upstream error")
 
         send_calls = {"n": 0}
 
         async def send_side_effect(*_a, **_kw):
             send_calls["n"] += 1
             if send_calls["n"] == 1:
-                return unavailable
+                return bad
             return ok_response
 
         with (
@@ -120,7 +123,7 @@ async def test_native_stream_retries_on_http_503_then_streams(provider_config):
             events = [e async for e in provider.stream_response(req)]
 
         assert send_calls["n"] == 2
-        assert unavailable.is_closed
+        assert bad.is_closed
         assert ok_response.is_closed
         assert events == [
             "event: message_start\n",
@@ -131,9 +134,18 @@ async def test_native_stream_retries_on_http_503_then_streams(provider_config):
         GlobalRateLimiter.reset_instance()
 
 
+@pytest.mark.parametrize(
+    ("status_code", "substr"),
+    [
+        (500, "Provider API request failed"),
+        (502, "Provider is currently overloaded"),
+        (503, "Provider is currently overloaded"),
+        (504, "Provider is currently overloaded"),
+    ],
+)
 @pytest.mark.asyncio
-async def test_native_stream_503_retry_exhausted(provider_config):
-    """Repeated HTTP 503 exhausts execute_with_retry; emits overloaded-style message."""
+async def test_native_stream_5xx_retry_exhausted(provider_config, status_code, substr):
+    """Repeated upstream 5xx exhausts execute_with_retry; user message matches mapping."""
     GlobalRateLimiter.reset_instance()
     try:
 
@@ -156,7 +168,7 @@ async def test_native_stream_503_retry_exhausted(provider_config):
             provider = NativeProvider(provider_config)
             req = MockRequest()
 
-            unavailable = FakeResponse(status_code=503, text="Service Unavailable")
+            bad = FakeResponse(status_code=status_code, text="upstream error")
 
             with (
                 patch.object(
@@ -166,25 +178,25 @@ async def test_native_stream_503_retry_exhausted(provider_config):
                     provider._client,
                     "send",
                     new_callable=AsyncMock,
-                    return_value=unavailable,
+                    return_value=bad,
                 ) as mock_send,
                 patch("asyncio.sleep", new_callable=AsyncMock),
             ):
                 events = [e async for e in provider.stream_response(req)]
 
             assert mock_send.await_count == 4
-            assert unavailable.is_closed
+            assert bad.is_closed
             assert_canonical_stream_error_envelope(
                 events,
-                user_message_substr="Provider is currently overloaded",
+                user_message_substr=substr,
             )
     finally:
         GlobalRateLimiter.reset_instance()
 
 
 @pytest.mark.asyncio
-async def test_non_429_http_error_not_retried(provider_config):
-    """HTTP 500 from upstream is not retried; single send."""
+async def test_non_retryable_4xx_http_error_not_retried(provider_config):
+    """HTTP 400 from upstream is not retried; single send (passthrough limiter)."""
     GlobalRateLimiter.reset_instance()
     try:
 
@@ -203,7 +215,7 @@ async def test_non_429_http_error_not_retried(provider_config):
 
             provider = NativeProvider(provider_config)
             req = MockRequest()
-            err = FakeResponse(status_code=500, text="Internal Server Error")
+            err = FakeResponse(status_code=400, text="Bad Request")
 
             with (
                 patch.object(
@@ -221,7 +233,7 @@ async def test_non_429_http_error_not_retried(provider_config):
             mock_send.assert_awaited_once()
             assert err.is_closed
             assert_canonical_stream_error_envelope(
-                events, user_message_substr="Provider API request failed"
+                events, user_message_substr="Invalid request sent to provider"
             )
     finally:
         GlobalRateLimiter.reset_instance()

@@ -17,23 +17,28 @@ from core.trace import trace_event
 T = TypeVar("T")
 
 
+def _upstream_http_retryable(code: int) -> bool:
+    """True for rate limit / upstream server failures that should backoff-retry."""
+    return code == 429 or 500 <= code <= 599
+
+
 def retryable_upstream_status(exc: BaseException) -> int | None:
     """Return HTTP-like status codes that qualify for reactive backoff retries.
 
-    ``429`` and ``503`` use the same exponential backoff plus scoped limiter
-    blocking semantics as today's rate-limit path.
+    ``429`` plus any upstream ``5xx`` use the same exponential backoff and scoped
+    limiter blocking semantics as today's rate-limit path.
     """
     if isinstance(exc, openai.RateLimitError):
         return 429
     if isinstance(exc, httpx.HTTPStatusError):
         status = exc.response.status_code
-        if status in (429, 503):
+        if _upstream_http_retryable(status):
             return status
         return None
     if isinstance(exc, openai.APIError):
         status = getattr(exc, "status_code", None)
-        if isinstance(status, int) and status == 503:
-            return 503
+        if isinstance(status, int) and 500 <= status <= 599:
+            return status
         return None
     return None
 
@@ -48,7 +53,7 @@ class GlobalRateLimiter:
     may be open simultaneously, independent of the sliding window.
 
     Proactive limits - throttles requests to stay within API limits.
-    Reactive limits - pauses all requests when a 429 or 503 retry backoff is active.
+    Reactive limits - pauses all requests when a 429 or 5xx retry backoff is active.
     Concurrency limit - caps simultaneously open streams.
     """
 
@@ -151,7 +156,7 @@ class GlobalRateLimiter:
         Returns:
             True if was reactively blocked and waited, False otherwise.
         """
-        # 1. Reactive check: Wait if someone hit a 429
+        # 1. Reactive check: Wait if someone hit a reactive backoff (429/5xx retries)
         waited_reactively = False
         now = time.monotonic()
         if now < self._blocked_until:
@@ -228,7 +233,7 @@ class GlobalRateLimiter:
         """Execute an async callable with rate limiting and retry on transient limits.
 
         Waits for the proactive limiter before each attempt. On ``429`` (rate limit)
-        or ``503`` (service unavailable), applies exponential backoff with jitter
+        or upstream ``5xx`` server errors, applies exponential backoff with jitter
         and sets the reactive block before retrying.
 
         Args:
@@ -260,7 +265,7 @@ class GlobalRateLimiter:
                 label = (
                     "Rate limited (429)"
                     if status == 429
-                    else "Upstream unavailable (503)"
+                    else f"Upstream server error ({status})"
                 )
                 last_exc = e
                 if attempt >= max_retries:

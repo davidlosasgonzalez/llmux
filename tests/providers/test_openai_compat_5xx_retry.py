@@ -1,4 +1,4 @@
-"""OpenAI-compat transports: HTTP 503 uses the same execute_with_retry path as 429."""
+"""OpenAI-compat transports: upstream 5xx uses the same execute_with_retry path as 429."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -13,16 +13,17 @@ from providers.rate_limit import GlobalRateLimiter
 from tests.providers.test_nvidia_nim import MockRequest
 
 
-def _internal_503() -> openai.InternalServerError:
+def _internal_5xx(code: int) -> openai.InternalServerError:
     return openai.InternalServerError(
         "unavailable",
-        response=Response(503, request=Request("POST", "http://x")),
+        response=Response(code, request=Request("POST", "http://x")),
         body={},
     )
 
 
+@pytest.mark.parametrize("status_code", [500, 502, 503, 504])
 @pytest.mark.asyncio
-async def test_nim_stream_retries_on_openai_503_then_streams():
+async def test_nim_stream_retries_on_openai_5xx_then_streams(status_code):
     GlobalRateLimiter.reset_instance()
     try:
         config = ProviderConfig(
@@ -57,7 +58,7 @@ async def test_nim_stream_retries_on_openai_503_then_streams():
             ) as mock_create,
             patch("asyncio.sleep", new_callable=AsyncMock),
         ):
-            mock_create.side_effect = [_internal_503(), mock_stream()]
+            mock_create.side_effect = [_internal_5xx(status_code), mock_stream()]
             events = [e async for e in provider.stream_response(req)]
 
         assert mock_create.await_count == 2
@@ -66,8 +67,20 @@ async def test_nim_stream_retries_on_openai_503_then_streams():
         GlobalRateLimiter.reset_instance()
 
 
+@pytest.mark.parametrize(
+    ("status_code", "expect_substr"),
+    [
+        (500, "provider api request failed"),
+        (502, "temporarily unavailable"),
+        (503, "temporarily unavailable"),
+        (504, "temporarily unavailable"),
+    ],
+)
 @pytest.mark.asyncio
-async def test_nim_stream_openai_503_exhausted_emits_user_message():
+async def test_nim_stream_openai_5xx_exhausted_emits_user_message(
+    status_code,
+    expect_substr,
+):
     GlobalRateLimiter.reset_instance()
     try:
         config = ProviderConfig(
@@ -90,11 +103,11 @@ async def test_nim_stream_openai_503_exhausted_emits_user_message():
             ) as mock_create,
             patch("asyncio.sleep", new_callable=AsyncMock),
         ):
-            mock_create.side_effect = _internal_503()
+            mock_create.side_effect = _internal_5xx(status_code)
             events = [e async for e in provider.stream_response(req)]
 
         assert mock_create.await_count == 4
         blob = "".join(events)
-        assert "temporarily unavailable" in blob.lower()
+        assert expect_substr in blob.lower()
     finally:
         GlobalRateLimiter.reset_instance()

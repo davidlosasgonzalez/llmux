@@ -278,21 +278,22 @@ class TestProviderRateLimiter:
         assert result == "ok"
         assert call_count == 2
 
+    @pytest.mark.parametrize("status_code", [500, 502, 503, 504])
     @pytest.mark.asyncio
-    async def test_execute_with_retry_succeeds_on_openai_internal_server_error_503(
-        self,
+    async def test_execute_with_retry_succeeds_on_openai_internal_server_error_5xx(
+        self, status_code
     ):
-        """503 as openai.InternalServerError then success."""
+        """5xx as openai.InternalServerError then success."""
         import openai
         from httpx import Request, Response
 
         GlobalRateLimiter.reset_instance()
         limiter = GlobalRateLimiter.get_instance(rate_limit=100, rate_window=60)
 
-        def make_503():
+        def make_upstream_error():
             return openai.InternalServerError(
                 "unavailable",
-                response=Response(503, request=Request("POST", "http://x")),
+                response=Response(status_code, request=Request("POST", "http://x")),
                 body={},
             )
 
@@ -302,7 +303,7 @@ class TestProviderRateLimiter:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                raise make_503()
+                raise make_upstream_error()
             return "ok"
 
         result = await limiter.execute_with_retry(
@@ -311,9 +312,10 @@ class TestProviderRateLimiter:
         assert result == "ok"
         assert call_count == 2
 
+    @pytest.mark.parametrize("status_code", [500, 502, 503, 504])
     @pytest.mark.asyncio
-    async def test_execute_with_retry_succeeds_on_httpx_503(self):
-        """HTTP 503 as httpx.HTTPStatusError then success."""
+    async def test_execute_with_retry_succeeds_on_httpx_5xx(self, status_code):
+        """HTTP 5xx as httpx.HTTPStatusError then success."""
         import httpx
         from httpx import Request, Response
 
@@ -325,9 +327,11 @@ class TestProviderRateLimiter:
             nonlocal call_count
             call_count += 1
             if call_count == 1:
-                r = Response(503, request=Request("POST", "http://x"), text="busy")
+                r = Response(
+                    status_code, request=Request("POST", "http://x"), text="error"
+                )
                 raise httpx.HTTPStatusError(
-                    "Service Unavailable", request=r.request, response=r
+                    "Server Error", request=r.request, response=r
                 )
             return "ok"
 
@@ -337,9 +341,10 @@ class TestProviderRateLimiter:
         assert result == "ok"
         assert call_count == 2
 
+    @pytest.mark.parametrize("status_code", [500, 502, 503, 504])
     @pytest.mark.asyncio
-    async def test_execute_with_retry_exhaust_openai_503_raises(self):
-        """When all 503 retries exhausted (openai), last InternalServerError is raised."""
+    async def test_execute_with_retry_exhaust_openai_5xx_raises(self, status_code):
+        """When all 5xx retries exhausted (OpenAI SDK), last InternalServerError is raised."""
         import openai
         from httpx import Request, Response
 
@@ -348,17 +353,45 @@ class TestProviderRateLimiter:
 
         exc = openai.InternalServerError(
             "unavailable",
-            response=Response(503, request=Request("POST", "http://x")),
+            response=Response(status_code, request=Request("POST", "http://x")),
             body={},
         )
 
-        async def always_503():
+        async def always_fail():
             raise exc
 
         with pytest.raises(openai.InternalServerError):
             await limiter.execute_with_retry(
-                always_503, max_retries=2, base_delay=0.01, max_delay=0.1, jitter=0
+                always_fail, max_retries=2, base_delay=0.01, max_delay=0.1, jitter=0
             )
+
+    @pytest.mark.asyncio
+    async def test_execute_with_retry_httpx_400_raises_immediately(self):
+        """Non-retryable 4xx is not wrapped by execute_with_retry loop."""
+        import httpx
+        from httpx import Request, Response
+
+        GlobalRateLimiter.reset_instance()
+        limiter = GlobalRateLimiter.get_instance(rate_limit=100, rate_window=60)
+
+        call_count = 0
+
+        async def bad_request():
+            nonlocal call_count
+            call_count += 1
+            r = Response(400, request=Request("POST", "http://x"), text="bad request")
+            raise httpx.HTTPStatusError("Bad Request", request=r.request, response=r)
+
+        with pytest.raises(httpx.HTTPStatusError):
+            await limiter.execute_with_retry(
+                bad_request,
+                max_retries=2,
+                base_delay=0.01,
+                max_delay=0.1,
+                jitter=0,
+            )
+
+        assert call_count == 1
 
     @pytest.mark.asyncio
     async def test_max_concurrency_zero_raises(self):

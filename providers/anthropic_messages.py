@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import AsyncIterator, Iterator
 from typing import Any, Literal
 
@@ -36,6 +37,16 @@ from providers.model_listing import (
 from providers.rate_limit import GlobalRateLimiter
 
 StreamChunkMode = Literal["line", "event"]
+
+
+async def _maybe_await_aclose(response: Any) -> None:
+    """Call ``aclose`` on httpx-like responses; ignore non-async test doubles."""
+    close = getattr(response, "aclose", None)
+    if not callable(close):
+        return
+    result = close()
+    if inspect.isawaitable(result):
+        await result
 
 
 def _model_list_json(response: httpx.Response, *, provider_name: str) -> Any:
@@ -96,7 +107,7 @@ class AnthropicMessagesTransport(BaseProvider):
             payload = _model_list_json(response, provider_name=self._provider_name)
             return self._extract_model_infos_from_model_list_payload(payload)
         finally:
-            await response.aclose()
+            await _maybe_await_aclose(response)
 
     async def _send_model_list_request(self) -> httpx.Response:
         """Query the provider endpoint that advertises available model ids."""
@@ -360,17 +371,14 @@ class AnthropicMessagesTransport(BaseProvider):
             try:
 
                 async def _validated_stream_send() -> httpx.Response:
-                    """Send request; raise inside retry loop on 429/503 so limiter can backoff."""
+                    """Send request; retries apply to 429/5xx raises after structured logging."""
                     send_response = await self._send_stream_request(body)
-                    if send_response.status_code in (429, 503):
-                        await send_response.aclose()
-                        send_response.raise_for_status()
                     if send_response.status_code != 200:
                         try:
                             await self._raise_for_status(send_response, req_tag=req_tag)
                         finally:
                             if not send_response.is_closed:
-                                await send_response.aclose()
+                                await _maybe_await_aclose(send_response)
                     return send_response
 
                 response = await self._global_rate_limiter.execute_with_retry(
@@ -409,7 +417,7 @@ class AnthropicMessagesTransport(BaseProvider):
                 error_message = self._get_error_message(error, request_id)
 
                 if response is not None and not response.is_closed:
-                    await response.aclose()
+                    await _maybe_await_aclose(response)
 
                 trace_event(
                     stage="provider",
@@ -441,4 +449,4 @@ class AnthropicMessagesTransport(BaseProvider):
                 return
             finally:
                 if response is not None and not response.is_closed:
-                    await response.aclose()
+                    await _maybe_await_aclose(response)

@@ -51,15 +51,15 @@ def map_error(
     if isinstance(e, openai.InternalServerError):
         raw_message = str(e)
         sdk_status = getattr(e, "status_code", None)
-        if sdk_status == 503:
-            stable = APIError("_", status_code=503)
-            return APIError(
-                get_user_facing_error_message(stable),
-                status_code=503,
-                raw_error=str(e),
-            )
         if "overloaded" in raw_message.lower() or "capacity" in raw_message.lower():
             return OverloadedError(message, raw_error=raw_message)
+        if isinstance(sdk_status, int) and 500 <= sdk_status <= 599:
+            stable = APIError("_", status_code=sdk_status)
+            return APIError(
+                get_user_facing_error_message(stable),
+                status_code=sdk_status,
+                raw_error=str(e),
+            )
         return APIError(message, status_code=500, raw_error=str(e))
     if isinstance(e, openai.APIError):
         return APIError(

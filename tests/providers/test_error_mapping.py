@@ -80,7 +80,7 @@ class TestMapError:
         assert result.status_code == 529
 
     def test_internal_server_error_generic(self):
-        """InternalServerError without keywords -> APIError(500)."""
+        """InternalServerError without keywords maps to APIError preserving 5xx."""
         exc = _make_openai_error(
             openai.InternalServerError, message="Unknown error", status_code=500
         )
@@ -88,17 +88,29 @@ class TestMapError:
         assert isinstance(result, APIError)
         assert result.status_code == 500
 
-    def test_internal_server_error_503_maps_to_api_error_with_status(self):
-        """InternalServerError carrying HTTP 503 retains 503 for stable user messaging."""
+    @pytest.mark.parametrize(
+        ("status_code", "expect_substr"),
+        [
+            (500, "provider api request failed"),
+            (502, "temporarily unavailable"),
+            (503, "temporarily unavailable"),
+            (504, "temporarily unavailable"),
+            (599, "provider api request failed"),
+        ],
+    )
+    def test_internal_server_error_preserves_5xx_status_for_messaging(
+        self, status_code, expect_substr
+    ):
+        """InternalServerError carrying HTTP 5xx retains status for stable user messaging."""
         exc = _make_openai_error(
             openai.InternalServerError,
-            message="<html>503</html>",
-            status_code=503,
+            message=f"upstream {status_code}",
+            status_code=status_code,
         )
         result = map_error(exc)
         assert isinstance(result, APIError)
-        assert result.status_code == 503
-        assert "temporarily unavailable" in result.message.lower()
+        assert result.status_code == status_code
+        assert expect_substr in result.message.lower()
 
     def test_generic_api_error(self):
         """openai.APIError -> APIError with original status_code."""
