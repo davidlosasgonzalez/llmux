@@ -152,6 +152,28 @@ def test_serve_supervisor_restarts_when_app_requests_restart() -> None:
     kill_all.assert_called_once()
 
 
+def test_serve_handles_keyboard_interrupt_without_traceback() -> None:
+    from cli import entrypoints
+
+    settings = _launcher_settings()
+    get_settings = MagicMock(return_value=settings)
+    get_settings.cache_clear = MagicMock()
+
+    with (
+        patch.object(entrypoints, "get_settings", get_settings),
+        patch.object(
+            entrypoints,
+            "_run_supervised_server",
+            side_effect=KeyboardInterrupt,
+        ),
+        patch.object(entrypoints, "kill_all_best_effort") as kill_all,
+    ):
+        entrypoints.serve()
+
+    get_settings.cache_clear.assert_not_called()
+    kill_all.assert_called_once()
+
+
 def test_claude_child_env_targets_current_proxy_config() -> None:
     from cli.entrypoints import _claude_child_env
 

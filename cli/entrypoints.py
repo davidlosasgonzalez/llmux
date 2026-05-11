@@ -45,11 +45,14 @@ def _load_env_template() -> str:
 def serve() -> None:
     """Start the FastAPI server (registered as `fcc-server` script)."""
     try:
-        while True:
-            settings = get_settings()
-            if not _run_supervised_server(settings):
-                return
-            get_settings.cache_clear()
+        try:
+            while True:
+                settings = get_settings()
+                if not _run_supervised_server(settings):
+                    return
+                get_settings.cache_clear()
+        except KeyboardInterrupt:
+            return
     finally:
         kill_all_best_effort()
 
