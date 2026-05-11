@@ -1,4 +1,4 @@
-"""Native Anthropic transport: HTTP 429 is retried inside execute_with_retry."""
+"""Native Anthropic transport: HTTP 429 and 503 are retried inside execute_with_retry."""
 
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -76,6 +76,108 @@ async def test_native_stream_retries_on_http_429_then_streams(provider_config):
             'data: {"type":"message_start"}\n',
             "\n",
         ]
+    finally:
+        GlobalRateLimiter.reset_instance()
+
+
+@pytest.mark.asyncio
+async def test_native_stream_retries_on_http_503_then_streams(provider_config):
+    """First response 503 (closed), second 200 streams; send is called twice."""
+    GlobalRateLimiter.reset_instance()
+    try:
+        provider = NativeProvider(provider_config)
+        req = MockRequest()
+        request_obj = httpx.Request("POST", "https://custom.test/v1/messages")
+        ok_lines = [
+            "event: message_start",
+            'data: {"type":"message_start"}',
+            "",
+        ]
+        ok_response = FakeResponse(lines=ok_lines)
+        unavailable = FakeResponse(status_code=503, text="Service Unavailable")
+
+        send_calls = {"n": 0}
+
+        async def send_side_effect(*_a, **_kw):
+            send_calls["n"] += 1
+            if send_calls["n"] == 1:
+                return unavailable
+            return ok_response
+
+        with (
+            patch.object(provider._client, "build_request", return_value=request_obj),
+            patch.object(
+                provider._client,
+                "send",
+                new_callable=AsyncMock,
+                side_effect=send_side_effect,
+            ),
+            patch(
+                "asyncio.sleep",
+                new_callable=AsyncMock,
+            ),
+        ):
+            events = [e async for e in provider.stream_response(req)]
+
+        assert send_calls["n"] == 2
+        assert unavailable.is_closed
+        assert ok_response.is_closed
+        assert events == [
+            "event: message_start\n",
+            'data: {"type":"message_start"}\n',
+            "\n",
+        ]
+    finally:
+        GlobalRateLimiter.reset_instance()
+
+
+@pytest.mark.asyncio
+async def test_native_stream_503_retry_exhausted(provider_config):
+    """Repeated HTTP 503 exhausts execute_with_retry; emits overloaded-style message."""
+    GlobalRateLimiter.reset_instance()
+    try:
+
+        @asynccontextmanager
+        async def _slot():
+            yield
+
+        with patch("providers.anthropic_messages.GlobalRateLimiter") as mock_gl:
+            instance = mock_gl.get_scoped_instance.return_value
+            real = GlobalRateLimiter(
+                rate_limit=100,
+                rate_window=60,
+                max_concurrency=5,
+            )
+            instance.wait_if_blocked = real.wait_if_blocked
+            instance.execute_with_retry = real.execute_with_retry
+            instance.set_blocked = real.set_blocked
+            instance.concurrency_slot.side_effect = _slot
+
+            provider = NativeProvider(provider_config)
+            req = MockRequest()
+
+            unavailable = FakeResponse(status_code=503, text="Service Unavailable")
+
+            with (
+                patch.object(
+                    provider._client, "build_request", return_value=MagicMock()
+                ),
+                patch.object(
+                    provider._client,
+                    "send",
+                    new_callable=AsyncMock,
+                    return_value=unavailable,
+                ) as mock_send,
+                patch("asyncio.sleep", new_callable=AsyncMock),
+            ):
+                events = [e async for e in provider.stream_response(req)]
+
+            assert mock_send.await_count == 4
+            assert unavailable.is_closed
+            assert_canonical_stream_error_envelope(
+                events,
+                user_message_substr="Provider is currently overloaded",
+            )
     finally:
         GlobalRateLimiter.reset_instance()
 

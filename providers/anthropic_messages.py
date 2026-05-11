@@ -360,9 +360,9 @@ class AnthropicMessagesTransport(BaseProvider):
             try:
 
                 async def _validated_stream_send() -> httpx.Response:
-                    """Send request; raise inside retry loop on 429 so rate limiter can backoff."""
+                    """Send request; raise inside retry loop on 429/503 so limiter can backoff."""
                     send_response = await self._send_stream_request(body)
-                    if send_response.status_code == 429:
+                    if send_response.status_code in (429, 503):
                         await send_response.aclose()
                         send_response.raise_for_status()
                     if send_response.status_code != 200:

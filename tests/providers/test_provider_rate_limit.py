@@ -279,6 +279,88 @@ class TestProviderRateLimiter:
         assert call_count == 2
 
     @pytest.mark.asyncio
+    async def test_execute_with_retry_succeeds_on_openai_internal_server_error_503(
+        self,
+    ):
+        """503 as openai.InternalServerError then success."""
+        import openai
+        from httpx import Request, Response
+
+        GlobalRateLimiter.reset_instance()
+        limiter = GlobalRateLimiter.get_instance(rate_limit=100, rate_window=60)
+
+        def make_503():
+            return openai.InternalServerError(
+                "unavailable",
+                response=Response(503, request=Request("POST", "http://x")),
+                body={},
+            )
+
+        call_count = 0
+
+        async def fail_then_ok():
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                raise make_503()
+            return "ok"
+
+        result = await limiter.execute_with_retry(
+            fail_then_ok, max_retries=2, base_delay=0.01, max_delay=0.1, jitter=0
+        )
+        assert result == "ok"
+        assert call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_execute_with_retry_succeeds_on_httpx_503(self):
+        """HTTP 503 as httpx.HTTPStatusError then success."""
+        import httpx
+        from httpx import Request, Response
+
+        limiter = GlobalRateLimiter.get_instance(rate_limit=100, rate_window=60)
+
+        call_count = 0
+
+        async def fail_then_ok():
+            nonlocal call_count
+            call_count += 1
+            if call_count == 1:
+                r = Response(503, request=Request("POST", "http://x"), text="busy")
+                raise httpx.HTTPStatusError(
+                    "Service Unavailable", request=r.request, response=r
+                )
+            return "ok"
+
+        result = await limiter.execute_with_retry(
+            fail_then_ok, max_retries=2, base_delay=0.01, max_delay=0.1, jitter=0
+        )
+        assert result == "ok"
+        assert call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_execute_with_retry_exhaust_openai_503_raises(self):
+        """When all 503 retries exhausted (openai), last InternalServerError is raised."""
+        import openai
+        from httpx import Request, Response
+
+        GlobalRateLimiter.reset_instance()
+        limiter = GlobalRateLimiter.get_instance(rate_limit=100, rate_window=60)
+
+        exc = openai.InternalServerError(
+            "unavailable",
+            response=Response(503, request=Request("POST", "http://x")),
+            body={},
+        )
+
+        async def always_503():
+            raise exc
+
+        with pytest.raises(openai.InternalServerError):
+            await limiter.execute_with_retry(
+                always_503, max_retries=2, base_delay=0.01, max_delay=0.1, jitter=0
+            )
+
+    @pytest.mark.asyncio
     async def test_max_concurrency_zero_raises(self):
         """max_concurrency <= 0 raises ValueError."""
         GlobalRateLimiter.reset_instance()

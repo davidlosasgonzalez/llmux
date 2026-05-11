@@ -88,6 +88,18 @@ class TestMapError:
         assert isinstance(result, APIError)
         assert result.status_code == 500
 
+    def test_internal_server_error_503_maps_to_api_error_with_status(self):
+        """InternalServerError carrying HTTP 503 retains 503 for stable user messaging."""
+        exc = _make_openai_error(
+            openai.InternalServerError,
+            message="<html>503</html>",
+            status_code=503,
+        )
+        result = map_error(exc)
+        assert isinstance(result, APIError)
+        assert result.status_code == 503
+        assert "temporarily unavailable" in result.message.lower()
+
     def test_generic_api_error(self):
         """openai.APIError -> APIError with original status_code."""
         exc = _make_openai_error(
