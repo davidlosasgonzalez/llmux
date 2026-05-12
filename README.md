@@ -37,7 +37,7 @@ Free Claude Code routes Anthropic Messages API traffic from Claude Code to NVIDI
 ## What You Get
 
 - Drop-in proxy for Claude Code's Anthropic API calls.
-- Eight provider backends: NVIDIA NIM, Kimi, Wafer, OpenRouter, DeepSeek, LM Studio, llama.cpp, and Ollama.
+- Nine provider backends: NVIDIA NIM, Kimi, Wafer, OpenRouter, DeepSeek, LM Studio, llama.cpp, Ollama, and OpenCode Zen.
 - Per-model routing: send Opus, Sonnet, Haiku, and fallback traffic to different providers.
 - Native Claude Code `/model` picker support through the proxy's `/v1/models` endpoint (Claude Code must opt in to Gateway model discovery; see [Model Picker](#model-picker)).
 - Streaming, tool use, reasoning/thinking block handling, and local request optimizations.
@@ -208,11 +208,30 @@ In the Admin UI, keep or update `OLLAMA_BASE_URL`, then set `MODEL` to the same 
 
 `OLLAMA_BASE_URL` is the Ollama server root; do not append `/v1`. Example model slugs include `ollama/llama3.1` and `ollama/llama3.1:8b`.
 
-### 9. Mix Providers By Model Tier
+### 9. [OpenCode Zen](https://opencode.ai/)
+
+Get an API key at [opencode.ai/auth](https://opencode.ai/auth).
+
+In the Admin UI, paste it into `OPENCODE_API_KEY`, then set `MODEL` to an OpenCode Zen model slug such as `opencode/gpt-5.3-codex`.
+
+OpenCode Zen is a curated model gateway that provides access to models from Anthropic, OpenAI, Google, DeepSeek, and more through a single API key and OpenAI-compatible endpoint at `https://opencode.ai/zen/v1`.
+
+Popular examples:
+
+- `opencode/gpt-5.3-codex`
+- `opencode/claude-sonnet-4`
+- `opencode/deepseek-v4-flash-free` (free)
+- `opencode/gemini-3-flash`
+- `opencode/big-pickle` (free)
+- `opencode/glm-5.1`
+
+Browse available models at [opencode.ai](https://opencode.ai).
+
+### 10. Mix Providers By Model Tier
 
 Each model tier can use a different provider by setting `MODEL_OPUS`, `MODEL_SONNET`, and `MODEL_HAIKU` in the Admin UI. Leave a tier blank to inherit `MODEL`.
 
-For example, you can route Opus to `nvidia_nim/moonshotai/kimi-k2.5`, Sonnet to `open_router/deepseek/deepseek-r1-0528:free`, Haiku to `lmstudio/unsloth/GLM-4.7-Flash-GGUF`, and keep the fallback `MODEL` on `wafer/DeepSeek-V4-Pro`.
+For example, you can route Opus to `nvidia_nim/moonshotai/kimi-k2.5`, Sonnet to `open_router/deepseek/deepseek-r1-0528:free`, Haiku to `lmstudio/unsloth/GLM-4.7-Flash-GGUF`, and keep the fallback `MODEL` on `opencode/gpt-5.3-codex`.
 
 ## Connect Claude Code
 
@@ -364,6 +383,7 @@ NVIDIA_NIM_API_KEY=""
 OPENROUTER_API_KEY=""
 DEEPSEEK_API_KEY=""
 WAFER_API_KEY=""
+OPENCODE_API_KEY=""
 LM_STUDIO_BASE_URL="http://localhost:1234/v1"
 LLAMACPP_BASE_URL="http://localhost:8080/v1"
 OLLAMA_BASE_URL="http://localhost:11434"
@@ -377,6 +397,7 @@ OPENROUTER_PROXY=""
 LMSTUDIO_PROXY=""
 LLAMACPP_PROXY=""
 WAFER_PROXY=""
+OPENCODE_PROXY=""
 ```
 
 ### 4. Rate Limits And Timeouts
@@ -430,7 +451,7 @@ Important pieces:
 
 - FastAPI exposes Anthropic-compatible routes such as `/v1/messages`, `/v1/messages/count_tokens`, and `/v1/models`.
 - Model routing resolves the Claude model name to `MODEL_OPUS`, `MODEL_SONNET`, `MODEL_HAIKU`, or `MODEL`.
-- NIM uses OpenAI chat streaming translated into Anthropic SSE.
+- NIM, OpenCode Zen use OpenAI chat streaming translated into Anthropic SSE.
 - Wafer, OpenRouter, DeepSeek, LM Studio, llama.cpp, and Ollama use Anthropic Messages style transports.
 - The proxy normalizes thinking blocks, tool calls, token usage metadata, and provider errors into the shape Claude Code expects.
 - Request optimizations answer trivial Claude Code probes locally to save latency and quota.

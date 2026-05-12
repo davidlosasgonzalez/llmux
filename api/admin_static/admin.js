@@ -32,6 +32,7 @@ function providerName(providerId) {
     ollama: "Ollama",
     kimi: "Kimi",
     wafer: "Wafer",
+    opencode: "OpenCode Zen",
   };
   if (names[providerId]) return names[providerId];
   return providerId

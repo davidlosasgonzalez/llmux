@@ -33,6 +33,7 @@ def _settings(
     open_router_api_key: str = "",
     deepseek_api_key: str = "",
     wafer_api_key: str = "",
+    opencode_api_key: str = "",
 ) -> Settings:
     return Settings.model_construct(
         model=model,
@@ -43,6 +44,7 @@ def _settings(
         open_router_api_key=open_router_api_key,
         deepseek_api_key=deepseek_api_key,
         wafer_api_key=wafer_api_key,
+        opencode_api_key=opencode_api_key,
         log_api_error_tracebacks=False,
     )
 

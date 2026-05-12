@@ -27,6 +27,7 @@ def _settings(**overrides):
         "open_router_api_key": "",
         "deepseek_api_key": "",
         "wafer_api_key": "",
+        "opencode_api_key": "",
         "lm_studio_base_url": "",
         "llamacpp_base_url": "",
         "ollama_base_url": "http://localhost:11434",

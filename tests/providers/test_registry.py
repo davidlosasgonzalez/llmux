@@ -13,6 +13,7 @@ from providers.lmstudio import LMStudioProvider
 from providers.nvidia_nim import NvidiaNimProvider
 from providers.ollama import OllamaProvider
 from providers.open_router import OpenRouterProvider
+from providers.opencode import OpenCodeProvider
 from providers.registry import (
     PROVIDER_DESCRIPTORS,
     ProviderRegistry,
@@ -29,6 +30,7 @@ def _make_settings(**overrides):
     mock.open_router_api_key = "test_openrouter_key"
     mock.deepseek_api_key = "test_deepseek_key"
     mock.wafer_api_key = "test_wafer_key"
+    mock.opencode_api_key = "test_opencode_key"
     mock.lm_studio_base_url = "http://localhost:1234/v1"
     mock.llamacpp_base_url = "http://localhost:8080/v1"
     mock.ollama_base_url = "http://localhost:11434"
@@ -38,6 +40,7 @@ def _make_settings(**overrides):
     mock.llamacpp_proxy = ""
     mock.kimi_proxy = ""
     mock.wafer_proxy = ""
+    mock.opencode_proxy = ""
     mock.provider_rate_limit = 40
     mock.provider_rate_window = 60
     mock.provider_max_concurrency = 5
@@ -99,6 +102,7 @@ def test_create_provider_instantiates_each_builtin():
         "llamacpp": LlamaCppProvider,
         "ollama": OllamaProvider,
         "wafer": WaferProvider,
+        "opencode": OpenCodeProvider,
     }
 
     with (
