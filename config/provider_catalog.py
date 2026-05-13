@@ -24,6 +24,7 @@ LMSTUDIO_DEFAULT_BASE = "http://localhost:1234/v1"
 LLAMACPP_DEFAULT_BASE = "http://localhost:8080/v1"
 OLLAMA_DEFAULT_BASE = "http://localhost:11434"
 OPENCODE_DEFAULT_BASE = "https://opencode.ai/zen/v1"
+ZAI_DEFAULT_BASE = "https://api.z.ai/api/coding/paas/v4"
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,6 +134,16 @@ PROVIDER_CATALOG: dict[str, ProviderDescriptor] = {
         credential_attr="opencode_api_key",
         default_base_url=OPENCODE_DEFAULT_BASE,
         proxy_attr="opencode_proxy",
+        capabilities=("chat", "streaming", "tools", "thinking", "rate_limit"),
+    ),
+    "zai": ProviderDescriptor(
+        provider_id="zai",
+        transport_type="openai_chat",
+        credential_env="ZAI_API_KEY",
+        credential_attr="zai_api_key",
+        default_base_url=ZAI_DEFAULT_BASE,
+        base_url_attr="zai_base_url",
+        proxy_attr="zai_proxy",
         capabilities=("chat", "streaming", "tools", "thinking", "rate_limit"),
     ),
 }

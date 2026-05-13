@@ -38,6 +38,7 @@ def _make_mock_settings(**overrides):
     mock.deepseek_api_key = "test_deepseek_key"
     mock.wafer_api_key = "test_wafer_key"
     mock.opencode_api_key = "test_opencode_key"
+    mock.zai_api_key = "test_zai_key"
     mock.lm_studio_base_url = "http://localhost:1234/v1"
     mock.ollama_base_url = "http://localhost:11434"
     mock.lmstudio_proxy = ""
@@ -45,6 +46,7 @@ def _make_mock_settings(**overrides):
     mock.kimi_proxy = ""
     mock.wafer_proxy = ""
     mock.opencode_proxy = ""
+    mock.zai_proxy = ""
     mock.nim = NimSettings()
     mock.http_read_timeout = 300.0
     mock.http_write_timeout = 10.0

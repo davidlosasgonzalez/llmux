@@ -33,6 +33,7 @@ function providerName(providerId) {
     kimi: "Kimi",
     wafer: "Wafer",
     opencode: "OpenCode Zen",
+    zai: "Z.ai",
   };
   if (names[providerId]) return names[providerId];
   return providerId

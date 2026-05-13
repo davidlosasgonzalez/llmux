@@ -121,6 +121,13 @@ class Settings(BaseSettings):
     # ==================== OpenCode Zen Config ====================
     opencode_api_key: str = Field(default="", validation_alias="OPENCODE_API_KEY")
 
+    # ==================== Z.ai Config ====================
+    zai_api_key: str = Field(default="", validation_alias="ZAI_API_KEY")
+    zai_base_url: str = Field(
+        default="https://api.z.ai/api/coding/paas/v4",
+        validation_alias="ZAI_BASE_URL",
+    )
+
     # ==================== Messaging Platform Selection ====================
     # Valid: "telegram" | "discord" | "none"
     messaging_platform: str = Field(
@@ -173,6 +180,7 @@ class Settings(BaseSettings):
     kimi_proxy: str = Field(default="", validation_alias="KIMI_PROXY")
     wafer_proxy: str = Field(default="", validation_alias="WAFER_PROXY")
     opencode_proxy: str = Field(default="", validation_alias="OPENCODE_PROXY")
+    zai_proxy: str = Field(default="", validation_alias="ZAI_PROXY")
 
     # ==================== Provider Rate Limiting ====================
     provider_rate_limit: int = Field(default=40, validation_alias="PROVIDER_RATE_LIMIT")

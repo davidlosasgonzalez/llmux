@@ -86,6 +86,12 @@ def _create_opencode(config: ProviderConfig, _settings: Settings) -> BaseProvide
     return OpenCodeProvider(config)
 
 
+def _create_zai(config: ProviderConfig, _settings: Settings) -> BaseProvider:
+    from providers.zai import ZaiProvider
+
+    return ZaiProvider(config)
+
+
 PROVIDER_FACTORIES: dict[str, ProviderFactory] = {
     "nvidia_nim": _create_nvidia_nim,
     "open_router": _create_open_router,
@@ -96,6 +102,7 @@ PROVIDER_FACTORIES: dict[str, ProviderFactory] = {
     "kimi": _create_kimi,
     "wafer": _create_wafer,
     "opencode": _create_opencode,
+    "zai": _create_zai,
 }
 
 if set(PROVIDER_DESCRIPTORS) != set(SUPPORTED_PROVIDER_IDS) or set(

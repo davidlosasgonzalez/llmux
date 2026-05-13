@@ -50,6 +50,7 @@ PROVIDER_SMOKE_DEFAULT_MODELS: dict[str, str] = {
     "ollama": "ollama/llama3.1",
     "wafer": "wafer/DeepSeek-V4-Pro",
     "opencode": "opencode/gpt-5.3-codex",
+    "zai": "zai/glm-5.1",
 }
 
 NVIDIA_NIM_CLI_DEFAULT_MODELS: tuple[str, ...] = (
@@ -234,6 +235,8 @@ class SmokeConfig:
             return bool(self.settings.wafer_api_key.strip())
         if provider == "opencode":
             return bool(self.settings.opencode_api_key.strip())
+        if provider == "zai":
+            return bool(self.settings.zai_api_key.strip())
         return False
 
 
