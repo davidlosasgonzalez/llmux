@@ -418,7 +418,7 @@ FIELDS: tuple[ConfigFieldSpec, ...] = (
         "Log File",
         "runtime",
         settings_attr="log_file",
-        default="server.log",
+        default="logs/server.log",
         restart_required=True,
     ),
     ConfigFieldSpec(

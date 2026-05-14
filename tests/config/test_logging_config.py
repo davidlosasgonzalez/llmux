@@ -9,6 +9,13 @@ from loguru import logger
 from config.logging_config import configure_logging
 
 
+def test_configure_logging_creates_parent_directories(tmp_path) -> None:
+    """Nested log path: parent directories are created before truncating."""
+    log_file = tmp_path / "nested" / "dir" / "app.log"
+    configure_logging(str(log_file), force=True)
+    assert log_file.is_file()
+
+
 def test_configure_logging_writes_json_to_file(tmp_path):
     """configure_logging writes JSON lines to the specified file."""
     log_file = str(tmp_path / "test.log")

@@ -7,7 +7,9 @@ __pycache__
 .venv
 agent_workspace
 .env
+/logs/
 server.log
+/server.*.log
 debug-*.log
 .coverage
 llama_cache

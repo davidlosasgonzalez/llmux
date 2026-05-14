@@ -1,7 +1,7 @@
 """Loguru-based structured logging configuration.
 
-All logs are written to server.log as JSON lines for full traceability.
-Stdlib logging is intercepted and funneled to loguru.
+Structured logs are written as JSON lines to a configurable path (default
+``logs/server.log``). Stdlib logging is intercepted and funneled to loguru.
 Context vars (request_id, node_id, chat_id) from contextualize() are
 included at top level for easy grep/filter.
 """
@@ -123,8 +123,11 @@ def configure_logging(
     # Remove default loguru handler (writes to stderr)
     logger.remove()
 
+    log_path = Path(log_file)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
     # Truncate log file on fresh start for clean debugging
-    Path(log_file).write_text("")
+    log_path.write_text("")
 
     # Add file sink: JSON lines, DEBUG level, context vars at top level
     logger.add(
