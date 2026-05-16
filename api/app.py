@@ -12,6 +12,7 @@ from loguru import logger
 from starlette.types import Receive, Scope, Send
 
 from config.logging_config import configure_logging
+from config.paths import server_log_path
 from config.settings import get_settings
 from core.trace import extract_claude_session_id_from_headers, trace_event
 from providers.exceptions import ProviderError
@@ -85,7 +86,7 @@ def create_app(*, lifespan_enabled: bool = True) -> FastAPI:
     """Create and configure the FastAPI application."""
     settings = get_settings()
     configure_logging(
-        settings.log_file, verbose_third_party=settings.log_raw_api_payloads
+        server_log_path(), verbose_third_party=settings.log_raw_api_payloads
     )
 
     app_kwargs: dict[str, Any] = {

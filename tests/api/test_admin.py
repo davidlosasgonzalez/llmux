@@ -57,6 +57,7 @@ def test_admin_config_masks_secrets_and_exposes_manifest(monkeypatch, tmp_path):
     keys = {field["key"] for field in body["fields"]}
     assert "ANTHROPIC_AUTH_TOKEN" in keys
     assert "OPENROUTER_API_KEY" in keys
+    assert "LOG_FILE" not in keys
     auth_field = next(
         field for field in body["fields"] if field["key"] == "ANTHROPIC_AUTH_TOKEN"
     )

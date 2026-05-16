@@ -414,14 +414,6 @@ FIELDS: tuple[ConfigFieldSpec, ...] = (
         restart_required=True,
     ),
     ConfigFieldSpec(
-        "LOG_FILE",
-        "Log File",
-        "runtime",
-        settings_attr="log_file",
-        default="logs/server.log",
-        restart_required=True,
-    ),
-    ConfigFieldSpec(
         "MESSAGING_PLATFORM",
         "Messaging Platform",
         "messaging",

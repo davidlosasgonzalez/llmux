@@ -105,7 +105,7 @@ class InterceptHandler(logging.Handler):
 
 
 def configure_logging(
-    log_file: str, *, force: bool = False, verbose_third_party: bool = False
+    log_file: str | Path, *, force: bool = False, verbose_third_party: bool = False
 ) -> None:
     """Configure loguru with JSON output to log_file and intercept stdlib logging.
 

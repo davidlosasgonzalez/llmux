@@ -22,7 +22,6 @@ async def test_messaging_start_failure_default_logs_exclude_traceback(caplog):
         claude_workspace="./agent_workspace",
         host="127.0.0.1",
         port=8082,
-        log_file="server.log",
         log_api_error_tracebacks=False,
     )
     runtime = api_runtime_mod.AppRuntime(app=MagicMock(), settings=settings)

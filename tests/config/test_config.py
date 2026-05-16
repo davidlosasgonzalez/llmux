@@ -57,6 +57,26 @@ class TestSettings:
 
         assert settings.claude_workspace == str(tmp_path / ".fcc" / "agent_workspace")
 
+    def test_server_log_path_uses_fcc_home(self, monkeypatch, tmp_path):
+        """The server log location is fixed under ~/.fcc."""
+        from config.paths import server_log_path
+
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setenv("USERPROFILE", str(tmp_path))
+
+        assert server_log_path() == tmp_path / ".fcc" / "logs" / "server.log"
+
+    def test_removed_log_file_env_is_ignored(self, monkeypatch):
+        """Legacy LOG_FILE values do not affect Settings or block startup."""
+        from config.settings import Settings
+
+        monkeypatch.setenv("LOG_FILE", "custom/server.log")
+        monkeypatch.setitem(Settings.model_config, "env_file", ())
+
+        settings = Settings()
+
+        assert not hasattr(settings, "log_file")
+
     def test_blank_claude_workspace_uses_fcc_home(self, monkeypatch, tmp_path):
         """An explicit blank env value keeps the default workspace path."""
         from config.settings import Settings
