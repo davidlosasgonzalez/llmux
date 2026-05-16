@@ -21,10 +21,6 @@ def user_visible_message_for_mapped_provider_error(
     read_timeout_s: float | None,
 ) -> str:
     """Return the user-visible string after :func:`map_error` (405 + mapped types)."""
-    if getattr(mapped, "status_code", None) == 408:
-        return get_user_facing_error_message(
-            APIError("_", status_code=408), read_timeout_s=read_timeout_s
-        )
     if getattr(mapped, "status_code", None) == 405:
         return (
             f"Upstream provider {provider_name} rejected the request method "
@@ -45,27 +41,13 @@ def map_error(
     message = get_user_facing_error_message(e)
     limiter = rate_limiter or GlobalRateLimiter.get_instance()
 
-    if isinstance(e, openai.APITimeoutError | httpx.TimeoutException):
-        return APIError(message, status_code=408, raw_error=str(e))
-    if isinstance(e, openai.APIConnectionError | httpx.ConnectError):
-        return APIError(message, raw_error=str(e))
-    if isinstance(e, httpx.ProtocolError):
-        return APIError(message, raw_error=str(e))
     if isinstance(e, openai.AuthenticationError):
         return AuthenticationError(message, raw_error=str(e))
-    if isinstance(e, openai.PermissionDeniedError):
-        return AuthenticationError(message, status_code=403, raw_error=str(e))
     if isinstance(e, openai.RateLimitError):
         limiter.set_blocked(60)
         return RateLimitError(message, raw_error=str(e))
     if isinstance(e, openai.BadRequestError):
         return InvalidRequestError(message, raw_error=str(e))
-    if isinstance(e, openai.ConflictError):
-        return InvalidRequestError(message, status_code=409, raw_error=str(e))
-    if isinstance(e, openai.UnprocessableEntityError):
-        return InvalidRequestError(message, status_code=422, raw_error=str(e))
-    if isinstance(e, openai.NotFoundError):
-        return APIError(message, status_code=404, raw_error=str(e))
     if isinstance(e, openai.InternalServerError):
         raw_message = str(e)
         sdk_status = getattr(e, "status_code", None)
@@ -87,14 +69,12 @@ def map_error(
     if isinstance(e, httpx.HTTPStatusError):
         status = e.response.status_code
         if status in (401, 403):
-            return AuthenticationError(message, status_code=status, raw_error=str(e))
+            return AuthenticationError(message, raw_error=str(e))
         if status == 429:
             limiter.set_blocked(60)
             return RateLimitError(message, raw_error=str(e))
-        if status in (400, 409, 422):
-            return InvalidRequestError(message, status_code=status, raw_error=str(e))
-        if status == 408:
-            return APIError(message, status_code=status, raw_error=str(e))
+        if status == 400:
+            return InvalidRequestError(message, raw_error=str(e))
         if status >= 500:
             if status in (502, 503, 504):
                 return OverloadedError(message, raw_error=str(e))

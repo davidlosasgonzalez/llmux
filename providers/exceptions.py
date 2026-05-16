@@ -33,10 +33,10 @@ class ProviderError(Exception):
 class AuthenticationError(ProviderError):
     """Raised when API key is invalid or missing."""
 
-    def __init__(self, message: str, status_code: int = 401, raw_error: Any = None):
+    def __init__(self, message: str, raw_error: Any = None):
         super().__init__(
             message,
-            status_code=status_code,
+            status_code=401,
             error_type="authentication_error",
             raw_error=raw_error,
         )
@@ -45,10 +45,10 @@ class AuthenticationError(ProviderError):
 class InvalidRequestError(ProviderError):
     """Raised when the request parameters are invalid."""
 
-    def __init__(self, message: str, status_code: int = 400, raw_error: Any = None):
+    def __init__(self, message: str, raw_error: Any = None):
         super().__init__(
             message,
-            status_code=status_code,
+            status_code=400,
             error_type="invalid_request_error",
             raw_error=raw_error,
         )

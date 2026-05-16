@@ -316,7 +316,7 @@ async def test_stream_network_error(lmstudio_provider):
 
         blob = "".join(events)
         assert_canonical_stream_error_envelope(
-            events, user_message_substr="Could not connect to provider"
+            events, user_message_substr="Connection refused"
         )
         assert "TEST_ID2" in blob
 
