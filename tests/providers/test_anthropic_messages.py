@@ -236,6 +236,48 @@ async def test_stream_maps_non_200_to_error_event_and_closes_response(
     assert "REQ_123" in blob
 
 
+@pytest.mark.parametrize(
+    ("status_code", "expected"),
+    [
+        (403, "model access"),
+        (404, "configured provider model"),
+        (408, "timed out after 600s"),
+        (409, "conflict"),
+        (422, "unsupported request content"),
+        (429, "rate limit"),
+        (500, "HTTP 500"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_stream_maps_provider_status_to_actionable_error_event(
+    provider_config,
+    status_code,
+    expected,
+):
+    provider = NativeProvider(provider_config)
+    req = MockRequest()
+    response = FakeResponse(status_code=status_code, text="SECRET_UPSTREAM_BODY")
+
+    with (
+        patch.object(provider._client, "build_request", return_value=MagicMock()),
+        patch.object(
+            provider._client,
+            "send",
+            new_callable=AsyncMock,
+            return_value=response,
+        ),
+    ):
+        events = [
+            event async for event in provider.stream_response(req, request_id="REQ_X")
+        ]
+
+    assert response.is_closed
+    assert_canonical_stream_error_envelope(events, user_message_substr=expected)
+    blob = "".join(events)
+    assert "SECRET_UPSTREAM_BODY" not in blob
+    assert "REQ_X" in blob
+
+
 @pytest.mark.asyncio
 async def test_midstream_error_closes_open_block_and_uses_fresh_content_index(
     provider_config,

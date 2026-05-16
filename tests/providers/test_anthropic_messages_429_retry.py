@@ -138,9 +138,9 @@ async def test_native_stream_retries_on_http_5xx_then_streams(
     ("status_code", "substr"),
     [
         (500, "Provider API request failed"),
-        (502, "Provider is currently overloaded"),
-        (503, "Provider is currently overloaded"),
-        (504, "Provider is currently overloaded"),
+        (502, "Provider is temporarily unavailable"),
+        (503, "Provider is temporarily unavailable"),
+        (504, "Provider is temporarily unavailable"),
     ],
 )
 @pytest.mark.asyncio

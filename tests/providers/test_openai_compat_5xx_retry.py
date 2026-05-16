@@ -13,6 +13,14 @@ from providers.rate_limit import GlobalRateLimiter
 from tests.providers.test_nvidia_nim import MockRequest
 
 
+def _openai_status_error(cls, code: int, message: str = "upstream error"):
+    return cls(
+        message,
+        response=Response(code, request=Request("POST", "http://x")),
+        body={"error": {"message": "SECRET_UPSTREAM_BODY"}},
+    )
+
+
 def _internal_5xx(code: int) -> openai.InternalServerError:
     return openai.InternalServerError(
         "unavailable",
@@ -63,6 +71,57 @@ async def test_nim_stream_retries_on_openai_5xx_then_streams(status_code):
 
         assert mock_create.await_count == 2
         assert any("Hi" in e for e in events)
+    finally:
+        GlobalRateLimiter.reset_instance()
+
+
+@pytest.mark.parametrize(
+    ("error_cls", "status_code", "expected"),
+    [
+        (openai.PermissionDeniedError, 403, "model access"),
+        (openai.NotFoundError, 404, "configured provider model"),
+        (openai.ConflictError, 409, "conflict"),
+        (openai.UnprocessableEntityError, 422, "unsupported request content"),
+    ],
+)
+@pytest.mark.asyncio
+async def test_nim_stream_openai_status_errors_emit_actionable_user_message(
+    error_cls,
+    status_code,
+    expected,
+):
+    GlobalRateLimiter.reset_instance()
+    try:
+        config = ProviderConfig(
+            api_key="test_key",
+            base_url="https://test.api.nvidia.com/v1",
+            rate_limit=100,
+            rate_window=60,
+            http_read_timeout=600.0,
+            http_write_timeout=15.0,
+            http_connect_timeout=5.0,
+        )
+        provider = NvidiaNimProvider(config, nim_settings=NimSettings())
+        req = MockRequest()
+
+        with patch.object(
+            provider._client.chat.completions,
+            "create",
+            new_callable=AsyncMock,
+        ) as mock_create:
+            mock_create.side_effect = _openai_status_error(error_cls, status_code)
+            events = [
+                event
+                async for event in provider.stream_response(
+                    req, request_id="REQ_OPENAI_STATUS"
+                )
+            ]
+
+        assert mock_create.await_count == 1
+        blob = "".join(events)
+        assert expected in blob
+        assert "SECRET_UPSTREAM_BODY" not in blob
+        assert "REQ_OPENAI_STATUS" in blob
     finally:
         GlobalRateLimiter.reset_instance()
 
