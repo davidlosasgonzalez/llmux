@@ -114,6 +114,7 @@ def _claude_child_env(
         for key, value in base_env.items()
         if not key.startswith("ANTHROPIC_")
     }
+    env.pop("ANTHROPIC_API_KEY", None)
     env["ANTHROPIC_BASE_URL"] = local_proxy_root_url(settings)
     env["CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"] = "1"
     if token := settings.anthropic_auth_token.strip():

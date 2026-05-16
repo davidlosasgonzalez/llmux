@@ -520,15 +520,20 @@ class TestCLISession:
         mock_process.stderr.read.return_value = b""
         mock_process.wait.return_value = 0
 
-        with patch(
-            "asyncio.create_subprocess_exec", new_callable=AsyncMock
-        ) as mock_exec:
+        with (
+            patch.dict(os.environ, {"ANTHROPIC_API_KEY": "official-key"}, clear=False),
+            patch(
+                "asyncio.create_subprocess_exec", new_callable=AsyncMock
+            ) as mock_exec,
+        ):
             mock_exec.return_value = mock_process
             async for _ in session.start_task("test"):
                 pass
 
             env = mock_exec.call_args.kwargs["env"]
             assert env["ANTHROPIC_AUTH_TOKEN"] == "proxy-token"
+            assert env["CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"] == "1"
+            assert "ANTHROPIC_API_KEY" not in env
 
     @pytest.mark.asyncio
     async def test_start_task_removes_stale_auth_token_when_proxy_auth_blank(self):

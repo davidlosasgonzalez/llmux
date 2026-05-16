@@ -113,14 +113,13 @@ class CLISession:
             self._is_busy = True
             env = os.environ.copy()
 
-            if "ANTHROPIC_API_KEY" not in env:
-                env["ANTHROPIC_API_KEY"] = "sk-placeholder-key-for-proxy"
-
             env["ANTHROPIC_API_URL"] = self.api_url
             if self.api_url.endswith("/v1"):
                 env["ANTHROPIC_BASE_URL"] = self.api_url[:-3]
             else:
                 env["ANTHROPIC_BASE_URL"] = self.api_url
+            env["CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"] = "1"
+            env.pop("ANTHROPIC_API_KEY", None)
             if token := self.auth_token.strip():
                 env["ANTHROPIC_AUTH_TOKEN"] = token
             else:
