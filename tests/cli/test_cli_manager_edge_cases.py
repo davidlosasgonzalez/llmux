@@ -13,10 +13,14 @@ async def test_register_real_session_id_moves_pending_to_active_and_maps():
         mock_session.stop = AsyncMock(return_value=True)
         mock_session_cls.return_value = mock_session
 
-        manager = CLISessionManager(workspace_path="/tmp", api_url="http://x/v1")
+        manager = CLISessionManager(
+            workspace_path="/tmp", api_url="http://x/v1", auth_token="proxy-token"
+        )
         session, temp_id, is_new = await manager.get_or_create_session()
         assert session is mock_session
         assert is_new is True
+        mock_session_cls.assert_called_once()
+        assert mock_session_cls.call_args.kwargs["auth_token"] == "proxy-token"
 
         ok = await manager.register_real_session_id(temp_id, "real_1")
         assert ok is True

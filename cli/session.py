@@ -26,6 +26,7 @@ class ClaudeCliConfig:
     allowed_dirs: list[str] = field(default_factory=list)
     plans_directory: str | None = None
     claude_bin: str = "claude"
+    auth_token: str = ""
 
 
 class CLISession:
@@ -38,6 +39,7 @@ class CLISession:
         allowed_dirs: list[str] | None = None,
         plans_directory: str | None = None,
         claude_bin: str = "claude",
+        auth_token: str = "",
         *,
         log_raw_cli_diagnostics: bool = False,
     ):
@@ -47,12 +49,14 @@ class CLISession:
             allowed_dirs=[os.path.normpath(d) for d in (allowed_dirs or [])],
             plans_directory=plans_directory,
             claude_bin=claude_bin,
+            auth_token=auth_token,
         )
         self.workspace = self.config.workspace_path
         self.api_url = self.config.api_url
         self.allowed_dirs = self.config.allowed_dirs
         self.plans_directory = self.config.plans_directory
         self.claude_bin = self.config.claude_bin
+        self.auth_token = self.config.auth_token
         self._log_raw_cli_diagnostics = log_raw_cli_diagnostics
         self.process: asyncio.subprocess.Process | None = None
         self.current_session_id: str | None = None
@@ -117,6 +121,10 @@ class CLISession:
                 env["ANTHROPIC_BASE_URL"] = self.api_url[:-3]
             else:
                 env["ANTHROPIC_BASE_URL"] = self.api_url
+            if token := self.auth_token.strip():
+                env["ANTHROPIC_AUTH_TOKEN"] = token
+            else:
+                env.pop("ANTHROPIC_AUTH_TOKEN", None)
 
             env["TERM"] = "dumb"
             env["PYTHONIOENCODING"] = "utf-8"

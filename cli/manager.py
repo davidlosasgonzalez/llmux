@@ -29,6 +29,7 @@ class CLISessionManager:
         allowed_dirs: list[str] | None = None,
         plans_directory: str | None = None,
         claude_bin: str = "claude",
+        auth_token: str = "",
         *,
         log_raw_cli_diagnostics: bool = False,
         log_messaging_error_details: bool = False,
@@ -47,6 +48,7 @@ class CLISessionManager:
         self.allowed_dirs = allowed_dirs or []
         self.plans_directory = plans_directory
         self.claude_bin = claude_bin
+        self.auth_token = auth_token
         self._log_raw_cli_diagnostics = log_raw_cli_diagnostics
         self._log_messaging_error_details = log_messaging_error_details
 
@@ -82,6 +84,7 @@ class CLISessionManager:
                 allowed_dirs=self.allowed_dirs,
                 plans_directory=self.plans_directory,
                 claude_bin=self.claude_bin,
+                auth_token=self.auth_token,
                 log_raw_cli_diagnostics=self._log_raw_cli_diagnostics,
             )
             self._pending_sessions[temp_id] = new_session

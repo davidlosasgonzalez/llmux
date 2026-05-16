@@ -507,6 +507,55 @@ class TestCLISession:
             assert env["ANTHROPIC_BASE_URL"] == "http://localhost:8082"
 
     @pytest.mark.asyncio
+    async def test_start_task_sets_proxy_auth_token(self):
+        """Test start_task forwards configured proxy auth to Claude Code."""
+        from cli.session import CLISession
+
+        session = CLISession(
+            "/tmp", "http://localhost:8082/v1", auth_token="proxy-token"
+        )
+
+        mock_process = AsyncMock()
+        mock_process.stdout.read.side_effect = [b""]
+        mock_process.stderr.read.return_value = b""
+        mock_process.wait.return_value = 0
+
+        with patch(
+            "asyncio.create_subprocess_exec", new_callable=AsyncMock
+        ) as mock_exec:
+            mock_exec.return_value = mock_process
+            async for _ in session.start_task("test"):
+                pass
+
+            env = mock_exec.call_args.kwargs["env"]
+            assert env["ANTHROPIC_AUTH_TOKEN"] == "proxy-token"
+
+    @pytest.mark.asyncio
+    async def test_start_task_removes_stale_auth_token_when_proxy_auth_blank(self):
+        """Test start_task does not leak inherited Claude auth into proxy calls."""
+        from cli.session import CLISession
+
+        session = CLISession("/tmp", "http://localhost:8082/v1", auth_token="")
+
+        mock_process = AsyncMock()
+        mock_process.stdout.read.side_effect = [b""]
+        mock_process.stderr.read.return_value = b""
+        mock_process.wait.return_value = 0
+
+        with (
+            patch.dict(os.environ, {"ANTHROPIC_AUTH_TOKEN": "stale"}, clear=False),
+            patch(
+                "asyncio.create_subprocess_exec", new_callable=AsyncMock
+            ) as mock_exec,
+        ):
+            mock_exec.return_value = mock_process
+            async for _ in session.start_task("test"):
+                pass
+
+            env = mock_exec.call_args.kwargs["env"]
+            assert "ANTHROPIC_AUTH_TOKEN" not in env
+
+    @pytest.mark.asyncio
     async def test_start_task_allowed_dirs(self):
         """Test start_task includes allowed dirs in command."""
         from cli.session import CLISession
