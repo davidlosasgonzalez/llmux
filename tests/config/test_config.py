@@ -24,6 +24,7 @@ class TestSettings:
         """Test default values are set and have correct types."""
         from config.settings import Settings
 
+        monkeypatch.delenv("CLAUDE_WORKSPACE", raising=False)
         monkeypatch.delenv("MODEL", raising=False)
         monkeypatch.delenv("HTTP_READ_TIMEOUT", raising=False)
         monkeypatch.delenv("HTTP_CONNECT_TIMEOUT", raising=False)
@@ -42,6 +43,44 @@ class TestSettings:
         assert settings.log_raw_sse_events is False
         assert settings.debug_platform_edits is False
         assert settings.debug_subagent_stack is False
+
+    def test_default_claude_workspace_uses_fcc_home(self, monkeypatch, tmp_path):
+        """Blank/unset CLAUDE_WORKSPACE stores agent data under ~/.fcc."""
+        from config.settings import Settings
+
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setenv("USERPROFILE", str(tmp_path))
+        monkeypatch.delenv("CLAUDE_WORKSPACE", raising=False)
+        monkeypatch.setitem(Settings.model_config, "env_file", ())
+
+        settings = Settings()
+
+        assert settings.claude_workspace == str(tmp_path / ".fcc" / "agent_workspace")
+
+    def test_blank_claude_workspace_uses_fcc_home(self, monkeypatch, tmp_path):
+        """An explicit blank env value keeps the default workspace path."""
+        from config.settings import Settings
+
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setenv("USERPROFILE", str(tmp_path))
+        monkeypatch.setenv("CLAUDE_WORKSPACE", "")
+        monkeypatch.setitem(Settings.model_config, "env_file", ())
+
+        settings = Settings()
+
+        assert settings.claude_workspace == str(tmp_path / ".fcc" / "agent_workspace")
+
+    def test_explicit_claude_workspace_is_preserved(self, monkeypatch, tmp_path):
+        """Custom CLAUDE_WORKSPACE values are not rewritten."""
+        from config.settings import Settings
+
+        workspace = tmp_path / "custom-workspace"
+        monkeypatch.setenv("CLAUDE_WORKSPACE", str(workspace))
+        monkeypatch.setitem(Settings.model_config, "env_file", ())
+
+        settings = Settings()
+
+        assert settings.claude_workspace == str(workspace)
 
     def test_get_settings_cached(self):
         """Test get_settings returns cached instance."""

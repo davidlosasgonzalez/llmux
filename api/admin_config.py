@@ -12,6 +12,7 @@ from typing import Any, Literal
 from dotenv import dotenv_values
 from pydantic import ValidationError
 
+from config.paths import managed_env_path
 from config.provider_catalog import PROVIDER_CATALOG
 from config.settings import Settings
 
@@ -34,7 +35,6 @@ SourceType = Literal[
 ]
 
 MASKED_SECRET = "********"
-MANAGED_ENV_RELATIVE = Path(".config") / "free-claude-code" / ".env"
 
 
 @dataclass(frozen=True, slots=True)
@@ -486,8 +486,9 @@ FIELDS: tuple[ConfigFieldSpec, ...] = (
         "Claude Workspace",
         "messaging",
         settings_attr="claude_workspace",
-        default="./agent_workspace",
+        default="",
         session_sensitive=True,
+        description="Blank uses ~/.fcc/agent_workspace.",
     ),
     ConfigFieldSpec(
         "ALLOWED_DIR",
@@ -776,12 +777,6 @@ FIELDS: tuple[ConfigFieldSpec, ...] = (
 )
 
 FIELD_BY_KEY = {field.key: field for field in FIELDS}
-
-
-def managed_env_path() -> Path:
-    """Return the admin-managed user config path."""
-
-    return Path.home() / MANAGED_ENV_RELATIVE
 
 
 def repo_env_path() -> Path:

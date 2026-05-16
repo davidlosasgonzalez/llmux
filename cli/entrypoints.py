@@ -21,6 +21,7 @@ from cli.process_registry import (
     register_pid,
     unregister_pid,
 )
+from config.paths import config_dir_path, managed_env_path
 from config.settings import Settings, get_settings
 
 PROXY_PREFLIGHT_PATH = "/health"
@@ -87,9 +88,9 @@ def _run_supervised_server(settings: Settings) -> bool:
 
 
 def init() -> None:
-    """Scaffold config at ~/.config/free-claude-code/.env (registered as `fcc-init`)."""
-    config_dir = Path.home() / ".config" / "free-claude-code"
-    env_file = config_dir / ".env"
+    """Scaffold config at ~/.fcc/.env (registered as `fcc-init`)."""
+    config_dir = config_dir_path()
+    env_file = managed_env_path()
 
     if env_file.exists():
         print(f"Config already exists at {env_file}")

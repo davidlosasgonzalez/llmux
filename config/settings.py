@@ -13,6 +13,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .constants import HTTP_CONNECT_TIMEOUT_DEFAULT
 from .nim import NimSettings
+from .paths import default_claude_workspace_path, managed_env_path
 from .provider_ids import SUPPORTED_PROVIDER_IDS
 
 
@@ -30,7 +31,7 @@ def _env_files() -> tuple[Path, ...]:
     """Return env file paths in priority order (later overrides earlier)."""
     files: list[Path] = [
         Path(".env"),
-        Path.home() / ".config" / "free-claude-code" / ".env",
+        managed_env_path(),
     ]
     if explicit := os.environ.get("FCC_ENV_FILE"):
         files.append(Path(explicit))
@@ -296,7 +297,10 @@ class Settings(BaseSettings):
     allowed_discord_channels: str | None = Field(
         default=None, validation_alias="ALLOWED_DISCORD_CHANNELS"
     )
-    claude_workspace: str = "./agent_workspace"
+    claude_workspace: str = Field(
+        default_factory=lambda: str(default_claude_workspace_path()),
+        validation_alias="CLAUDE_WORKSPACE",
+    )
     allowed_dir: str = ""
     claude_cli_bin: str = Field(default="claude", validation_alias="CLAUDE_CLI_BIN")
     max_message_log_entries_per_chat: int | None = Field(
@@ -346,6 +350,13 @@ class Settings(BaseSettings):
     def parse_optional_log_cap(cls, v: Any) -> Any:
         if v == "" or v is None:
             return None
+        return v
+
+    @field_validator("claude_workspace", mode="before")
+    @classmethod
+    def default_blank_claude_workspace(cls, v: Any) -> Any:
+        if v == "" or v is None:
+            return str(default_claude_workspace_path())
         return v
 
     @field_validator("whisper_device")

@@ -28,7 +28,7 @@ def _run_init(tmp_home: Path) -> tuple[str, Path]:
     """Run init() with home directory redirected to tmp_home. Returns (printed output, env_file path)."""
     from cli.entrypoints import init
 
-    env_file = tmp_home / ".config" / "free-claude-code" / ".env"
+    env_file = tmp_home / ".fcc" / ".env"
     printed: list[str] = []
 
     with (
@@ -74,8 +74,8 @@ def test_env_template_loader_uses_root_template_in_source_checkout() -> None:
 
 
 def test_init_creates_parent_directories(tmp_path: Path) -> None:
-    """init() creates ~/.config/free-claude-code/ even if it doesn't exist."""
-    config_dir = tmp_path / ".config" / "free-claude-code"
+    """init() creates ~/.fcc/ even if it doesn't exist."""
+    config_dir = tmp_path / ".fcc"
     assert not config_dir.exists()
 
     _run_init(tmp_path)
@@ -88,7 +88,7 @@ def test_init_skips_if_env_already_exists(tmp_path: Path) -> None:
     # Create it first
     _run_init(tmp_path)
 
-    env_file = tmp_path / ".config" / "free-claude-code" / ".env"
+    env_file = tmp_path / ".fcc" / ".env"
     env_file.write_text("existing content", encoding="utf-8")
 
     output, _ = _run_init(tmp_path)

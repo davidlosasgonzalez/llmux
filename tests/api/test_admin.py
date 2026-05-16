@@ -102,7 +102,7 @@ def test_admin_apply_writes_complete_managed_env_and_masks_preview(
     body = response.json()
     assert body["applied"] is True
     assert "OPENROUTER_API_KEY=********" in body["env_preview"]
-    env_file = tmp_path / ".config" / "free-claude-code" / ".env"
+    env_file = tmp_path / ".fcc" / ".env"
     text = env_file.read_text("utf-8")
     assert "MODEL=open_router/test-model" in text
     assert "OPENROUTER_API_KEY=router-secret" in text
@@ -183,7 +183,7 @@ def test_admin_process_env_values_are_locked_and_not_written(monkeypatch, tmp_pa
     )
 
     assert response.status_code == 200
-    env_file = tmp_path / ".config" / "free-claude-code" / ".env"
+    env_file = tmp_path / ".fcc" / ".env"
     assert "deepseek/managed-model" not in env_file.read_text("utf-8")
 
 
@@ -208,9 +208,7 @@ def test_admin_first_apply_migrates_repo_env(monkeypatch, tmp_path):
     )
 
     assert response.status_code == 200
-    managed_text = (tmp_path / ".config" / "free-claude-code" / ".env").read_text(
-        "utf-8"
-    )
+    managed_text = (tmp_path / ".fcc" / ".env").read_text("utf-8")
     assert "MODEL=deepseek/deepseek-chat" in managed_text
     assert "DEEPSEEK_API_KEY=deepseek-secret" in managed_text
 
