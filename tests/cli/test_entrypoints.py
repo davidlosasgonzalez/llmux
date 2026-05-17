@@ -62,6 +62,50 @@ def test_init_copies_template_content(tmp_path: Path) -> None:
     assert env_file.read_text("utf-8") == template
 
 
+def test_init_migrates_home_checkout_env_before_template(tmp_path: Path) -> None:
+    """init() preserves users who kept config in ~/free-claude-code/.env."""
+    legacy_env = tmp_path / "free-claude-code" / ".env"
+    legacy_env.parent.mkdir(parents=True)
+    legacy_env.write_text("MODEL=deepseek/deepseek-chat\n", encoding="utf-8")
+
+    output, env_file = _run_init(tmp_path)
+
+    assert env_file.read_text("utf-8") == "MODEL=deepseek/deepseek-chat\n"
+    assert f"Config migrated from {legacy_env}" in output
+
+
+def test_init_migrates_legacy_xdg_env_before_template(tmp_path: Path) -> None:
+    """init() preserves users who kept config in ~/.config/free-claude-code/.env."""
+    legacy_env = tmp_path / ".config" / "free-claude-code" / ".env"
+    legacy_env.parent.mkdir(parents=True)
+    legacy_env.write_text("MODEL=open_router/free-model\n", encoding="utf-8")
+
+    output, env_file = _run_init(tmp_path)
+
+    assert env_file.read_text("utf-8") == "MODEL=open_router/free-model\n"
+    assert f"Config migrated from {legacy_env}" in output
+
+
+def test_legacy_env_migration_does_not_overwrite_managed_env(
+    tmp_path: Path,
+) -> None:
+    """Legacy migration never overwrites an existing ~/.fcc/.env."""
+    from cli.entrypoints import _migrate_legacy_env_if_missing
+
+    managed_env = tmp_path / ".fcc" / ".env"
+    managed_env.parent.mkdir(parents=True)
+    managed_env.write_text("MODEL=nvidia_nim/current\n", encoding="utf-8")
+    legacy_env = tmp_path / "free-claude-code" / ".env"
+    legacy_env.parent.mkdir(parents=True)
+    legacy_env.write_text("MODEL=deepseek/legacy\n", encoding="utf-8")
+
+    with patch("pathlib.Path.home", return_value=tmp_path):
+        migrated_from = _migrate_legacy_env_if_missing()
+
+    assert migrated_from is None
+    assert managed_env.read_text("utf-8") == "MODEL=nvidia_nim/current\n"
+
+
 def test_env_template_loader_uses_root_template_in_source_checkout() -> None:
     """Source checkout fallback uses the root .env.example as the single source."""
     from cli.entrypoints import _load_env_template
@@ -150,6 +194,30 @@ def test_serve_supervisor_restarts_when_app_requests_restart() -> None:
     assert len(servers) == 2
     get_settings.cache_clear.assert_called_once()
     kill_all.assert_called_once()
+
+
+def test_serve_migrates_legacy_env_before_loading_settings(tmp_path: Path) -> None:
+    from cli import entrypoints
+
+    legacy_env = tmp_path / "free-claude-code" / ".env"
+    legacy_env.parent.mkdir(parents=True)
+    legacy_env.write_text("MODEL=deepseek/deepseek-chat\n", encoding="utf-8")
+    settings = _launcher_settings()
+    get_settings = MagicMock(return_value=settings)
+    get_settings.cache_clear = MagicMock()
+
+    with (
+        patch("pathlib.Path.home", return_value=tmp_path),
+        patch.object(entrypoints, "get_settings", get_settings),
+        patch.object(entrypoints, "_run_supervised_server", return_value=False),
+        patch.object(entrypoints, "kill_all_best_effort"),
+    ):
+        entrypoints.serve()
+
+    assert (tmp_path / ".fcc" / ".env").read_text("utf-8") == (
+        "MODEL=deepseek/deepseek-chat\n"
+    )
+    get_settings.assert_called_once_with()
 
 
 def test_serve_handles_keyboard_interrupt_without_traceback() -> None:
