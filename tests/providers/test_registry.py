@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from config.nim import NimSettings
+from config.provider_catalog import ZAI_DEFAULT_BASE
 from config.provider_ids import SUPPORTED_PROVIDER_IDS
 from providers.deepseek import DeepSeekProvider
 from providers.exceptions import UnknownProviderTypeError
@@ -17,6 +18,7 @@ from providers.opencode import OpenCodeProvider
 from providers.registry import (
     PROVIDER_DESCRIPTORS,
     ProviderRegistry,
+    build_provider_config,
     create_provider,
 )
 from providers.wafer import WaferProvider
@@ -87,6 +89,24 @@ def test_ollama_descriptor_uses_native_anthropic_transport():
     assert descriptor.transport_type == "anthropic_messages"
     assert descriptor.default_base_url == "http://localhost:11434"
     assert "native_anthropic" in descriptor.capabilities
+
+
+def test_zai_descriptor_uses_fixed_cloud_base_url():
+    descriptor = PROVIDER_DESCRIPTORS["zai"]
+
+    assert descriptor.default_base_url == ZAI_DEFAULT_BASE
+    assert descriptor.base_url_attr is None
+
+
+def test_zai_provider_config_ignores_stale_base_url_setting():
+    descriptor = PROVIDER_DESCRIPTORS["zai"]
+
+    config = build_provider_config(
+        descriptor,
+        _make_settings(zai_base_url="https://custom.zai.invalid/v1"),
+    )
+
+    assert config.base_url == ZAI_DEFAULT_BASE
 
 
 def test_create_provider_uses_native_openrouter_by_default():

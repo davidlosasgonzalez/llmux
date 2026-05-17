@@ -17,14 +17,14 @@
             <p>Server Control</p>
           </div>
         </div>
-        <nav id="sectionNav" class="section-nav" aria-label="Settings sections"></nav>
+        <nav id="sectionNav" class="section-nav" aria-label="Admin views"></nav>
       </aside>
 
       <main class="main">
         <header class="topbar">
           <div>
             <p class="eyebrow">Local Admin</p>
-            <h2>Runtime Config</h2>
+            <h2 id="pageTitle">Providers</h2>
           </div>
           <div class="server-state">
             <span id="serverStatus" class="status-pill neutral">Loading</span>
@@ -32,25 +32,40 @@
           </div>
         </header>
 
-        <section class="provider-strip" aria-label="Provider status">
-          <div class="strip-header">
-            <h3>Providers</h3>
-            <button id="refreshLocal" class="ghost-button" type="button">Check local</button>
-          </div>
-          <div id="providerGrid" class="provider-grid"></div>
-        </section>
+        <div id="adminViews" class="admin-views">
+          <section id="view-providers" class="admin-view active" data-view="providers">
+            <section class="provider-strip" aria-label="Provider status">
+              <div class="strip-header">
+                <h3>Providers</h3>
+                <button id="refreshLocal" class="ghost-button" type="button">
+                  Check local
+                </button>
+              </div>
+              <div id="providerGrid" class="provider-grid"></div>
+            </section>
+            <div
+              id="providersSections"
+              class="form-sections"
+              aria-label="Provider configuration"
+            ></div>
+          </section>
 
-        <section id="formSections" class="form-sections" aria-label="Configuration"></section>
+          <section id="view-model_config" class="admin-view" data-view="model_config" hidden>
+            <div
+              id="modelConfigSections"
+              class="form-sections"
+              aria-label="Model configuration"
+            ></div>
+          </section>
 
-        <section class="env-panel">
-          <div class="section-heading">
-            <div>
-              <h3>Generated Env</h3>
-              <p>Read-only preview of the managed config file.</p>
-            </div>
-          </div>
-          <pre id="envPreview" class="env-preview"></pre>
-        </section>
+          <section id="view-messaging" class="admin-view" data-view="messaging" hidden>
+            <div
+              id="messagingSections"
+              class="form-sections"
+              aria-label="Messaging configuration"
+            ></div>
+          </section>
+        </div>
       </main>
 
       <footer class="action-bar">

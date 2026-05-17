@@ -100,7 +100,7 @@ textarea {
 
 .section-nav {
   display: grid;
-  gap: 6px;
+  gap: 8px;
 }
 
 .nav-link {
@@ -108,20 +108,26 @@ textarea {
   justify-content: space-between;
   align-items: center;
   width: 100%;
-  min-height: 36px;
+  min-height: 42px;
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
   color: var(--text);
-  padding: 8px 10px;
+  padding: 10px 12px;
   text-align: left;
   cursor: pointer;
+  font-weight: 700;
 }
 
 .nav-link:hover,
 .nav-link.active {
   background: var(--panel-strong);
   border-color: var(--line);
+}
+
+.nav-link.active {
+  border-color: rgba(89, 217, 148, 0.34);
+  color: #ffffff;
 }
 
 .main {
@@ -188,9 +194,18 @@ textarea {
   border-color: rgba(255, 116, 108, 0.36);
 }
 
+.admin-views,
+.admin-view {
+  display: grid;
+  gap: 18px;
+}
+
+.admin-view[hidden] {
+  display: none;
+}
+
 .provider-strip,
-.settings-section,
-.env-panel {
+.settings-section {
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
@@ -376,24 +391,6 @@ textarea {
 .advanced-toggle {
   justify-self: start;
   margin-top: 14px;
-}
-
-.env-panel {
-  margin-top: 18px;
-  padding: 18px;
-}
-
-.env-preview {
-  overflow: auto;
-  max-height: 360px;
-  margin: 14px 0 0;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: #0b0f0d;
-  color: #c9f4dc;
-  padding: 14px;
-  font-size: 12px;
-  line-height: 1.45;
 }
 
 .action-bar {

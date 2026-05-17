@@ -177,14 +177,6 @@ FIELDS: tuple[ConfigFieldSpec, ...] = (
         description="Z.ai Coding Plan API key.",
     ),
     ConfigFieldSpec(
-        "ZAI_BASE_URL",
-        "Z.ai Base URL",
-        "providers",
-        settings_attr="zai_base_url",
-        default="https://api.z.ai/api/coding/paas/v4",
-        description="Z.ai OpenAI-compatible Coding Plan endpoint.",
-    ),
-    ConfigFieldSpec(
         "LM_STUDIO_BASE_URL",
         "LM Studio Base URL",
         "providers",
@@ -474,27 +466,10 @@ FIELDS: tuple[ConfigFieldSpec, ...] = (
         session_sensitive=True,
     ),
     ConfigFieldSpec(
-        "CLAUDE_WORKSPACE",
-        "Claude Workspace",
-        "messaging",
-        settings_attr="claude_workspace",
-        default="",
-        session_sensitive=True,
-        description="Blank uses ~/.fcc/agent_workspace.",
-    ),
-    ConfigFieldSpec(
         "ALLOWED_DIR",
         "Allowed Directory",
         "messaging",
         settings_attr="allowed_dir",
-        session_sensitive=True,
-    ),
-    ConfigFieldSpec(
-        "CLAUDE_CLI_BIN",
-        "Claude CLI Binary",
-        "messaging",
-        settings_attr="claude_cli_bin",
-        default="claude",
         session_sensitive=True,
     ),
     ConfigFieldSpec(

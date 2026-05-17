@@ -311,7 +311,6 @@ Discord minimum config:
 MESSAGING_PLATFORM="discord"
 DISCORD_BOT_TOKEN="your-discord-bot-token"
 ALLOWED_DISCORD_CHANNELS="123456789"
-CLAUDE_WORKSPACE=
 ALLOWED_DIR="C:/Users/yourname/projects"
 ```
 
@@ -323,7 +322,6 @@ Telegram minimum config:
 MESSAGING_PLATFORM="telegram"
 TELEGRAM_BOT_TOKEN="123456789:ABC..."
 ALLOWED_TELEGRAM_USER_ID="your-user-id"
-CLAUDE_WORKSPACE=
 ALLOWED_DIR="C:/Users/yourname/projects"
 ```
 
@@ -374,7 +372,7 @@ MODEL="nvidia_nim/z-ai/glm4.7"
 ANTHROPIC_AUTH_TOKEN="freecc"
 ```
 
-Config precedence is repo `.env`, then `~/.fcc/.env`, then `FCC_ENV_FILE` when set. Blank `CLAUDE_WORKSPACE` uses `~/.fcc/agent_workspace`. `ANTHROPIC_AUTH_TOKEN` can be any local secret; pass the same value to Claude Code.
+Config precedence is repo `.env`, then `~/.fcc/.env`, then `FCC_ENV_FILE` when set. Claude agent data is always stored under `~/.fcc/agent_workspace`. `ANTHROPIC_AUTH_TOKEN` can be any local secret; pass the same value to Claude Code.
 
 ### 2. Model Routing
 

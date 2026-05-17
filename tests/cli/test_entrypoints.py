@@ -14,13 +14,11 @@ def _launcher_settings(
     *,
     port: int = 8082,
     token: str = "freecc",
-    claude_bin: str = "claude-test",
 ) -> Settings:
     return Settings.model_construct(
         host="0.0.0.0",
         port=port,
         anthropic_auth_token=token,
-        claude_cli_bin=claude_bin,
     )
 
 
@@ -343,7 +341,7 @@ def test_launch_claude_exits_when_command_cannot_be_resolved(
 ) -> None:
     from cli.entrypoints import launch_claude
 
-    settings = _launcher_settings(claude_bin="claude-missing")
+    settings = _launcher_settings()
     with (
         patch("cli.entrypoints.get_settings", return_value=settings),
         patch("cli.entrypoints._preflight_proxy", return_value=None),
@@ -356,7 +354,7 @@ def test_launch_claude_exits_when_command_cannot_be_resolved(
     assert exc_info.value.code == 127
     popen.assert_not_called()
     captured = capsys.readouterr()
-    assert "Could not find Claude Code command: claude-missing" in captured.err
+    assert "Could not find Claude Code command: claude" in captured.err
     assert "npm install -g @anthropic-ai/claude-code" in captured.err
 
 

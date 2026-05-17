@@ -142,7 +142,6 @@ PROVIDER_CATALOG: dict[str, ProviderDescriptor] = {
         credential_env="ZAI_API_KEY",
         credential_attr="zai_api_key",
         default_base_url=ZAI_DEFAULT_BASE,
-        base_url_attr="zai_base_url",
         proxy_attr="zai_proxy",
         capabilities=("chat", "streaming", "tools", "thinking", "rate_limit"),
     ),

@@ -1,5 +1,7 @@
 """Tests for config/settings.py and config/nim.py"""
 
+from typing import Any, cast
+
 import pytest
 from pydantic import ValidationError
 
@@ -45,7 +47,7 @@ class TestSettings:
         assert settings.debug_subagent_stack is False
 
     def test_default_claude_workspace_uses_fcc_home(self, monkeypatch, tmp_path):
-        """Blank/unset CLAUDE_WORKSPACE stores agent data under ~/.fcc."""
+        """Unset CLAUDE_WORKSPACE stores agent data under ~/.fcc."""
         from config.settings import Settings
 
         monkeypatch.setenv("HOME", str(tmp_path))
@@ -77,8 +79,19 @@ class TestSettings:
 
         assert not hasattr(settings, "log_file")
 
+    def test_stale_zai_base_url_env_is_ignored(self, monkeypatch):
+        """Cloud Z.ai endpoint is fixed in provider metadata, not settings."""
+        from config.settings import Settings
+
+        monkeypatch.setenv("ZAI_BASE_URL", "https://custom.zai.invalid/v1")
+        monkeypatch.setitem(Settings.model_config, "env_file", ())
+
+        settings = Settings()
+
+        assert not hasattr(settings, "zai_base_url")
+
     def test_blank_claude_workspace_uses_fcc_home(self, monkeypatch, tmp_path):
-        """An explicit blank env value keeps the default workspace path."""
+        """An explicit blank env value does not affect the fixed workspace path."""
         from config.settings import Settings
 
         monkeypatch.setenv("HOME", str(tmp_path))
@@ -90,17 +103,51 @@ class TestSettings:
 
         assert settings.claude_workspace == str(tmp_path / ".fcc" / "agent_workspace")
 
-    def test_explicit_claude_workspace_is_preserved(self, monkeypatch, tmp_path):
-        """Custom CLAUDE_WORKSPACE values are not rewritten."""
+    def test_explicit_claude_workspace_is_ignored(self, monkeypatch, tmp_path):
+        """Custom CLAUDE_WORKSPACE values do not override the fixed workspace."""
         from config.settings import Settings
 
         workspace = tmp_path / "custom-workspace"
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setenv("USERPROFILE", str(tmp_path))
         monkeypatch.setenv("CLAUDE_WORKSPACE", str(workspace))
         monkeypatch.setitem(Settings.model_config, "env_file", ())
 
         settings = Settings()
 
-        assert settings.claude_workspace == str(workspace)
+        assert settings.claude_workspace == str(tmp_path / ".fcc" / "agent_workspace")
+
+    def test_explicit_claude_cli_bin_is_ignored(self, monkeypatch):
+        """Custom CLAUDE_CLI_BIN values do not override the fixed binary."""
+        from config.settings import Settings
+
+        monkeypatch.setenv("CLAUDE_CLI_BIN", "claude-custom")
+        monkeypatch.setitem(Settings.model_config, "env_file", ())
+
+        settings = Settings()
+
+        assert settings.claude_cli_bin == "claude"
+
+    def test_direct_claude_runtime_overrides_are_ignored(self, monkeypatch, tmp_path):
+        """Constructor extras cannot override fixed Claude runtime settings."""
+        from config.settings import Settings
+
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setenv("USERPROFILE", str(tmp_path))
+        monkeypatch.setitem(Settings.model_config, "env_file", ())
+
+        settings = Settings(
+            **cast(
+                Any,
+                {
+                    "claude_workspace": str(tmp_path / "custom-workspace"),
+                    "claude_cli_bin": "claude-custom",
+                },
+            )
+        )
+
+        assert settings.claude_workspace == str(tmp_path / ".fcc" / "agent_workspace")
+        assert settings.claude_cli_bin == "claude"
 
     def test_get_settings_cached(self):
         """Test get_settings returns cached instance."""

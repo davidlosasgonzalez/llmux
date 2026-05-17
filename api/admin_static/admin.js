@@ -4,9 +4,33 @@ const state = {
   fields: new Map(),
   localStatus: new Map(),
   modelOptions: [],
+  activeView: "providers",
 };
 
 const MASKED_SECRET = "********";
+const VIEW_GROUPS = [
+  {
+    id: "providers",
+    label: "Providers",
+    title: "Providers",
+    sections: ["providers", "runtime"],
+    containerId: "providersSections",
+  },
+  {
+    id: "model_config",
+    label: "Model Config",
+    title: "Model Config",
+    sections: ["models", "thinking", "web_tools"],
+    containerId: "modelConfigSections",
+  },
+  {
+    id: "messaging",
+    label: "Messaging",
+    title: "Messaging",
+    sections: ["messaging", "voice"],
+    containerId: "messagingSections",
+  },
+];
 
 const byId = (id) => document.getElementById(id);
 
@@ -15,11 +39,23 @@ function sourceLabel(source) {
     default: "default",
     template: "template",
     repo_env: "repo .env",
-    managed_env: "managed",
+    managed_env: "",
     explicit_env_file: "FCC_ENV_FILE",
     process: "process env",
   };
-  return labels[source] || source;
+  return Object.prototype.hasOwnProperty.call(labels, source) ? labels[source] : source;
+}
+
+function sourceText(field) {
+  const parts = [];
+  const label = sourceLabel(field.source);
+  if (label) {
+    parts.push(label);
+  }
+  if (field.locked) {
+    parts.push("locked");
+  }
+  return parts.join(" ");
 }
 
 function providerName(providerId) {
@@ -70,7 +106,7 @@ async function load() {
   state.status = status;
   state.fields = new Map(config.fields.map((field) => [field.key, field]));
   updateHeader(status);
-  renderNav(config.sections);
+  renderNav();
   renderProviders(config.provider_status);
   renderSections(config.sections, config.fields);
   byId("configPath").textContent = config.paths.managed;
@@ -87,23 +123,51 @@ function updateHeader(status) {
   byId("modelBadge").textContent = status.model || "";
 }
 
-function renderNav(sections) {
+function renderNav() {
   const nav = byId("sectionNav");
   nav.innerHTML = "";
-  sections.forEach((section, index) => {
+  VIEW_GROUPS.forEach((view, index) => {
     const button = document.createElement("button");
     button.type = "button";
     button.className = `nav-link${index === 0 ? " active" : ""}`;
-    button.textContent = section.label;
+    button.dataset.view = view.id;
+    button.textContent = view.label;
+    if (index === 0) {
+      button.setAttribute("aria-current", "page");
+    }
     button.addEventListener("click", () => {
-      document.querySelectorAll(".nav-link").forEach((link) => {
-        link.classList.remove("active");
-      });
-      button.classList.add("active");
-      byId(`section-${section.id}`).scrollIntoView({ behavior: "smooth" });
+      setActiveView(view.id, { scroll: true });
     });
     nav.appendChild(button);
   });
+  setActiveView(state.activeView, { scroll: false });
+}
+
+function setActiveView(viewId, { scroll = false } = {}) {
+  const activeView =
+    VIEW_GROUPS.find((view) => view.id === viewId) || VIEW_GROUPS[0];
+  state.activeView = activeView.id;
+  byId("pageTitle").textContent = activeView.title;
+
+  document.querySelectorAll(".nav-link").forEach((link) => {
+    const selected = link.dataset.view === activeView.id;
+    link.classList.toggle("active", selected);
+    if (selected) {
+      link.setAttribute("aria-current", "page");
+    } else {
+      link.removeAttribute("aria-current");
+    }
+  });
+
+  document.querySelectorAll(".admin-view").forEach((view) => {
+    const selected = view.dataset.view === activeView.id;
+    view.classList.toggle("active", selected);
+    view.hidden = !selected;
+  });
+
+  if (scroll) {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
 }
 
 function renderProviders(providerStatus) {
@@ -153,8 +217,11 @@ function updateProviderCard(providerId, status, label, metaText) {
 }
 
 function renderSections(sections, fields) {
-  const container = byId("formSections");
-  container.innerHTML = "";
+  VIEW_GROUPS.forEach((view) => {
+    byId(view.containerId).innerHTML = "";
+  });
+
+  const sectionById = new Map(sections.map((section) => [section.id, section]));
   const bySection = new Map();
   sections.forEach((section) => bySection.set(section.id, []));
   fields.forEach((field) => {
@@ -162,36 +229,43 @@ function renderSections(sections, fields) {
     bySection.get(field.section).push(field);
   });
 
-  sections.forEach((section) => {
-    const sectionEl = document.createElement("section");
-    sectionEl.className = "settings-section";
-    sectionEl.id = `section-${section.id}`;
+  VIEW_GROUPS.forEach((view) => {
+    const container = byId(view.containerId);
+    view.sections.forEach((sectionId) => {
+      const section = sectionById.get(sectionId);
+      const sectionFields = bySection.get(sectionId) || [];
+      if (!section || sectionFields.length === 0) return;
 
-    const heading = document.createElement("div");
-    heading.className = "section-heading";
-    heading.innerHTML = `<div><h3>${section.label}</h3><p>${section.description}</p></div>`;
-    sectionEl.appendChild(heading);
+      const sectionEl = document.createElement("section");
+      sectionEl.className = "settings-section";
+      sectionEl.id = `section-${section.id}`;
 
-    const grid = document.createElement("div");
-    grid.className = "field-grid";
-    bySection.get(section.id).forEach((field) => {
-      grid.appendChild(renderField(field));
-    });
-    sectionEl.appendChild(grid);
+      const heading = document.createElement("div");
+      heading.className = "section-heading";
+      heading.innerHTML = `<div><h3>${section.label}</h3><p>${section.description}</p></div>`;
+      sectionEl.appendChild(heading);
 
-    if (bySection.get(section.id).some((field) => field.advanced)) {
-      const toggle = document.createElement("button");
-      toggle.type = "button";
-      toggle.className = "ghost-button advanced-toggle";
-      toggle.textContent = "Show advanced";
-      toggle.addEventListener("click", () => {
-        const showing = sectionEl.classList.toggle("show-advanced");
-        toggle.textContent = showing ? "Hide advanced" : "Show advanced";
+      const grid = document.createElement("div");
+      grid.className = "field-grid";
+      sectionFields.forEach((field) => {
+        grid.appendChild(renderField(field));
       });
-      sectionEl.appendChild(toggle);
-    }
+      sectionEl.appendChild(grid);
 
-    container.appendChild(sectionEl);
+      if (sectionFields.some((field) => field.advanced)) {
+        const toggle = document.createElement("button");
+        toggle.type = "button";
+        toggle.className = "ghost-button advanced-toggle";
+        toggle.textContent = "Show advanced";
+        toggle.addEventListener("click", () => {
+          const showing = sectionEl.classList.toggle("show-advanced");
+          toggle.textContent = showing ? "Hide advanced" : "Show advanced";
+        });
+        sectionEl.appendChild(toggle);
+      }
+
+      container.appendChild(sectionEl);
+    });
   });
 }
 
@@ -202,9 +276,17 @@ function renderField(field) {
 
   const label = document.createElement("label");
   label.htmlFor = `field-${field.key}`;
-  label.innerHTML = `<span>${field.label}</span><span class="field-source">${sourceLabel(
-    field.source,
-  )}${field.locked ? " locked" : ""}</span>`;
+  const labelText = document.createElement("span");
+  labelText.textContent = field.label;
+  label.appendChild(labelText);
+
+  const source = sourceText(field);
+  if (source) {
+    const sourceEl = document.createElement("span");
+    sourceEl.className = "field-source";
+    sourceEl.textContent = source;
+    label.appendChild(sourceEl);
+  }
 
   const input = inputForField(field);
   input.id = `field-${field.key}`;
@@ -316,7 +398,6 @@ async function validate(showResult = true) {
     method: "POST",
     body: JSON.stringify({ values: changedValues() }),
   });
-  byId("envPreview").textContent = result.env_preview || "";
   if (showResult) {
     showValidationResult(result);
   }
@@ -336,7 +417,6 @@ async function apply() {
     method: "POST",
     body: JSON.stringify({ values: changedValues() }),
   });
-  byId("envPreview").textContent = result.env_preview || "";
   if (!result.applied) {
     showValidationResult(result);
     return;
@@ -388,7 +468,10 @@ async function testProvider(providerId, button) {
         result.models.slice(0, 3).join(", ") || "No models returned",
       );
       state.modelOptions = Array.from(
-        new Set([...state.modelOptions, ...result.models.map((model) => `${providerId}/${model}`)]),
+        new Set([
+          ...state.modelOptions,
+          ...result.models.map((model) => `${providerId}/${model}`),
+        ]),
       ).sort();
       syncModelDatalist();
     } else {
