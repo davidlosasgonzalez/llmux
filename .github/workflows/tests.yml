@@ -1,3 +1,6 @@
+# Branch protection: require the status check named "ci" (this workflow's gate job).
+# That single job reflects success or failure of all parallel lanes below.
+
 name: CI
 
 on:
@@ -11,7 +14,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  checks:
+  no-type-ignore-suppressions:
+    name: Ban type ignore suppressions
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -31,6 +35,31 @@ jobs:
           fi
           exit 0
 
+  quality:
+    name: ${{ matrix.id }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - id: ruff-format
+            run: uv run ruff format --check
+          - id: ruff-check
+            run: uv run ruff check
+          - id: ty
+            run: uv run ty check
+          - id: pytest
+            run: uv run pytest -v --tb=short
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
+          repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
+          fetch-depth: 1
+
       - name: Install uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b
         with:
@@ -38,14 +67,24 @@ jobs:
           enable-cache: true
           cache-python: true
 
-      - name: Format check
-        run: uv run ruff format --check
+      - name: Run
+        run: ${{ matrix.run }}
 
-      - name: Style check
-        run: uv run ruff check
-
-      - name: Type check
-        run: uv run ty check
-
-      - name: Run tests
-        run: uv run pytest -v --tb=short
+  ci:
+    name: ci
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    needs: [no-type-ignore-suppressions, quality]
+    if: always()
+    permissions:
+      contents: read
+    steps:
+      - name: All checks passed
+        run: |
+          sup="${{ needs.no-type-ignore-suppressions.result }}"
+          qual="${{ needs.quality.result }}"
+          if [[ "$sup" != "success" || "$qual" != "success" ]]; then
+            echo "::error::Required check failed (suppressions: $sup, quality matrix: $qual)."
+            exit 1
+          fi
+          echo "All checks passed."

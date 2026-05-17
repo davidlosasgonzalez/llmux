@@ -13,7 +13,8 @@
 - Add tests for new changes (including edge cases), then run `uv run pytest`.
 - Run checks in this order: `uv run ruff format`, `uv run ruff check`, `uv run ty check`, `uv run pytest`.
 - Do not add `# type: ignore` or `# ty: ignore`; fix the underlying type issue.
-- All 5 checks are enforced in `tests.yml` on push/merge.
+- All 5 checks are enforced in `tests.yml` on push/merge (parallel jobs; a single **ci** gate job aggregates results).
+- Branch protection: set **required status checks** to **ci** (the gate job name in Actions). If you still require the old single job name, add **ci** and remove obsolete entries after merging this workflow.
 
 ## IDENTITY & CONTEXT
 
