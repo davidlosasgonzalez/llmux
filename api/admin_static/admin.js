@@ -1,6 +1,5 @@
 const state = {
   config: null,
-  status: null,
   fields: new Map(),
   localStatus: new Map(),
   modelOptions: [],
@@ -98,14 +97,9 @@ async function api(path, options = {}) {
 
 async function load() {
   showMessage("Loading admin config");
-  const [config, status] = await Promise.all([
-    api("/admin/api/config"),
-    api("/admin/api/status"),
-  ]);
+  const config = await api("/admin/api/config");
   state.config = config;
-  state.status = status;
   state.fields = new Map(config.fields.map((field) => [field.key, field]));
-  updateHeader(status);
   renderNav();
   renderProviders(config.provider_status);
   renderSections(config.sections, config.fields);
@@ -114,13 +108,6 @@ async function load() {
   await refreshLocalStatus();
   updateDirtyState();
   showMessage("");
-}
-
-function updateHeader(status) {
-  const serverStatus = byId("serverStatus");
-  serverStatus.textContent = "Running";
-  serverStatus.className = "status-pill ok";
-  byId("modelBadge").textContent = status.model || "";
 }
 
 function renderNav() {
@@ -505,7 +492,5 @@ byId("applyButton").addEventListener("click", apply);
 byId("refreshLocal").addEventListener("click", refreshLocalStatus);
 
 load().catch((error) => {
-  byId("serverStatus").textContent = "Error";
-  byId("serverStatus").className = "status-pill error";
   showMessage(error.message, "error");
 });

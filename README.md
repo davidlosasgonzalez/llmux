@@ -94,11 +94,10 @@ Use the same command to update to the latest version.
 fcc-server
 ```
 
-After startup, the terminal prints the proxy and admin URLs:
+After startup, Uvicorn prints the proxy bind address and the app logs the admin URL:
 
 ```text
-Server URL: http://127.0.0.1:8082
-Admin UI: http://127.0.0.1:8082/admin
+INFO:     Admin UI: http://127.0.0.1:8082/admin (local-only)
 ```
 
 Many terminals make these clickable. Use your configured `PORT` if it is not `8082`.

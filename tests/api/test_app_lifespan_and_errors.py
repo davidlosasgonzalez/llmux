@@ -64,6 +64,53 @@ def test_warn_if_process_auth_token_skips_explicit_dotenv_config():
     warning.assert_not_called()
 
 
+@pytest.mark.asyncio
+async def test_runtime_startup_logs_admin_url_without_printed_server_banner(tmp_path):
+    import api.runtime as api_runtime_mod
+
+    settings = _app_settings(
+        messaging_platform="none",
+        telegram_bot_token=None,
+        allowed_telegram_user_id=None,
+        discord_bot_token=None,
+        allowed_discord_channels=None,
+        allowed_dir=str(tmp_path / "workspace"),
+        claude_workspace=str(tmp_path / "data"),
+        host="127.0.0.1",
+        port=9099,
+    )
+    runtime = api_runtime_mod.AppRuntime(
+        app=FastAPI(), settings=cast(Settings, settings)
+    )
+    uvicorn_logger = MagicMock()
+
+    with (
+        patch("builtins.print") as printed,
+        patch.object(
+            api_runtime_mod.logging, "getLogger", return_value=uvicorn_logger
+        ) as get_logger,
+        patch.object(api_runtime_mod.logger, "info") as app_info,
+        patch.object(ProviderRegistry, "validate_configured_models", new=AsyncMock()),
+        patch.object(ProviderRegistry, "start_model_list_refresh"),
+        patch.object(ProviderRegistry, "cleanup", new=AsyncMock()),
+        patch(
+            "messaging.platforms.factory.create_messaging_platform",
+            return_value=None,
+        ),
+    ):
+        await runtime.startup()
+        await runtime.shutdown()
+
+    printed.assert_not_called()
+    get_logger.assert_called_with("uvicorn.error")
+    uvicorn_logger.info.assert_called_once_with(
+        "Admin UI: %s (local-only)",
+        "http://127.0.0.1:9099/admin",
+    )
+    logged = " ".join(str(arg) for call in app_info.call_args_list for arg in call.args)
+    assert "Server URL:" not in logged
+
+
 def test_create_app_provider_error_handler_returns_anthropic_format():
     from api.app import create_app
     from providers.exceptions import AuthenticationError

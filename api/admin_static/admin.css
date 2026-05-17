@@ -78,7 +78,6 @@ textarea {
 .brand h1,
 .brand p,
 .topbar h2,
-.topbar p,
 .section-heading h3,
 .section-heading p,
 .strip-header h3 {
@@ -91,7 +90,6 @@ textarea {
 }
 
 .brand p,
-.eyebrow,
 .section-heading p,
 .action-meta span {
   color: var(--muted);
@@ -136,17 +134,7 @@ textarea {
 }
 
 .topbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
   margin-bottom: 20px;
-}
-
-.eyebrow {
-  margin-bottom: 4px;
-  text-transform: uppercase;
-  font-weight: 700;
 }
 
 .topbar h2 {
@@ -154,15 +142,7 @@ textarea {
   line-height: 1.15;
 }
 
-.server-state {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.status-pill,
-.model-badge {
+.status-pill {
   display: inline-flex;
   align-items: center;
   min-height: 30px;
@@ -461,15 +441,6 @@ textarea {
 
   .main {
     padding: 18px;
-  }
-
-  .topbar {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .server-state {
-    justify-content: flex-start;
   }
 
   .action-bar {

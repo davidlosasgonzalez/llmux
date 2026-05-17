@@ -3,15 +3,15 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import os
-import sys
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 from fastapi import FastAPI
 from loguru import logger
 
-from api.admin_urls import local_admin_url, local_proxy_root_url
+from api.admin_urls import local_admin_url
 from config.settings import Settings, get_settings
 from providers.exceptions import ServiceUnavailableError
 from providers.registry import ProviderRegistry
@@ -102,7 +102,6 @@ class AppRuntime:
 
     async def startup(self) -> None:
         logger.info("Starting Claude Code Proxy...")
-        root_url = local_proxy_root_url(self.settings)
         admin_url = local_admin_url(self.settings)
         self._provider_registry = ProviderRegistry()
         self.app.state.provider_registry = self._provider_registry
@@ -112,12 +111,8 @@ class AppRuntime:
             self._provider_registry.start_model_list_refresh(self.settings)
             await self._start_messaging_if_configured()
             self._publish_state()
-            logger.info("Server URL: {}", root_url)
-            logger.info("Admin UI: {} (local-only)", admin_url)
-            print(
-                f"Server URL: {root_url}\nAdmin UI: {admin_url} (local-only)",
-                file=sys.stderr,
-                flush=True,
+            logging.getLogger("uvicorn.error").info(
+                "Admin UI: %s (local-only)", admin_url
             )
         except Exception as exc:
             log_startup_failure(self.settings, exc)

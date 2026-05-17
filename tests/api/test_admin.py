@@ -59,6 +59,28 @@ def test_admin_page_no_longer_renders_generated_env_panel(monkeypatch, tmp_path)
     assert "envPreview" not in response.text
 
 
+def test_admin_page_no_longer_renders_global_status_header(monkeypatch, tmp_path):
+    _set_home(monkeypatch, tmp_path)
+    app = create_app(lifespan_enabled=False)
+
+    response = _local_client(app).get("/admin")
+
+    assert response.status_code == 200
+    assert "Local Admin" not in response.text
+    assert "serverStatus" not in response.text
+    assert "modelBadge" not in response.text
+
+
+def test_admin_static_no_longer_fetches_global_status_header():
+    script = Path("api/admin_static/admin.js").read_text(encoding="utf-8")
+
+    assert 'api("/admin/api/status")' not in script
+    assert "updateHeader" not in script
+    assert '"Running"' not in script
+    assert "serverStatus" not in script
+    assert "modelBadge" not in script
+
+
 def test_admin_static_hides_managed_source_label():
     script = Path("api/admin_static/admin.js").read_text(encoding="utf-8")
 
