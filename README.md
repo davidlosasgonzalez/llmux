@@ -14,7 +14,7 @@ Use Claude Code CLI, VS Code, JetBrains ACP, or chat bots through your own Anthr
 
 Free Claude Code routes Anthropic Messages API traffic from Claude Code to NVIDIA NIM, Kimi, Wafer, OpenRouter, DeepSeek, LM Studio, llama.cpp, or Ollama. It keeps Claude Code's client-side protocol stable while letting you choose free, paid, or local models.
 
-[Quick Start](#quick-start) · [Providers](#choose-a-provider) · [Clients](#connect-claude-code) · [Configuration](#configuration-reference) · [Development](#development)
+[Quick Start](#quick-start) · [Providers](#choose-a-provider) · [Clients](#connect-claude-code) · [Integrations](#optional-integrations) · [Development](#development)
 
 </div>
 
@@ -300,33 +300,40 @@ Restart the IDE after changing the file.
 
 ## Optional Integrations
 
+For every integration below, change **managed proxy settings** only in the **Admin UI** at `/admin`: edit fields, click **Validate**, then **Apply**. The footer shows where the managed config is stored; this README does not walk through editing that file by hand.
+
 ### 1. Discord And Telegram Bots
 
 The bot wrapper runs Claude Code sessions remotely, streams progress, supports reply-based conversation branches, and can stop or clear tasks.
 
-Discord minimum config:
+**Discord**
 
-```dotenv
-MESSAGING_PLATFORM="discord"
-DISCORD_BOT_TOKEN="your-discord-bot-token"
-ALLOWED_DISCORD_CHANNELS="123456789"
-ALLOWED_DIR="C:/Users/yourname/projects"
-```
+1. Create the bot in the [Discord Developer Portal](https://discord.com/developers/applications).
+2. Enable **Message Content Intent**.
+3. Invite the bot with read, send, and message history permissions.
+4. Copy the bot token and the numeric channel ID (or IDs) where the bot should respond.
 
-Create the bot in the [Discord Developer Portal](https://discord.com/developers/applications), enable Message Content Intent, and invite it with read/send/history permissions.
+**Telegram**
 
-Telegram minimum config:
+1. Create a bot with [@BotFather](https://t.me/BotFather) and copy the bot token.
+2. Get your numeric user ID from [@userinfobot](https://t.me/userinfobot) so only you can use the bot.
 
-```dotenv
-MESSAGING_PLATFORM="telegram"
-TELEGRAM_BOT_TOKEN="123456789:ABC..."
-ALLOWED_TELEGRAM_USER_ID="your-user-id"
-ALLOWED_DIR="C:/Users/yourname/projects"
-```
+**Configure in the Admin UI**
 
-Get a token from [@BotFather](https://t.me/BotFather) and your user ID from [@userinfobot](https://t.me/userinfobot).
+1. With `fcc-server` running, open the **Admin UI** URL from the terminal output.
+2. In the sidebar, choose **Messaging**.
+3. Set **Messaging Platform** to **discord** or **telegram**.
+4. For Discord, paste **Discord Bot Token** and **Allowed Discord Channels**. For Telegram, paste **Telegram Bot Token** and **Allowed Telegram User ID**.
+5. Set **Allowed Directory** to an absolute path on the machine running the proxy—the workspace root the bot may use.
+6. Click **Validate**, then **Apply**. Restart the server if the UI says one is required.
 
-Useful commands:
+<div align="center">
+  <img src="assets/admin-messaging.png" alt="Admin UI Messaging view with bot and voice settings" width="700">
+</div>
+
+<p align="center"><em>Admin UI → Messaging (platform, bots, and Voice)</em></p>
+
+**Useful commands**
 
 - `/stop` cancels a task; reply to a task message to stop only that branch.
 - `/clear` resets sessions; reply to clear one branch.
@@ -334,7 +341,7 @@ Useful commands:
 
 ### 2. Voice Notes
 
-Voice notes work on Discord and Telegram. Choose one backend:
+Voice notes work on Discord and Telegram after you install the matching optional dependencies:
 
 ```bash
 uv sync --extra voice_local
@@ -342,116 +349,7 @@ uv sync --extra voice
 uv sync --extra voice --extra voice_local
 ```
 
-```dotenv
-VOICE_NOTE_ENABLED=true
-WHISPER_DEVICE="cpu"          # cpu | cuda | nvidia_nim
-WHISPER_MODEL="base"
-HF_TOKEN=""
-```
-
-Use `WHISPER_DEVICE="nvidia_nim"` with the `voice` extra and `NVIDIA_NIM_API_KEY` for NVIDIA-hosted transcription.
-
-## Configuration Reference
-
-[`.env.example`](.env.example) is the canonical list of variables. The sections below are the ones most users change.
-
-### 1. Manual `.env` Setup (Headless)
-
-Use this only if you prefer file-based config or are running headless. The Admin UI is easier for first setup.
-
-```bash
-cp .env.example .env
-```
-
-Example for NVIDIA NIM:
-
-```dotenv
-NVIDIA_NIM_API_KEY="nvapi-your-key"
-MODEL="nvidia_nim/z-ai/glm4.7"
-ANTHROPIC_AUTH_TOKEN="freecc"
-```
-
-Config precedence is repo `.env`, then `~/.fcc/.env`, then `FCC_ENV_FILE` when set. Claude agent data is always stored under `~/.fcc/agent_workspace`. `ANTHROPIC_AUTH_TOKEN` can be any local secret; pass the same value to Claude Code.
-
-### 2. Model Routing
-
-```dotenv
-MODEL="nvidia_nim/z-ai/glm4.7"
-MODEL_OPUS=
-MODEL_SONNET=
-MODEL_HAIKU=
-ENABLE_MODEL_THINKING=true
-ENABLE_OPUS_THINKING=
-ENABLE_SONNET_THINKING=
-ENABLE_HAIKU_THINKING=
-```
-
-Blank per-tier values inherit the fallback. Blank thinking overrides inherit `ENABLE_MODEL_THINKING`.
-
-### 3. Provider Keys And URLs
-
-```dotenv
-NVIDIA_NIM_API_KEY=""
-OPENROUTER_API_KEY=""
-DEEPSEEK_API_KEY=""
-WAFER_API_KEY=""
-OPENCODE_API_KEY=""
-ZAI_API_KEY=""
-LM_STUDIO_BASE_URL="http://localhost:1234/v1"
-LLAMACPP_BASE_URL="http://localhost:8080/v1"
-OLLAMA_BASE_URL="http://localhost:11434"
-```
-
-Proxy settings are per provider:
-
-```dotenv
-NVIDIA_NIM_PROXY=""
-OPENROUTER_PROXY=""
-LMSTUDIO_PROXY=""
-LLAMACPP_PROXY=""
-WAFER_PROXY=""
-OPENCODE_PROXY=""
-ZAI_PROXY=""
-```
-
-### 4. Rate Limits And Timeouts
-
-```dotenv
-PROVIDER_RATE_LIMIT=1
-PROVIDER_RATE_WINDOW=3
-PROVIDER_MAX_CONCURRENCY=5
-HTTP_READ_TIMEOUT=120
-HTTP_WRITE_TIMEOUT=10
-HTTP_CONNECT_TIMEOUT=10
-```
-
-Use lower limits for free hosted providers; local providers can usually tolerate higher concurrency if the machine can handle it.
-
-### 5. Security And Diagnostics
-
-```dotenv
-ANTHROPIC_AUTH_TOKEN=
-LOG_RAW_API_PAYLOADS=false
-LOG_RAW_SSE_EVENTS=false
-LOG_API_ERROR_TRACEBACKS=false
-LOG_RAW_MESSAGING_CONTENT=false
-LOG_RAW_CLI_DIAGNOSTICS=false
-LOG_MESSAGING_ERROR_DETAILS=false
-```
-
-Raw logging flags can expose prompts, tool arguments, paths, and model output. Keep them off unless you are debugging locally.
-
-Structured TRACE rows append fields such as `"trace": true`, `stage`, `event`, and `source` and include conversation context needed to follow Claude Code flows end-to-end. Dictionary keys resembling credentials (for example `api_key` / `authorization` values nested in structured payloads) are redacted; arbitrary prose you type into prompts may still appear verbatim.
-
-### 6. Local Web Tools
-
-```dotenv
-ENABLE_WEB_SERVER_TOOLS=true
-WEB_FETCH_ALLOWED_SCHEMES=http,https
-WEB_FETCH_ALLOW_PRIVATE_NETWORKS=false
-```
-
-These tools perform outbound HTTP from the proxy. Keep private-network access disabled unless you are in a controlled lab environment.
+In the **Admin UI**, open **Messaging** and scroll to **Voice**. Turn on **Voice Notes**, choose **Whisper Device** (`cpu`, `cuda`, or `nvidia_nim`), set **Whisper Model**, and enter **Hugging Face Token** when your setup needs it. For **nvidia_nim** transcription, install the `voice` extra and set **NVIDIA NIM API Key** on the **Providers** view. The screenshot above shows the **Voice** block in the same view.
 
 ## How It Works
 
@@ -512,7 +410,7 @@ Run them in that order before pushing. CI enforces the same checks.
 `pyproject.toml` installs:
 
 - `fcc-server`: starts the proxy with configured host and port.
-- `fcc-init`: optional file-based config scaffold at `~/.fcc/.env`.
+- `fcc-init`: optional advanced scaffold for `~/.fcc/.env`; prefer the **Admin UI** for normal configuration.
 - `fcc-claude`: launches Claude Code with the configured local proxy URL, auth token, and model discovery flag.
 - `free-claude-code`: compatibility alias for `fcc-server`.
 
@@ -525,6 +423,7 @@ Run them in that order before pushing. CI enforces the same checks.
 
 ## Contributing
 
+- [`.env.example`](.env.example) lists env key names as a read-only reference for contributors; use the **Admin UI** to change managed proxy settings.
 - Report bugs and feature requests in [Issues](https://github.com/Alishahryar1/free-claude-code/issues).
 - Keep changes small and covered by focused tests.
 - Do not open Docker integration PRs.
