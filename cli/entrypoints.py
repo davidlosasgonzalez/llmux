@@ -6,6 +6,9 @@ import os
 import shutil
 import subprocess
 import sys
+import threading
+import time
+import webbrowser
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -13,7 +16,7 @@ from urllib.request import Request, urlopen
 
 import uvicorn
 
-from api.admin_urls import local_proxy_root_url
+from api.admin_urls import local_admin_url, local_proxy_root_url
 from api.app import GracefulLifespanApp, create_app
 from cli.process_registry import (
     kill_all_best_effort,
@@ -46,13 +49,17 @@ def _load_env_template() -> str:
 
 def serve() -> None:
     """Start the FastAPI server (registered as `fcc-server` script)."""
+    opened_admin_browser = False
     try:
         try:
             while True:
                 _migrate_legacy_env_if_missing()
                 settings = get_settings()
-                if not _run_supervised_server(settings):
+                if not _run_supervised_server(
+                    settings, open_admin_browser=not opened_admin_browser
+                ):
                     return
+                opened_admin_browser = True
                 get_settings.cache_clear()
         except KeyboardInterrupt:
             return
@@ -60,7 +67,36 @@ def serve() -> None:
         kill_all_best_effort()
 
 
-def _run_supervised_server(settings: Settings) -> bool:
+def _admin_browser_open_enabled() -> bool:
+    """Whether to open /admin when the server becomes reachable (FCC_OPEN_BROWSER)."""
+
+    raw = os.environ.get("FCC_OPEN_BROWSER", "true").strip().lower()
+    return raw not in {"", "0", "false", "no"}
+
+
+def _schedule_open_admin_browser(settings: Settings) -> None:
+    """After /health succeeds, open the admin UI in the default browser (daemon thread)."""
+
+    if not _admin_browser_open_enabled():
+        return
+
+    admin_url = local_admin_url(settings)
+    proxy_root_url = local_proxy_root_url(settings)
+
+    def open_when_ready() -> None:
+        deadline = time.monotonic() + 30.0
+        while time.monotonic() < deadline:
+            if _preflight_proxy(proxy_root_url) is None:
+                webbrowser.open(admin_url)
+                return
+            time.sleep(0.15)
+
+    threading.Thread(
+        target=open_when_ready, name="fcc-open-admin-browser", daemon=True
+    ).start()
+
+
+def _run_supervised_server(settings: Settings, *, open_admin_browser: bool) -> bool:
     """Run one uvicorn server instance; return whether admin requested restart."""
 
     restart_requested = False
@@ -84,6 +120,8 @@ def _run_supervised_server(settings: Settings) -> bool:
     )
     server = uvicorn.Server(config)
     server_holder["server"] = server
+    if open_admin_browser:
+        _schedule_open_admin_browser(settings)
     server.run()
     return restart_requested
 

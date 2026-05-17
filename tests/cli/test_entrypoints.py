@@ -159,6 +159,54 @@ def test_cli_scripts_are_registered() -> None:
     assert scripts["fcc-claude"] == "cli.entrypoints:launch_claude"
 
 
+def test_schedule_open_admin_browser_opens_when_health_ready(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Opening /admin runs after /health preflight succeeds."""
+    monkeypatch.delenv("FCC_OPEN_BROWSER", raising=False)
+    from api.admin_urls import local_admin_url
+    from cli import entrypoints
+
+    settings = _launcher_settings(port=31337)
+    opened_urls: list[str] = []
+
+    class ImmediateThread:
+        def __init__(self, target=None, **_kwargs: object) -> None:
+            self._target = target
+
+        def start(self) -> None:
+            assert self._target is not None
+            self._target()
+
+    with (
+        patch.object(entrypoints.threading, "Thread", ImmediateThread),
+        patch.object(entrypoints, "_preflight_proxy", return_value=None),
+        patch.object(
+            entrypoints.webbrowser,
+            "open",
+            side_effect=lambda url: opened_urls.append(url),
+        ),
+        patch.object(entrypoints.time, "sleep"),
+    ):
+        entrypoints._schedule_open_admin_browser(settings)
+
+    assert opened_urls == [local_admin_url(settings)]
+
+
+def test_schedule_open_admin_browser_skips_when_disabled(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("FCC_OPEN_BROWSER", "0")
+    from cli import entrypoints
+
+    settings = _launcher_settings()
+
+    with patch.object(entrypoints.threading, "Thread") as thread_cls:
+        entrypoints._schedule_open_admin_browser(settings)
+
+    thread_cls.assert_not_called()
+
+
 def test_serve_supervisor_restarts_when_app_requests_restart() -> None:
     from cli import entrypoints
 
@@ -185,6 +233,7 @@ def test_serve_supervisor_restarts_when_app_requests_restart() -> None:
         patch.object(entrypoints, "get_settings", get_settings),
         patch.object(entrypoints.uvicorn, "Config", side_effect=fake_config),
         patch.object(entrypoints.uvicorn, "Server", side_effect=FakeServer),
+        patch.object(entrypoints, "_schedule_open_admin_browser"),
         patch.object(entrypoints, "kill_all_best_effort") as kill_all,
     ):
         entrypoints.serve()
