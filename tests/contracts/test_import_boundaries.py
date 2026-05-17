@@ -5,7 +5,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-# `api` may only import this narrow ``providers`` surface (AGENTS/PLAN).
+# `api` may only import this narrow ``providers`` surface (see AGENTS.md).
 _API_ALLOWED_PROVIDER_MODULES = frozenset(
     {
         "providers",
@@ -134,20 +134,6 @@ def test_removed_openrouter_rollback_transport_stays_removed() -> None:
     assert _text_occurrences(repo_root, "OPENROUTER" + "_TRANSPORT") == []
 
 
-def test_architecture_doc_names_enforced_boundaries() -> None:
-    repo_root = Path(__file__).resolve().parents[2]
-    contract_test = repo_root / "tests" / "contracts" / "test_import_boundaries.py"
-    assert contract_test.is_file()
-    stream_contracts = repo_root / "core" / "anthropic" / "stream_contracts.py"
-    assert stream_contracts.is_file()
-
-    text = (repo_root / "PLAN.md").read_text(encoding="utf-8")
-
-    assert "core/anthropic/" in text
-    assert "api/runtime.py" in text
-    assert "import-boundary" in text or "Provider adapters may depend" in text
-
-
 def _imports_matching(
     roots: list[Path], *, forbidden_prefixes: tuple[str, ...]
 ) -> list[str]:
@@ -250,7 +236,6 @@ def _text_occurrences(repo_root: Path, needle: str) -> list[str]:
         repo_root / "tests",
         repo_root / ".env.example",
         repo_root / "AGENTS.md",
-        repo_root / "PLAN.md",
         repo_root / "README.md",
         repo_root / "pyproject.toml",
     ]

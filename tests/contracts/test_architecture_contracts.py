@@ -5,24 +5,12 @@ import tomllib
 from pathlib import Path
 
 
-def test_architecture_plan_exists() -> None:
-    repo_root = Path(__file__).resolve().parents[2]
-    plan = repo_root / "PLAN.md"
-
-    assert plan.exists()
-    text = plan.read_text(encoding="utf-8")
-    assert "Intended Dependency Direction" in text
-    assert "Smoke Coverage Policy" in text
-    assert "providers.nvidia_nim.voice" in text
-    assert "no dedicated smoke SSE shim" in text
-
-
 def test_smoke_lib_has_no_sse_shim_module() -> None:
     repo_root = Path(__file__).resolve().parents[2]
     assert not (repo_root / "smoke" / "lib" / "sse.py").exists()
 
 
-def test_api_package_exports_match_plan() -> None:
+def test_api_package_exports() -> None:
     import api
 
     assert set(api.__all__) == {
