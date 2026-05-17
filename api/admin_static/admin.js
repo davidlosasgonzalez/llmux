@@ -489,7 +489,6 @@ function showMessage(message, kind = "") {
 
 byId("validateButton").addEventListener("click", () => validate(true));
 byId("applyButton").addEventListener("click", apply);
-byId("refreshLocal").addEventListener("click", refreshLocalStatus);
 
 load().catch((error) => {
   showMessage(error.message, "error");
