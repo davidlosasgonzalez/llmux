@@ -1,5 +1,7 @@
-# Branch protection: require the status check named "ci" (this workflow's gate job).
-# That single job reflects success or failure of all parallel lanes below.
+# Branch protection: require every status check this workflow reports, for example:
+#   Ban type ignore suppressions
+#   ruff-format, ruff-check, ty, pytest
+# GitHub may prefix with the workflow name (e.g. "CI / ruff-format"); use the names the branch protection UI offers after a run.
 
 name: CI
 
@@ -69,22 +71,3 @@ jobs:
 
       - name: Run
         run: ${{ matrix.run }}
-
-  ci:
-    name: ci
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    needs: [no-type-ignore-suppressions, quality]
-    if: always()
-    permissions:
-      contents: read
-    steps:
-      - name: All checks passed
-        run: |
-          sup="${{ needs.no-type-ignore-suppressions.result }}"
-          qual="${{ needs.quality.result }}"
-          if [[ "$sup" != "success" || "$qual" != "success" ]]; then
-            echo "::error::Required check failed (suppressions: $sup, quality matrix: $qual)."
-            exit 1
-          fi
-          echo "All checks passed."
