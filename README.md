@@ -120,7 +120,7 @@ The default model is already set to `nvidia_nim/z-ai/glm4.7`. You can change it 
 fcc-claude
 ```
 
-`fcc-claude` reads the current configured port and auth token each time it starts, sets the Claude Code environment variables, and then launches the real `claude` command.
+`fcc-claude` reads the current configured port and auth token each time it starts, sets the Claude Code environment variables (including a 190k-token `CLAUDE_CODE_AUTO_COMPACT_WINDOW` for auto-compaction), and then launches the real `claude` command.
 
 ## Choose A Provider
 
@@ -257,7 +257,7 @@ For terminal use, prefer the installed launcher:
 fcc-claude
 ```
 
-Keep `fcc-server` running while you work. The Admin UI manages proxy config, restarts the server when runtime settings change, and `fcc-claude` reads the current Admin UI-managed port and auth token every time it starts.
+Keep `fcc-server` running while you work. The Admin UI manages proxy config, restarts the server when runtime settings change, and `fcc-claude` reads the current Admin UI-managed port and auth token every time it starts. It also sets `CLAUDE_CODE_AUTO_COMPACT_WINDOW` to `190000` for auto-compaction.
 
 ### 2. VS Code Extension
 
@@ -267,7 +267,8 @@ Open Settings, search for `claude-code.environmentVariables`, choose **Edit in s
 "claudeCode.environmentVariables": [
   { "name": "ANTHROPIC_BASE_URL", "value": "http://localhost:8082" },
   { "name": "ANTHROPIC_AUTH_TOKEN", "value": "freecc" },
-  { "name": "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY", "value": "1" }
+  { "name": "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY", "value": "1" },
+  { "name": "CLAUDE_CODE_AUTO_COMPACT_WINDOW", "value": "190000" }
 ]
 ```
 
@@ -286,7 +287,8 @@ Set the environment for `acp.registry.claude-acp`:
 "env": {
   "ANTHROPIC_BASE_URL": "http://localhost:8082",
   "ANTHROPIC_AUTH_TOKEN": "freecc",
-  "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "1"
+  "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "1",
+  "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "190000"
 }
 ```
 
@@ -411,7 +413,7 @@ Run them in that order before pushing. CI enforces the same checks.
 
 - `fcc-server`: starts the proxy with configured host and port.
 - `fcc-init`: optional advanced scaffold for `~/.fcc/.env`; prefer the **Admin UI** for normal configuration.
-- `fcc-claude`: launches Claude Code with the configured local proxy URL, auth token, and model discovery flag.
+- `fcc-claude`: launches Claude Code with the configured local proxy URL, auth token, model discovery flag, and a 190k `CLAUDE_CODE_AUTO_COMPACT_WINDOW` for auto-compaction.
 - `free-claude-code`: compatibility alias for `fcc-server`.
 
 ### 5. Extending
