@@ -343,13 +343,20 @@ The bot wrapper runs Claude Code sessions remotely, streams progress, supports r
 
 ### 2. Voice Notes
 
-Voice notes work on Discord and Telegram after you install the matching optional dependencies:
+Voice notes work on Discord and Telegram after you extend your [proxy install](#4-install-the-proxy) with the matching optional extras. Re-run `uv tool install --force` with the extras you need (same Git URL as Quick Start):
 
 ```bash
-uv sync --extra voice_local
-uv sync --extra voice
-uv sync --extra voice --extra voice_local
+# NVIDIA NIM transcription (Riva gRPC)
+uv tool install --force "free-claude-code[voice] @ git+https://github.com/Alishahryar1/free-claude-code.git"
+
+# Local Whisper (CPU or CUDA)
+uv tool install --force "free-claude-code[voice_local] @ git+https://github.com/Alishahryar1/free-claude-code.git"
+
+# Both backends
+uv tool install --force "free-claude-code[voice,voice_local] @ git+https://github.com/Alishahryar1/free-claude-code.git"
 ```
+
+For **cuda** local Whisper, add `--torch-backend cu130` to the `voice_local` install command. Restart `fcc-server` after reinstalling.
 
 In the **Admin UI**, open **Messaging** and scroll to **Voice**. Turn on **Voice Notes**, choose **Whisper Device** (`cpu`, `cuda`, or `nvidia_nim`), set **Whisper Model**, and enter **Hugging Face Token** when your setup needs it. For **nvidia_nim** transcription, install the `voice` extra and set **NVIDIA NIM API Key** on the **Providers** view. The screenshot above shows the **Voice** block in the same view.
 
