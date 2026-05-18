@@ -119,6 +119,7 @@ class CLISession:
             else:
                 env["ANTHROPIC_BASE_URL"] = self.api_url
             env["CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"] = "1"
+            env["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] = "190000"
             env.pop("ANTHROPIC_API_KEY", None)
             if token := self.auth_token.strip():
                 env["ANTHROPIC_AUTH_TOKEN"] = token
