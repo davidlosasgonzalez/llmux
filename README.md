@@ -74,13 +74,7 @@ uv self update
 uv python install 3.14
 ```
 
-### 3. Get An NVIDIA NIM API Key
-
-Create a free NVIDIA NIM API key, then keep it ready for the Admin UI setup step.
-
-See [NVIDIA NIM provider setup](#nvidia-nim-provider).
-
-### 4. Install The Proxy
+### 3. Install The Proxy
 
 ```bash
 uv tool install --force git+https://github.com/Alishahryar1/free-claude-code.git
@@ -88,7 +82,7 @@ uv tool install --force git+https://github.com/Alishahryar1/free-claude-code.git
 
 Use the same command to update to the latest version.
 
-### 5. Start The Proxy
+### 4. Start The Proxy
 
 ```bash
 fcc-server
@@ -102,9 +96,11 @@ INFO:     Admin UI: http://127.0.0.1:8082/admin (local-only)
 
 Many terminals make these clickable. Use your configured `PORT` if it is not `8082`.
 
-### 6. Open The Admin UI And Configure NVIDIA NIM
+### 5. Open The Admin UI And Configure NVIDIA NIM
 
 Open the **Admin UI** URL from the terminal output.
+
+If you do not have a key yet, create a free one at [build.nvidia.com/settings/api-keys](https://build.nvidia.com/settings/api-keys). For model examples and routing details, see [NVIDIA NIM provider](#nvidia-nim-provider).
 
 <div align="center">
   <img src="assets/admin-page.png" alt="Local admin UI for proxy settings" width="700">
@@ -114,7 +110,7 @@ Paste your NVIDIA NIM API key into `NVIDIA_NIM_API_KEY`, then click **Validate**
 
 The default model is already set to `nvidia_nim/z-ai/glm4.7`. You can change it later from the same Admin UI.
 
-### 7. Run Claude Code
+### 6. Run Claude Code
 
 ```bash
 fcc-claude
@@ -343,7 +339,7 @@ The bot wrapper runs Claude Code sessions remotely, streams progress, supports r
 
 ### 2. Voice Notes
 
-Voice notes work on Discord and Telegram after you extend your [proxy install](#4-install-the-proxy) with the matching optional extras. Re-run `uv tool install --force` with the extras you need (same Git URL as Quick Start):
+Voice notes work on Discord and Telegram after you extend your [proxy install](#3-install-the-proxy) with the matching optional extras. Re-run `uv tool install --force` with the extras you need (same Git URL as Quick Start):
 
 ```bash
 # NVIDIA NIM transcription (Riva gRPC)
