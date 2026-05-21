@@ -160,21 +160,15 @@ FIELDS: tuple[ConfigFieldSpec, ...] = (
     ),
     ConfigFieldSpec(
         "OPENCODE_API_KEY",
-        "OpenCode Zen API Key",
+        "OpenCode API Key",
         "providers",
         "secret",
         settings_attr="opencode_api_key",
         secret=True,
-        description="OpenCode Zen curated model gateway at opencode.ai.",
-    ),
-    ConfigFieldSpec(
-        "OPENCODE_GO_API_KEY",
-        "OpenCode Go API Key",
-        "providers",
-        "secret",
-        settings_attr="opencode_go_api_key",
-        secret=True,
-        description="OpenCode Go subscription gateway at opencode.ai.",
+        description=(
+            "OpenCode Zen curated gateway (opencode.ai/zen/v1) and OpenCode Go subscription "
+            "gateway (opencode.ai/zen/go/v1); single key from opencode.ai/auth."
+        ),
     ),
     ConfigFieldSpec(
         "ZAI_API_KEY",

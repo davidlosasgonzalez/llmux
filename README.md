@@ -207,7 +207,7 @@ In the Admin UI, keep or update `OLLAMA_BASE_URL`, then set `MODEL` to the same 
 
 Get an API key at [opencode.ai/auth](https://opencode.ai/auth).
 
-In the Admin UI, paste it into `OPENCODE_API_KEY`, then set `MODEL` to an OpenCode Zen model slug such as `opencode/gpt-5.3-codex`.
+In the Admin UI, paste it into `OPENCODE_API_KEY`, then set `MODEL` to an OpenCode Zen model slug such as `opencode/gpt-5.3-codex`. The same `OPENCODE_API_KEY` powers **OpenCode Go** (below); use `opencode_go/` slugs there.
 
 OpenCode Zen is a curated model gateway that provides access to models from Anthropic, OpenAI, Google, DeepSeek, and more through a single API key and OpenAI-compatible endpoint at `https://opencode.ai/zen/v1`.
 
@@ -224,15 +224,15 @@ Browse available models at [opencode.ai](https://opencode.ai).
 
 ### 10. [OpenCode Go](https://opencode.ai/)
 
-Get an API key at [opencode.ai/auth](https://opencode.ai/auth).
+Get an API key at [opencode.ai/auth](https://opencode.ai/auth) (same as OpenCode Zen).
 
-In the Admin UI, paste it into `OPENCODE_GO_API_KEY`, then set `MODEL` to an OpenCode Go model slug such as `opencode_go/gpt-5.3-codex`.
+In the Admin UI, use `OPENCODE_API_KEY`, then set `MODEL` to an OpenCode Go model slug such as `opencode_go/minimax-m2.7`.
 
-OpenCode Go is a separate subscription gateway from OpenCode Zen. It uses an OpenAI-compatible endpoint at `https://opencode.ai/zen/go/v1` and its own API key (`OPENCODE_GO_API_KEY`), distinct from `OPENCODE_API_KEY`.
+OpenCode Go is a subscription gateway with its own curated catalog and OpenAI-compatible endpoint at `https://opencode.ai/zen/go/v1`. It shares the **same OpenCode API key** as Zen; only the slug prefix (`opencode_go/` vs `opencode/`) and upstream path differ.
 
 Popular examples:
 
-- `opencode_go/gpt-5.3-codex`
+- `opencode_go/minimax-m2.7`
 
 Browse available models at [opencode.ai](https://opencode.ai).
 

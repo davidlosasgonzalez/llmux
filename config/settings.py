@@ -119,11 +119,9 @@ class Settings(BaseSettings):
     # ==================== Wafer Config ====================
     wafer_api_key: str = Field(default="", validation_alias="WAFER_API_KEY")
 
-    # ==================== OpenCode Zen Config ====================
+    # ==================== OpenCode Zen / OpenCode Go ====================
+    # Same key from opencode.ai/auth; zen uses prefix ``opencode/``, Go uses ``opencode_go/``.
     opencode_api_key: str = Field(default="", validation_alias="OPENCODE_API_KEY")
-
-    # ==================== OpenCode Go Config ====================
-    opencode_go_api_key: str = Field(default="", validation_alias="OPENCODE_GO_API_KEY")
 
     # ==================== Z.ai Config ====================
     zai_api_key: str = Field(default="", validation_alias="ZAI_API_KEY")

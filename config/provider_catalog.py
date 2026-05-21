@@ -141,9 +141,9 @@ PROVIDER_CATALOG: dict[str, ProviderDescriptor] = {
     "opencode_go": ProviderDescriptor(
         provider_id="opencode_go",
         transport_type="openai_chat",
-        credential_env="OPENCODE_GO_API_KEY",
+        credential_env="OPENCODE_API_KEY",
         credential_url="https://opencode.ai/auth",
-        credential_attr="opencode_go_api_key",
+        credential_attr="opencode_api_key",
         default_base_url=OPENCODE_GO_DEFAULT_BASE,
         proxy_attr="opencode_go_proxy",
         capabilities=("chat", "streaming", "tools", "thinking", "rate_limit"),
