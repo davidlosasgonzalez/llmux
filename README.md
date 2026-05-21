@@ -100,7 +100,7 @@ Many terminals make these clickable. Use your configured `PORT` if it is not `80
 
 Open the **Admin UI** URL from the terminal output.
 
-If you do not have a key yet, create a free one at [build.nvidia.com/settings/api-keys](https://build.nvidia.com/settings/api-keys). For model examples and routing details, see [NVIDIA NIM provider](#nvidia-nim-provider).
+Need an NVIDIA NIM API key? Use the **[NVIDIA NIM provider](#nvidia-nim-provider)** section below, then scroll back up here.
 
 <div align="center">
   <img src="assets/admin-page.png" alt="Local admin UI for proxy settings" width="700">
