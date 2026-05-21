@@ -108,7 +108,7 @@ Need an NVIDIA NIM API key? Use the **[NVIDIA NIM provider](#nvidia-nim-provider
 
 Paste your NVIDIA NIM API key into `NVIDIA_NIM_API_KEY`, then click **Validate** and **Apply**.
 
-The default model is already set to `nvidia_nim/z-ai/glm4.7`. You can change it later from the same Admin UI.
+The default model is already set to `nvidia_nim/nvidia/nemotron-3-super-120b-a12b`. You can change it later from the same Admin UI.
 
 ### 6. Run Claude Code
 
@@ -128,12 +128,12 @@ Pick one provider, enter its key or local URL in the Admin UI, and set `MODEL` t
 
 Get a key at [build.nvidia.com/settings/api-keys](https://build.nvidia.com/settings/api-keys).
 
-In the Admin UI, paste it into `NVIDIA_NIM_API_KEY`. The default `MODEL` is `nvidia_nim/z-ai/glm4.7`.
+In the Admin UI, paste it into `NVIDIA_NIM_API_KEY`. The default `MODEL` is `nvidia_nim/nvidia/nemotron-3-super-120b-a12b`.
 
 Popular examples:
 
-- `nvidia_nim/z-ai/glm4.7`
-- `nvidia_nim/z-ai/glm5`
+- `nvidia_nim/nvidia/nemotron-3-super-120b-a12b`
+- `nvidia_nim/z-ai/glm5.1`
 - `nvidia_nim/moonshotai/kimi-k2.5`
 - `nvidia_nim/minimaxai/minimax-m2.5`
 
