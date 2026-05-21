@@ -78,6 +78,7 @@ def test_provider_and_platform_registries_include_advertised_builtins() -> None:
         "ollama": OllamaProvider,
         "wafer": WaferProvider,
         "opencode": OpenCodeProvider,
+        "opencode_go": OpenCodeProvider,
         "zai": ZaiProvider,
     }
     for provider_class in provider_classes.values():

@@ -28,6 +28,7 @@ def _settings(**overrides):
         "deepseek_api_key": "",
         "wafer_api_key": "",
         "opencode_api_key": "",
+        "opencode_go_api_key": "",
         "zai_api_key": "",
         "lm_studio_base_url": "",
         "llamacpp_base_url": "",

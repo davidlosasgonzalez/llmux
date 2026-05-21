@@ -50,6 +50,7 @@ PROVIDER_SMOKE_DEFAULT_MODELS: dict[str, str] = {
     "ollama": "ollama/llama3.1",
     "wafer": "wafer/DeepSeek-V4-Pro",
     "opencode": "opencode/gpt-5.3-codex",
+    "opencode_go": "opencode_go/gpt-5.3-codex",
     "zai": "zai/glm-5.1",
 }
 

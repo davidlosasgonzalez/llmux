@@ -14,10 +14,10 @@ from .request import build_request_body
 class OpenCodeProvider(OpenAIChatTransport):
     """OpenCode Zen provider using ``https://opencode.ai/zen/v1/chat/completions``."""
 
-    def __init__(self, config: ProviderConfig):
+    def __init__(self, config: ProviderConfig, provider_name: str = "OPENCODE"):
         super().__init__(
             config,
-            provider_name="OPENCODE",
+            provider_name=provider_name,
             base_url=config.base_url or OPENCODE_DEFAULT_BASE,
             api_key=config.api_key,
         )
