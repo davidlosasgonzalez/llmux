@@ -56,14 +56,14 @@ npm install -g @anthropic-ai/claude-code
 
 ### 2. Install Runtime Requirements
 
-Install the latest version of [uv](https://docs.astral.sh/uv/getting-started/installation/) and Python 3.14.
+Install the latest version of [uv](https://docs.astral.sh/uv/getting-started/installation/) (0.9+) and Python 3.14.0 stable.
 
 macOS/Linux:
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 uv self update
-uv python install 3.14
+uv python install 3.14.0
 ```
 
 Windows PowerShell:
@@ -71,8 +71,10 @@ Windows PowerShell:
 ```powershell
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 uv self update
-uv python install 3.14
+uv python install 3.14.0
 ```
+
+If you previously installed 3.14 with an older uv and see alpha-only behavior (e.g. `except TypeError, ValueError` fails), run `uv self update` then `uv python install 3.14.0 --reinstall` and recreate the venv with `uv sync`.
 
 ### 3. Install The Proxy
 
