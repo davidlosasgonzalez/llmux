@@ -48,43 +48,17 @@ Free Claude Code routes Anthropic Messages API traffic from Claude Code to any p
 
 ## Quick Start
 
-### 1. Install the latest version of [Claude Code](https://code.claude.com/docs/en/overview)
+### Fast Install
+
+Install or update Claude Code, uv, Python 3.14.0, and Free Claude Code:
 
 ```bash
-npm install -g @anthropic-ai/claude-code
+curl -fsSL "https://github.com/Alishahryar1/free-claude-code/blob/main/scripts/install.sh?raw=1" | sh
 ```
 
-### 2. Install Runtime Requirements
+Review the installer at [scripts/install.sh](https://github.com/Alishahryar1/free-claude-code/blob/main/scripts/install.sh).
 
-Install the latest version of [uv](https://docs.astral.sh/uv/getting-started/installation/) (0.9+) and Python 3.14.0 stable.
-
-macOS/Linux:
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-uv self update
-uv python install 3.14.0
-```
-
-Windows PowerShell:
-
-```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
-uv self update
-uv python install 3.14.0
-```
-
-If you previously installed 3.14 with an older uv and see alpha-only behavior (e.g. `except TypeError, ValueError` fails), run `uv self update` then `uv python install 3.14.0 --reinstall` and recreate the venv with `uv sync`.
-
-### 3. Install The Proxy
-
-```bash
-uv tool install --force git+https://github.com/Alishahryar1/free-claude-code.git
-```
-
-Use the same command to update to the latest version.
-
-### 4. Start The Proxy
+### 1. Start The Proxy
 
 ```bash
 fcc-server
@@ -98,7 +72,7 @@ INFO:     Admin UI: http://127.0.0.1:8082/admin (local-only)
 
 Many terminals make these clickable. Use your configured `PORT` if it is not `8082`.
 
-### 5. Open The Admin UI And Configure NVIDIA NIM
+### 2. Open The Admin UI And Configure NVIDIA NIM
 
 Open the **Admin UI** URL from the terminal output.
 
@@ -112,7 +86,7 @@ Paste your NVIDIA NIM API key into `NVIDIA_NIM_API_KEY`, then click **Validate**
 
 The default model is already set to `nvidia_nim/nvidia/nemotron-3-super-120b-a12b`. You can change it later from the same Admin UI.
 
-### 6. Run Claude Code
+### 3. Run Claude Code
 
 ```bash
 fcc-claude
@@ -355,7 +329,7 @@ The bot wrapper runs Claude Code sessions remotely, streams progress, supports r
 
 ### 2. Voice Notes
 
-Voice notes work on Discord and Telegram after you extend your [proxy install](#3-install-the-proxy) with the matching optional extras. Re-run `uv tool install --force` with the extras you need (same Git URL as Quick Start):
+Voice notes work on Discord and Telegram after you extend your [Free Claude Code install](#fast-install) with the matching optional extras. Re-run `uv tool install --force` with the extras you need (same Git URL as Quick Start):
 
 ```bash
 # NVIDIA NIM transcription (Riva gRPC)
