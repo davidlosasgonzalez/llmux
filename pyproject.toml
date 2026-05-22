@@ -51,8 +51,7 @@ packages = ["api", "cli", "config", "core", "messaging", "providers"]
 "api/admin_static" = "api/admin_static"
 
 [tool.uv]
-# uv <0.9 only had 3.14 pre-releases in download metadata; 0.9+ ships stable 3.14.0.
-required-version = ">=0.9.0"
+required-version = ">=0.11.0"
 
 [tool.uv.sources]
 torch = { index = "pytorch-cu130" }
