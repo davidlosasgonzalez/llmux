@@ -7,6 +7,7 @@ import pytest
 from config.nim import NimSettings
 from config.provider_catalog import PROVIDER_CATALOG, ZAI_DEFAULT_BASE
 from config.provider_ids import SUPPORTED_PROVIDER_IDS
+from providers.cerebras import CerebrasProvider
 from providers.deepseek import DeepSeekProvider
 from providers.exceptions import UnknownProviderTypeError
 from providers.gemini import GeminiProvider
@@ -58,6 +59,8 @@ def _make_settings(**overrides):
     mock.gemini_proxy = ""
     mock.groq_api_key = ""
     mock.groq_proxy = ""
+    mock.cerebras_api_key = ""
+    mock.cerebras_proxy = ""
     mock.provider_rate_limit = 40
     mock.provider_rate_window = 60
     mock.provider_max_concurrency = 5
@@ -158,6 +161,7 @@ def test_create_provider_instantiates_each_builtin():
     settings = _make_settings(
         gemini_api_key="test_gemini_key",
         groq_api_key="test_groq_key",
+        cerebras_api_key="test_cerebras_key",
     )
     cases = {
         "nvidia_nim": NvidiaNimProvider,
@@ -172,6 +176,7 @@ def test_create_provider_instantiates_each_builtin():
         "zai": ZaiProvider,
         "gemini": GeminiProvider,
         "groq": GroqProvider,
+        "cerebras": CerebrasProvider,
     }
 
     with (

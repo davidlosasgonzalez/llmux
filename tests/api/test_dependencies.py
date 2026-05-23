@@ -15,6 +15,7 @@ from api.dependencies import (
     resolve_provider,
 )
 from config.nim import NimSettings
+from providers.cerebras import CerebrasProvider
 from providers.deepseek import DeepSeekProvider
 from providers.exceptions import ServiceUnavailableError, UnknownProviderTypeError
 from providers.gemini import GeminiProvider
@@ -62,6 +63,8 @@ def _make_mock_settings(**overrides):
     mock.gemini_proxy = ""
     mock.groq_api_key = ""
     mock.groq_proxy = ""
+    mock.cerebras_api_key = ""
+    mock.cerebras_proxy = ""
     mock.nim = NimSettings()
     mock.http_read_timeout = 300.0
     mock.http_write_timeout = 10.0
@@ -292,6 +295,39 @@ async def test_get_provider_groq_missing_api_key():
         assert exc_info.value.status_code == 503
         assert "GROQ_API_KEY" in exc_info.value.detail
         assert "console.groq.com" in exc_info.value.detail
+
+
+@pytest.mark.asyncio
+async def test_get_provider_cerebras():
+    """Test that provider_type=cerebras returns CerebrasProvider."""
+    with patch("api.dependencies.get_settings") as mock_settings:
+        mock_settings.return_value = _make_mock_settings(
+            provider_type="cerebras",
+            cerebras_api_key="secret",
+        )
+
+        provider = get_provider()
+
+        assert isinstance(provider, CerebrasProvider)
+        assert provider._base_url == "https://api.cerebras.ai/v1"
+        assert provider._api_key == "secret"
+
+
+@pytest.mark.asyncio
+async def test_get_provider_cerebras_missing_api_key():
+    """Cerebras with empty API key raises HTTPException 503."""
+    with patch("api.dependencies.get_settings") as mock_settings:
+        mock_settings.return_value = _make_mock_settings(
+            provider_type="cerebras",
+            cerebras_api_key="",
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            get_provider()
+
+        assert exc_info.value.status_code == 503
+        assert "CEREBRAS_API_KEY" in exc_info.value.detail
+        assert "cloud.cerebras.ai" in exc_info.value.detail
 
 
 @pytest.mark.asyncio

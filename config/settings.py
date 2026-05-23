@@ -138,6 +138,9 @@ class Settings(BaseSettings):
     # ==================== Groq (OpenAI-compatible) ====================
     groq_api_key: str = Field(default="", validation_alias="GROQ_API_KEY")
 
+    # ==================== Cerebras Inference (OpenAI-compatible) ====================
+    cerebras_api_key: str = Field(default="", validation_alias="CEREBRAS_API_KEY")
+
     # ==================== Messaging Platform Selection ====================
     # Valid: "telegram" | "discord" | "none"
     messaging_platform: str = Field(
@@ -196,6 +199,7 @@ class Settings(BaseSettings):
     fireworks_proxy: str = Field(default="", validation_alias="FIREWORKS_PROXY")
     gemini_proxy: str = Field(default="", validation_alias="GEMINI_PROXY")
     groq_proxy: str = Field(default="", validation_alias="GROQ_PROXY")
+    cerebras_proxy: str = Field(default="", validation_alias="CEREBRAS_PROXY")
 
     # ==================== Provider Rate Limiting ====================
     provider_rate_limit: int = Field(default=40, validation_alias="PROVIDER_RATE_LIMIT")

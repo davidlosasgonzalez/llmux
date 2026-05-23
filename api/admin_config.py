@@ -227,6 +227,19 @@ FIELDS: tuple[ConfigFieldSpec, ...] = (
         ),
     ),
     ConfigFieldSpec(
+        "CEREBRAS_API_KEY",
+        "Cerebras API Key",
+        "providers",
+        "secret",
+        settings_attr="cerebras_api_key",
+        secret=True,
+        description=(
+            "Cerebras Inference API key (create in [Cloud Console](https://cloud.cerebras.ai)); "
+            "see [Quickstart](https://inference-docs.cerebras.ai/quickstart) and "
+            "[OpenAI compatibility](https://inference-docs.cerebras.ai/resources/openai)."
+        ),
+    ),
+    ConfigFieldSpec(
         "LM_STUDIO_BASE_URL",
         "LM Studio Base URL",
         "providers",
@@ -361,6 +374,15 @@ FIELDS: tuple[ConfigFieldSpec, ...] = (
         "providers",
         "secret",
         settings_attr="groq_proxy",
+        secret=True,
+        advanced=True,
+    ),
+    ConfigFieldSpec(
+        "CEREBRAS_PROXY",
+        "Cerebras Proxy",
+        "providers",
+        "secret",
+        settings_attr="cerebras_proxy",
         secret=True,
         advanced=True,
     ),
@@ -839,6 +861,12 @@ FIELDS: tuple[ConfigFieldSpec, ...] = (
     ConfigFieldSpec(
         "FCC_SMOKE_MODEL_GROQ",
         "Smoke Groq Model",
+        "smoke",
+        advanced=True,
+    ),
+    ConfigFieldSpec(
+        "FCC_SMOKE_MODEL_CEREBRAS",
+        "Smoke Cerebras Model",
         "smoke",
         advanced=True,
     ),

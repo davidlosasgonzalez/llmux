@@ -37,7 +37,7 @@ Free Claude Code routes Anthropic Messages API traffic from Claude Code to any p
 ## What You Get
 
 - Drop-in proxy for Claude Code's Anthropic API calls.
-- Fifteen provider backends: NVIDIA NIM, OpenRouter, Mistral La Plateforme, DeepSeek, Kimi, Wafer, LM Studio, llama.cpp, Ollama, OpenCode Zen, OpenCode Go, Z.ai, Fireworks AI, Google AI Studio (Gemini), and Groq.
+- Sixteen provider backends: NVIDIA NIM, OpenRouter, Mistral La Plateforme, DeepSeek, Kimi, Wafer, LM Studio, llama.cpp, Ollama, OpenCode Zen, OpenCode Go, Z.ai, Fireworks AI, Google AI Studio (Gemini), Groq, and Cerebras Inference.
 - Per-model routing: send Opus, Sonnet, Haiku, and fallback traffic to different providers.
 - Native Claude Code `/model` picker support through the proxy's `/v1/models` endpoint (Claude Code must opt in to Gateway model discovery; see [Model Picker](#model-picker)).
 - Streaming, tool use, reasoning/thinking block handling, and local request optimizations.
@@ -283,7 +283,15 @@ Reasoning-heavy models expose extra knobs documented under [Groq reasoning](http
 
 Browse models at [console.groq.com/docs/models](https://console.groq.com/docs/models).
 
-### 16. Mix Providers By Model Tier
+### 16. [Cerebras Inference](https://inference-docs.cerebras.ai/quickstart)
+
+Sign up and create an API key in the [Cerebras Cloud Console](https://cloud.cerebras.ai) (see [Quickstart](https://inference-docs.cerebras.ai/quickstart)).
+
+In the Admin UI, set `CEREBRAS_API_KEY`, then route with `MODEL` such as `cerebras/llama3.1-8b` or `cerebras/gpt-oss-120b` (ids from [List models](https://inference-docs.cerebras.ai/api-reference/models/list-models)).
+
+Cerebras exposes an OpenAI-compatible API at `https://api.cerebras.ai/v1` ([OpenAI compatibility](https://inference-docs.cerebras.ai/resources/openai)). Non-standard request fields should go in `extra_body` when using the OpenAI client; see the same page. For reasoning models and parameters, see [Reasoning](https://inference-docs.cerebras.ai/capabilities/reasoning). This proxy follows other OpenAI-compat adapters for thinking via `reasoning_content` when Claude-style thinking is enabled.
+
+### 17. Mix Providers By Model Tier
 
 Each model tier can use a different provider by setting `MODEL_OPUS`, `MODEL_SONNET`, and `MODEL_HAIKU` in the Admin UI. Leave a tier blank to inherit `MODEL`.
 
