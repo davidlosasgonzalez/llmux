@@ -37,7 +37,7 @@ Free Claude Code routes Anthropic Messages API traffic from Claude Code to any p
 ## What You Get
 
 - Drop-in proxy for Claude Code's Anthropic API calls.
-- Twelve provider backends: NVIDIA NIM, OpenRouter, Mistral La Plateforme, DeepSeek, Kimi, Wafer, LM Studio, llama.cpp, Ollama, OpenCode Zen, OpenCode Go, and Z.ai.
+- Twelve provider backends: NVIDIA NIM, OpenRouter, Mistral, DeepSeek, Kimi, Wafer, LM Studio, llama.cpp, Ollama, OpenCode Zen, OpenCode Go, and Z.ai.
 - Per-model routing: send Opus, Sonnet, Haiku, and fallback traffic to different providers.
 - Native Claude Code `/model` picker support through the proxy's `/v1/models` endpoint (Claude Code must opt in to Gateway model discovery; see [Model Picker](#model-picker)).
 - Streaming, tool use, reasoning/thinking block handling, and local request optimizations.
@@ -131,7 +131,7 @@ In the Admin UI, paste it into `OPENROUTER_API_KEY`, then set `MODEL` to an Open
 
 Browse [all models](https://openrouter.ai/models) or [free models](https://openrouter.ai/collections/free-models).
 
-### 3. [Mistral La Plateforme](https://console.mistral.ai/)
+### 3. [Mistral](https://console.mistral.ai/)
 
 [Mistral](https://mistral.ai) hosts an OpenAI-compatible Chat Completions API at `https://api.mistral.ai/v1`. Activate the **Experiment** plan on [console.mistral.ai](https://console.mistral.ai/) for free-tier API access with rate limits (upgrade for higher quotas).
 
