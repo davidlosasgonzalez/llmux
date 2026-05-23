@@ -135,6 +135,9 @@ class Settings(BaseSettings):
     # ==================== Google Gemini (Google AI Studio) ====================
     gemini_api_key: str = Field(default="", validation_alias="GEMINI_API_KEY")
 
+    # ==================== Groq (OpenAI-compatible) ====================
+    groq_api_key: str = Field(default="", validation_alias="GROQ_API_KEY")
+
     # ==================== Messaging Platform Selection ====================
     # Valid: "telegram" | "discord" | "none"
     messaging_platform: str = Field(
@@ -192,6 +195,7 @@ class Settings(BaseSettings):
     zai_proxy: str = Field(default="", validation_alias="ZAI_PROXY")
     fireworks_proxy: str = Field(default="", validation_alias="FIREWORKS_PROXY")
     gemini_proxy: str = Field(default="", validation_alias="GEMINI_PROXY")
+    groq_proxy: str = Field(default="", validation_alias="GROQ_PROXY")
 
     # ==================== Provider Rate Limiting ====================
     provider_rate_limit: int = Field(default=40, validation_alias="PROVIDER_RATE_LIMIT")

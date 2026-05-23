@@ -104,6 +104,7 @@ def test_admin_config_masks_secrets_and_exposes_manifest(monkeypatch, tmp_path):
     assert "OPENROUTER_API_KEY" in keys
     assert "FIREWORKS_API_KEY" in keys
     assert "GEMINI_API_KEY" in keys
+    assert "GROQ_API_KEY" in keys
     assert "ZAI_BASE_URL" not in keys
     assert "CLAUDE_WORKSPACE" not in keys
     assert "CLAUDE_CLI_BIN" not in keys
@@ -231,6 +232,31 @@ def test_admin_apply_writes_gemini_key_and_masks_preview(monkeypatch, tmp_path):
     text = env_file.read_text(encoding="utf-8")
     assert "MODEL=gemini/gemini-2.5-flash" in text
     assert "GEMINI_API_KEY=gm-secret" in text
+
+
+def test_admin_apply_writes_groq_key_and_masks_preview(monkeypatch, tmp_path):
+    _set_home(monkeypatch, tmp_path)
+    _clear_process_config(monkeypatch)
+    app = create_app(lifespan_enabled=False)
+
+    response = _local_client(app).post(
+        "/admin/api/config/apply",
+        json={
+            "values": {
+                "MODEL": "groq/llama-3.3-70b-versatile",
+                "GROQ_API_KEY": "gq-secret",
+            }
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["applied"] is True
+    assert "GROQ_API_KEY=********" in body["env_preview"]
+    env_file = tmp_path / ".fcc" / ".env"
+    text = env_file.read_text(encoding="utf-8")
+    assert "MODEL=groq/llama-3.3-70b-versatile" in text
+    assert "GROQ_API_KEY=gq-secret" in text
 
 
 def test_admin_apply_preserves_hidden_diagnostics_and_smoke_values(

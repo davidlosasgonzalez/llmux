@@ -214,6 +214,19 @@ FIELDS: tuple[ConfigFieldSpec, ...] = (
         ),
     ),
     ConfigFieldSpec(
+        "GROQ_API_KEY",
+        "Groq API Key",
+        "providers",
+        "secret",
+        settings_attr="groq_api_key",
+        secret=True,
+        description=(
+            "GroqCloud OpenAI-compatible API key ([console.groq.com/keys]("
+            "https://console.groq.com/keys)); see Groq "
+            "[OpenAI compatibility docs](https://console.groq.com/docs/openai)."
+        ),
+    ),
+    ConfigFieldSpec(
         "LM_STUDIO_BASE_URL",
         "LM Studio Base URL",
         "providers",
@@ -339,6 +352,15 @@ FIELDS: tuple[ConfigFieldSpec, ...] = (
         "providers",
         "secret",
         settings_attr="gemini_proxy",
+        secret=True,
+        advanced=True,
+    ),
+    ConfigFieldSpec(
+        "GROQ_PROXY",
+        "Groq Proxy",
+        "providers",
+        "secret",
+        settings_attr="groq_proxy",
         secret=True,
         advanced=True,
     ),
@@ -811,6 +833,12 @@ FIELDS: tuple[ConfigFieldSpec, ...] = (
     ConfigFieldSpec(
         "FCC_SMOKE_MODEL_GEMINI",
         "Smoke Gemini Model",
+        "smoke",
+        advanced=True,
+    ),
+    ConfigFieldSpec(
+        "FCC_SMOKE_MODEL_GROQ",
+        "Smoke Groq Model",
         "smoke",
         advanced=True,
     ),

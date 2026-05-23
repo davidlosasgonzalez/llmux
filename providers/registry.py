@@ -116,6 +116,12 @@ def _create_gemini(config: ProviderConfig, _settings: Settings) -> BaseProvider:
     return GeminiProvider(config)
 
 
+def _create_groq(config: ProviderConfig, _settings: Settings) -> BaseProvider:
+    from providers.groq import GroqProvider
+
+    return GroqProvider(config)
+
+
 PROVIDER_FACTORIES: dict[str, ProviderFactory] = {
     "nvidia_nim": _create_nvidia_nim,
     "open_router": _create_open_router,
@@ -131,6 +137,7 @@ PROVIDER_FACTORIES: dict[str, ProviderFactory] = {
     "zai": _create_zai,
     "fireworks": _create_fireworks,
     "gemini": _create_gemini,
+    "groq": _create_groq,
 }
 
 if set(PROVIDER_DESCRIPTORS) != set(SUPPORTED_PROVIDER_IDS) or set(

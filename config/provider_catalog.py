@@ -30,6 +30,7 @@ OPENCODE_GO_DEFAULT_BASE = "https://opencode.ai/zen/go/v1"
 ZAI_DEFAULT_BASE = "https://api.z.ai/api/coding/paas/v4"
 # Google AI Studio Gemini API OpenAI-compat layer (not Vertex AI).
 GEMINI_DEFAULT_BASE = "https://generativelanguage.googleapis.com/v1beta/openai/"
+GROQ_DEFAULT_BASE = "https://api.groq.com/openai/v1"
 
 
 @dataclass(frozen=True, slots=True)
@@ -188,6 +189,16 @@ PROVIDER_CATALOG: dict[str, ProviderDescriptor] = {
         credential_attr="gemini_api_key",
         default_base_url=GEMINI_DEFAULT_BASE,
         proxy_attr="gemini_proxy",
+        capabilities=("chat", "streaming", "tools", "thinking", "rate_limit"),
+    ),
+    "groq": ProviderDescriptor(
+        provider_id="groq",
+        transport_type="openai_chat",
+        credential_env="GROQ_API_KEY",
+        credential_url="https://console.groq.com/keys",
+        credential_attr="groq_api_key",
+        default_base_url=GROQ_DEFAULT_BASE,
+        proxy_attr="groq_proxy",
         capabilities=("chat", "streaming", "tools", "thinking", "rate_limit"),
     ),
 }

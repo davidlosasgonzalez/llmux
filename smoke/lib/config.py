@@ -54,6 +54,7 @@ PROVIDER_SMOKE_DEFAULT_MODELS: dict[str, str] = {
     "opencode_go": "opencode_go/minimax-m2.7",
     "zai": "zai/glm-5.1",
     "gemini": "gemini/gemini-2.5-flash",
+    "groq": "groq/llama-3.3-70b-versatile",
 }
 
 NVIDIA_NIM_CLI_DEFAULT_MODELS: tuple[str, ...] = (
@@ -250,6 +251,8 @@ class SmokeConfig:
             return bool(self.settings.zai_api_key.strip())
         if provider == "gemini":
             return bool(self.settings.gemini_api_key.strip())
+        if provider == "groq":
+            return bool(self.settings.groq_api_key.strip())
         return False
 
 

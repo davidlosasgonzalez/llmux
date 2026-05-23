@@ -37,7 +37,7 @@ Free Claude Code routes Anthropic Messages API traffic from Claude Code to any p
 ## What You Get
 
 - Drop-in proxy for Claude Code's Anthropic API calls.
-- Fourteen provider backends: NVIDIA NIM, OpenRouter, Mistral La Plateforme, DeepSeek, Kimi, Wafer, LM Studio, llama.cpp, Ollama, OpenCode Zen, OpenCode Go, Z.ai, Fireworks AI, and Google AI Studio (Gemini).
+- Fifteen provider backends: NVIDIA NIM, OpenRouter, Mistral La Plateforme, DeepSeek, Kimi, Wafer, LM Studio, llama.cpp, Ollama, OpenCode Zen, OpenCode Go, Z.ai, Fireworks AI, Google AI Studio (Gemini), and Groq.
 - Per-model routing: send Opus, Sonnet, Haiku, and fallback traffic to different providers.
 - Native Claude Code `/model` picker support through the proxy's `/v1/models` endpoint (Claude Code must opt in to Gateway model discovery; see [Model Picker](#model-picker)).
 - Streaming, tool use, reasoning/thinking block handling, and local request optimizations.
@@ -271,7 +271,19 @@ Popular examples:
 - `gemini/gemini-2.5-flash`
 - `gemini/gemini-3.1-flash-lite`
 
-### 15. Mix Providers By Model Tier
+### 15. [Groq](https://console.groq.com/)
+
+Get an API key at [console.groq.com/keys](https://console.groq.com/keys).
+
+In the Admin UI, paste it into `GROQ_API_KEY`, then set `MODEL` to a Groq OpenAI-compat model slug such as `groq/llama-3.3-70b-versatile`.
+
+Groq routes through `https://api.groq.com/openai/v1` ([OpenAI-compatible Chat Completions](https://console.groq.com/docs/openai)). Some request fields yield HTTP 400; this adapter strips known-unsupported shapes (documented in Groq's compatibility notes).
+
+Reasoning-heavy models expose extra knobs documented under [Groq reasoning](https://console.groq.com/docs/reasoning). This release mirrors other OpenAI-compat adapters for thinking via `reasoning_content` deltas when Claude-style thinking is enabled; you can tune advanced parameters through request `extra_body` when needed.
+
+Browse models at [console.groq.com/docs/models](https://console.groq.com/docs/models).
+
+### 16. Mix Providers By Model Tier
 
 Each model tier can use a different provider by setting `MODEL_OPUS`, `MODEL_SONNET`, and `MODEL_HAIKU` in the Admin UI. Leave a tier blank to inherit `MODEL`.
 

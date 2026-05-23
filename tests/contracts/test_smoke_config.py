@@ -32,6 +32,7 @@ def _settings(**overrides):
         "opencode_api_key": "",
         "zai_api_key": "",
         "gemini_api_key": "",
+        "groq_api_key": "",
         "fireworks_api_key": "",
         "lm_studio_base_url": "",
         "llamacpp_base_url": "",
