@@ -50,6 +50,12 @@ def _create_deepseek(config: ProviderConfig, _settings: Settings) -> BaseProvide
     return DeepSeekProvider(config)
 
 
+def _create_mistral(config: ProviderConfig, _settings: Settings) -> BaseProvider:
+    from providers.mistral import MistralProvider
+
+    return MistralProvider(config)
+
+
 def _create_lmstudio(config: ProviderConfig, _settings: Settings) -> BaseProvider:
     from providers.lmstudio import LMStudioProvider
 
@@ -107,6 +113,7 @@ def _create_fireworks(config: ProviderConfig, _settings: Settings) -> BaseProvid
 PROVIDER_FACTORIES: dict[str, ProviderFactory] = {
     "nvidia_nim": _create_nvidia_nim,
     "open_router": _create_open_router,
+    "mistral": _create_mistral,
     "deepseek": _create_deepseek,
     "lmstudio": _create_lmstudio,
     "llamacpp": _create_llamacpp,

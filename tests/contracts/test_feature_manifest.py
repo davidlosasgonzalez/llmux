@@ -8,6 +8,7 @@ from providers.base import BaseProvider
 from providers.deepseek import DeepSeekProvider
 from providers.llamacpp import LlamaCppProvider
 from providers.lmstudio import LMStudioProvider
+from providers.mistral import MistralProvider
 from providers.nvidia_nim import NvidiaNimProvider
 from providers.ollama import OllamaProvider
 from providers.open_router import OpenRouterProvider
@@ -72,6 +73,7 @@ def test_provider_and_platform_registries_include_advertised_builtins() -> None:
     provider_classes = {
         "nvidia_nim": NvidiaNimProvider,
         "open_router": OpenRouterProvider,
+        "mistral": MistralProvider,
         "deepseek": DeepSeekProvider,
         "lmstudio": LMStudioProvider,
         "llamacpp": LlamaCppProvider,

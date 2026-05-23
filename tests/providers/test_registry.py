@@ -11,6 +11,7 @@ from providers.deepseek import DeepSeekProvider
 from providers.exceptions import UnknownProviderTypeError
 from providers.llamacpp import LlamaCppProvider
 from providers.lmstudio import LMStudioProvider
+from providers.mistral import MistralProvider
 from providers.nvidia_nim import NvidiaNimProvider
 from providers.ollama import OllamaProvider
 from providers.open_router import OpenRouterProvider
@@ -31,6 +32,7 @@ def _make_settings(**overrides):
     mock.provider_type = "nvidia_nim"
     mock.nvidia_nim_api_key = "test_key"
     mock.open_router_api_key = "test_openrouter_key"
+    mock.mistral_api_key = "test_mistral_key"
     mock.deepseek_api_key = "test_deepseek_key"
     mock.wafer_api_key = "test_wafer_key"
     mock.opencode_api_key = "test_opencode_key"
@@ -42,6 +44,7 @@ def _make_settings(**overrides):
     mock.open_router_proxy = ""
     mock.lmstudio_proxy = ""
     mock.llamacpp_proxy = ""
+    mock.mistral_proxy = ""
     mock.kimi_proxy = ""
     mock.wafer_proxy = ""
     mock.opencode_proxy = ""
@@ -147,6 +150,7 @@ def test_create_provider_instantiates_each_builtin():
     settings = _make_settings()
     cases = {
         "nvidia_nim": NvidiaNimProvider,
+        "mistral": MistralProvider,
         "deepseek": DeepSeekProvider,
         "lmstudio": LMStudioProvider,
         "llamacpp": LlamaCppProvider,

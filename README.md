@@ -37,7 +37,7 @@ Free Claude Code routes Anthropic Messages API traffic from Claude Code to any p
 ## What You Get
 
 - Drop-in proxy for Claude Code's Anthropic API calls.
-- Eleven provider backends: NVIDIA NIM, Kimi, Wafer, OpenRouter, DeepSeek, LM Studio, llama.cpp, Ollama, OpenCode Zen, OpenCode Go, and Z.ai.
+- Twelve provider backends: NVIDIA NIM, OpenRouter, Mistral La Plateforme, DeepSeek, Kimi, Wafer, LM Studio, llama.cpp, Ollama, OpenCode Zen, OpenCode Go, and Z.ai.
 - Per-model routing: send Opus, Sonnet, Haiku, and fallback traffic to different providers.
 - Native Claude Code `/model` picker support through the proxy's `/v1/models` endpoint (Claude Code must opt in to Gateway model discovery; see [Model Picker](#model-picker)).
 - Streaming, tool use, reasoning/thinking block handling, and local request optimizations.
@@ -123,7 +123,36 @@ Popular examples:
 
 Browse models at [build.nvidia.com](https://build.nvidia.com/explore/discover).
 
-### 2. [Kimi](https://platform.moonshot.ai/)
+### 2. [OpenRouter](https://openrouter.ai/)
+
+Get a key at [openrouter.ai/keys](https://openrouter.ai/keys).
+
+In the Admin UI, paste it into `OPENROUTER_API_KEY`, then set `MODEL` to an OpenRouter slug such as `open_router/stepfun/step-3.5-flash:free`.
+
+Browse [all models](https://openrouter.ai/models) or [free models](https://openrouter.ai/collections/free-models).
+
+### 3. [Mistral La Plateforme](https://console.mistral.ai/)
+
+[Mistral](https://mistral.ai) hosts an OpenAI-compatible Chat Completions API at `https://api.mistral.ai/v1`. Activate the **Experiment** plan on [console.mistral.ai](https://console.mistral.ai/) for free-tier API access with rate limits (upgrade for higher quotas).
+
+In the Admin UI, paste your API key into `MISTRAL_API_KEY`, then set `MODEL` to a Mistral model slug such as `mistral/devstral-small-latest` or `mistral/mistral-small-latest`.
+
+Popular examples:
+
+- `mistral/devstral-small-latest`
+- `mistral/mistral-small-latest`
+
+Browse models at [Mistral documentation](https://docs.mistral.ai/).
+
+### 4. [DeepSeek](https://platform.deepseek.com/)
+
+Get a key at [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys).
+
+In the Admin UI, paste it into `DEEPSEEK_API_KEY`, then set `MODEL` to a DeepSeek slug such as `deepseek/deepseek-chat`.
+
+This provider uses DeepSeek's Anthropic-compatible endpoint, not the OpenAI chat-completions endpoint.
+
+### 5. [Kimi](https://platform.moonshot.ai/)
 
 Get a key at [platform.moonshot.ai/console/api-keys](https://platform.moonshot.ai/console/api-keys).
 
@@ -131,7 +160,7 @@ In the Admin UI, paste it into `KIMI_API_KEY`, then set `MODEL` to a Kimi slug s
 
 Browse models at [platform.moonshot.ai](https://platform.moonshot.ai).
 
-### 3. [Wafer](https://wafer.ai/)
+### 6. [Wafer](https://wafer.ai/)
 
 Get a key from [wafer.ai](https://wafer.ai). In the Admin UI, paste it into `WAFER_API_KEY`, then set `MODEL` to a Wafer Pass model such as `wafer/DeepSeek-V4-Pro`.
 
@@ -144,29 +173,13 @@ Popular examples:
 
 This provider uses Wafer's Anthropic-compatible endpoint at `https://pass.wafer.ai/v1/messages`.
 
-### 4. [OpenRouter](https://openrouter.ai/)
-
-Get a key at [openrouter.ai/keys](https://openrouter.ai/keys).
-
-In the Admin UI, paste it into `OPENROUTER_API_KEY`, then set `MODEL` to an OpenRouter slug such as `open_router/stepfun/step-3.5-flash:free`.
-
-Browse [all models](https://openrouter.ai/models) or [free models](https://openrouter.ai/collections/free-models).
-
-### 5. [DeepSeek](https://platform.deepseek.com/)
-
-Get a key at [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys).
-
-In the Admin UI, paste it into `DEEPSEEK_API_KEY`, then set `MODEL` to a DeepSeek slug such as `deepseek/deepseek-chat`.
-
-This provider uses DeepSeek's Anthropic-compatible endpoint, not the OpenAI chat-completions endpoint.
-
-### 6. [LM Studio](https://lmstudio.ai/)
+### 7. [LM Studio](https://lmstudio.ai/)
 
 Start LM Studio's local server and load a model. In the Admin UI, keep or update `LM_STUDIO_BASE_URL`, then set `MODEL` to the model identifier shown by LM Studio, prefixed with `lmstudio/`.
 
 Prefer models with tool-use support for Claude Code workflows.
 
-### 7. [llama.cpp](https://github.com/ggml-org/llama.cpp)
+### 8. [llama.cpp](https://github.com/ggml-org/llama.cpp)
 
 Start `llama-server` with an Anthropic-compatible `/v1/messages` endpoint and enough context for Claude Code requests.
 
@@ -174,7 +187,7 @@ In the Admin UI, keep or update `LLAMACPP_BASE_URL`, then set `MODEL` to the loc
 
 For local coding models, context size matters. If llama.cpp returns HTTP 400 for normal Claude Code requests, increase `--ctx-size` and verify the model/server build supports the requested features.
 
-### 8. [Ollama](https://ollama.com/)
+### 9. [Ollama](https://ollama.com/)
 
 Run Ollama and pull a model:
 
@@ -187,7 +200,7 @@ In the Admin UI, keep or update `OLLAMA_BASE_URL`, then set `MODEL` to the same 
 
 `OLLAMA_BASE_URL` is the Ollama server root; do not append `/v1`. Example model slugs include `ollama/llama3.1` and `ollama/llama3.1:8b`.
 
-### 9. [OpenCode Zen](https://opencode.ai/)
+### 10. [OpenCode Zen](https://opencode.ai/)
 
 Get an API key at [opencode.ai/auth](https://opencode.ai/auth).
 
@@ -206,7 +219,7 @@ Popular examples:
 
 Browse available models at [opencode.ai](https://opencode.ai).
 
-### 10. [OpenCode Go](https://opencode.ai/)
+### 11. [OpenCode Go](https://opencode.ai/)
 
 Get an API key at [opencode.ai/auth](https://opencode.ai/auth) (same as OpenCode Zen).
 
@@ -220,7 +233,7 @@ Popular examples:
 
 Browse available models at [opencode.ai](https://opencode.ai).
 
-### 11. [Z.ai](https://z.ai/)
+### 12. [Z.ai](https://z.ai/)
 
 Get an API key at [Z.ai/manage-apikey/apikey-list](https://z.ai/manage-apikey/apikey-list).
 
@@ -235,7 +248,7 @@ Popular examples:
 
 Browse models at [Z.ai](https://z.ai).
 
-### 12. Mix Providers By Model Tier
+### 13. Mix Providers By Model Tier
 
 Each model tier can use a different provider by setting `MODEL_OPUS`, `MODEL_SONNET`, and `MODEL_HAIKU` in the Admin UI. Leave a tier blank to inherit `MODEL`.
 

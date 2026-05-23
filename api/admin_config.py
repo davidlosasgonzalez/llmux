@@ -135,6 +135,17 @@ FIELDS: tuple[ConfigFieldSpec, ...] = (
         secret=True,
     ),
     ConfigFieldSpec(
+        "MISTRAL_API_KEY",
+        "Mistral API Key",
+        "providers",
+        "secret",
+        settings_attr="mistral_api_key",
+        secret=True,
+        description=(
+            "Mistral La Plateforme (api.mistral.ai); Experiment plan is free tier with rate limits."
+        ),
+    ),
+    ConfigFieldSpec(
         "DEEPSEEK_API_KEY",
         "DeepSeek API Key",
         "providers",
@@ -224,6 +235,15 @@ FIELDS: tuple[ConfigFieldSpec, ...] = (
         "providers",
         "secret",
         settings_attr="open_router_proxy",
+        secret=True,
+        advanced=True,
+    ),
+    ConfigFieldSpec(
+        "MISTRAL_PROXY",
+        "Mistral Proxy",
+        "providers",
+        "secret",
+        settings_attr="mistral_proxy",
         secret=True,
         advanced=True,
     ),
@@ -696,6 +716,12 @@ FIELDS: tuple[ConfigFieldSpec, ...] = (
     ConfigFieldSpec(
         "FCC_SMOKE_MODEL_OPEN_ROUTER",
         "Smoke OpenRouter Model",
+        "smoke",
+        advanced=True,
+    ),
+    ConfigFieldSpec(
+        "FCC_SMOKE_MODEL_MISTRAL",
+        "Smoke Mistral Model",
         "smoke",
         advanced=True,
     ),

@@ -21,6 +21,7 @@ DEEPSEEK_ANTHROPIC_DEFAULT_BASE = "https://api.deepseek.com/anthropic"
 DEEPSEEK_DEFAULT_BASE = DEEPSEEK_ANTHROPIC_DEFAULT_BASE
 FIREWORKS_DEFAULT_BASE = "https://api.fireworks.ai/inference/v1"
 OPENROUTER_DEFAULT_BASE = "https://openrouter.ai/api/v1"
+MISTRAL_DEFAULT_BASE = "https://api.mistral.ai/v1"
 LMSTUDIO_DEFAULT_BASE = "http://localhost:1234/v1"
 LLAMACPP_DEFAULT_BASE = "http://localhost:8080/v1"
 OLLAMA_DEFAULT_BASE = "http://localhost:11434"
@@ -66,6 +67,16 @@ PROVIDER_CATALOG: dict[str, ProviderDescriptor] = {
         proxy_attr="open_router_proxy",
         capabilities=("chat", "streaming", "tools", "thinking", "native_anthropic"),
     ),
+    "mistral": ProviderDescriptor(
+        provider_id="mistral",
+        transport_type="openai_chat",
+        credential_env="MISTRAL_API_KEY",
+        credential_url="https://console.mistral.ai/",
+        credential_attr="mistral_api_key",
+        default_base_url=MISTRAL_DEFAULT_BASE,
+        proxy_attr="mistral_proxy",
+        capabilities=("chat", "streaming", "tools", "thinking", "rate_limit"),
+    ),
     "deepseek": ProviderDescriptor(
         provider_id="deepseek",
         transport_type="anthropic_messages",
@@ -73,6 +84,26 @@ PROVIDER_CATALOG: dict[str, ProviderDescriptor] = {
         credential_url="https://platform.deepseek.com/api_keys",
         credential_attr="deepseek_api_key",
         default_base_url=DEEPSEEK_ANTHROPIC_DEFAULT_BASE,
+        capabilities=("chat", "streaming", "tools", "thinking", "native_anthropic"),
+    ),
+    "kimi": ProviderDescriptor(
+        provider_id="kimi",
+        transport_type="openai_chat",
+        credential_env="KIMI_API_KEY",
+        credential_url="https://platform.moonshot.cn/console/api-keys",
+        credential_attr="kimi_api_key",
+        default_base_url=KIMI_DEFAULT_BASE,
+        proxy_attr="kimi_proxy",
+        capabilities=("chat", "streaming", "tools"),
+    ),
+    "wafer": ProviderDescriptor(
+        provider_id="wafer",
+        transport_type="anthropic_messages",
+        credential_env="WAFER_API_KEY",
+        credential_url="https://www.wafer.ai/pass",
+        credential_attr="wafer_api_key",
+        default_base_url=WAFER_DEFAULT_BASE,
+        proxy_attr="wafer_proxy",
         capabilities=("chat", "streaming", "tools", "thinking", "native_anthropic"),
     ),
     "lmstudio": ProviderDescriptor(
@@ -107,26 +138,6 @@ PROVIDER_CATALOG: dict[str, ProviderDescriptor] = {
             "native_anthropic",
             "local",
         ),
-    ),
-    "kimi": ProviderDescriptor(
-        provider_id="kimi",
-        transport_type="openai_chat",
-        credential_env="KIMI_API_KEY",
-        credential_url="https://platform.moonshot.cn/console/api-keys",
-        credential_attr="kimi_api_key",
-        default_base_url=KIMI_DEFAULT_BASE,
-        proxy_attr="kimi_proxy",
-        capabilities=("chat", "streaming", "tools"),
-    ),
-    "wafer": ProviderDescriptor(
-        provider_id="wafer",
-        transport_type="anthropic_messages",
-        credential_env="WAFER_API_KEY",
-        credential_url="https://www.wafer.ai/pass",
-        credential_attr="wafer_api_key",
-        default_base_url=WAFER_DEFAULT_BASE,
-        proxy_attr="wafer_proxy",
-        capabilities=("chat", "streaming", "tools", "thinking", "native_anthropic"),
     ),
     "opencode": ProviderDescriptor(
         provider_id="opencode",

@@ -25,6 +25,7 @@ def _settings(**overrides):
         "model_haiku": None,
         "nvidia_nim_api_key": "",
         "open_router_api_key": "",
+        "mistral_api_key": "",
         "deepseek_api_key": "",
         "wafer_api_key": "",
         "opencode_api_key": "",
