@@ -15,7 +15,7 @@ show_usage() {
     cat <<'USAGE'
 Usage: install.sh [options]
 
-Installs or updates Claude Code, uv, Python 3.14.0, and Free Claude Code.
+Installs Claude Code if missing, installs or updates uv, Python 3.14.0, and Free Claude Code.
 
 Options:
   --voice-nim              Install NVIDIA NIM voice transcription support.
@@ -99,19 +99,30 @@ require_command() {
     fi
 }
 
+install_claude_if_missing() {
+    if command -v claude >/dev/null 2>&1; then
+        printf 'Claude Code already found on PATH; skipping install.\n'
+        return 0
+    fi
+
+    require_command npm
+    run npm install -g @anthropic-ai/claude-code
+}
+
 install_or_update_uv() {
     add_uv_to_path
 
-    if ! command -v uv >/dev/null 2>&1; then
-        run_uv_installer
-        add_uv_to_path
+    if command -v uv >/dev/null 2>&1; then
+        run uv self update
+        return 0
     fi
+
+    run_uv_installer
+    add_uv_to_path
 
     if [ "$dry_run" -eq 0 ] && ! command -v uv >/dev/null 2>&1; then
         fail "uv was installed, but it is not available on PATH. Open a new terminal or add uv's bin directory to PATH."
     fi
-
-    run uv self update
 }
 
 parse_args() {
@@ -201,11 +212,10 @@ install_free_claude_code() {
 parse_args "$@"
 validate_args
 
-step "Installing or updating Claude Code"
-require_command npm
-run npm install -g @anthropic-ai/claude-code
+step "Installing Claude Code if missing"
+install_claude_if_missing
 
-step "Installing or updating uv"
+step "Installing uv if missing, updating if present"
 install_or_update_uv
 
 step "Installing Python $PYTHON_VERSION"

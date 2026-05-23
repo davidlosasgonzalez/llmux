@@ -20,7 +20,7 @@ function Show-Usage {
     @"
 Usage: install.ps1 [options]
 
-Installs or updates Claude Code, uv, Python 3.14.0, and Free Claude Code.
+Installs Claude Code if missing, installs or updates uv, Python 3.14.0, and Free Claude Code.
 
 Options:
   -VoiceNim              Install NVIDIA NIM voice transcription support.
@@ -103,19 +103,30 @@ function Assert-CommandAvailable {
     }
 }
 
+function Install-ClaudeIfMissing {
+    if (Get-Command claude -ErrorAction SilentlyContinue) {
+        Write-Host "Claude Code already found on PATH; skipping install."
+        return
+    }
+
+    Assert-CommandAvailable "npm"
+    Invoke-InstallCommand -FilePath "npm" -Arguments @("install", "-g", "@anthropic-ai/claude-code")
+}
+
 function Install-OrUpdateUv {
     Add-UvToPath
 
-    if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
-        Invoke-UvInstaller
-        Add-UvToPath
+    if (Get-Command uv -ErrorAction SilentlyContinue) {
+        Invoke-InstallCommand -FilePath "uv" -Arguments @("self", "update")
+        return
     }
+
+    Invoke-UvInstaller
+    Add-UvToPath
 
     if ((-not $DryRun) -and (-not (Get-Command uv -ErrorAction SilentlyContinue))) {
         throw "uv was installed, but it is not available on PATH. Open a new terminal or add uv's bin directory to PATH."
     }
-
-    Invoke-InstallCommand -FilePath "uv" -Arguments @("self", "update")
 }
 
 function Get-PackageSpec {
@@ -172,11 +183,10 @@ if ((-not [string]::IsNullOrWhiteSpace($TorchBackend)) -and (-not ($VoiceLocal -
     throw "-TorchBackend requires -VoiceLocal or -VoiceAll."
 }
 
-Write-Step "Installing or updating Claude Code"
-Assert-CommandAvailable "npm"
-Invoke-InstallCommand -FilePath "npm" -Arguments @("install", "-g", "@anthropic-ai/claude-code")
+Write-Step "Installing Claude Code if missing"
+Install-ClaudeIfMissing
 
-Write-Step "Installing or updating uv"
+Write-Step "Installing uv if missing, updating if present"
 Install-OrUpdateUv
 
 Write-Step "Installing Python $PythonVersion"
