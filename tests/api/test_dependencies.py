@@ -17,6 +17,7 @@ from api.dependencies import (
 from config.nim import NimSettings
 from providers.deepseek import DeepSeekProvider
 from providers.exceptions import ServiceUnavailableError, UnknownProviderTypeError
+from providers.gemini import GeminiProvider
 from providers.lmstudio import LMStudioProvider
 from providers.mistral import MistralProvider
 from providers.nvidia_nim import NvidiaNimProvider
@@ -54,6 +55,10 @@ def _make_mock_settings(**overrides):
     mock.opencode_proxy = ""
     mock.opencode_go_proxy = ""
     mock.zai_proxy = ""
+    mock.fireworks_api_key = ""
+    mock.fireworks_proxy = ""
+    mock.gemini_api_key = ""
+    mock.gemini_proxy = ""
     mock.nim = NimSettings()
     mock.http_read_timeout = 300.0
     mock.http_write_timeout = 10.0
@@ -216,6 +221,41 @@ async def test_get_provider_mistral():
         assert isinstance(provider, MistralProvider)
         assert provider._base_url == "https://api.mistral.ai/v1"
         assert provider._api_key == "test_mistral_key"
+
+
+@pytest.mark.asyncio
+async def test_get_provider_gemini():
+    """Test that provider_type=gemini returns GeminiProvider."""
+    with patch("api.dependencies.get_settings") as mock_settings:
+        mock_settings.return_value = _make_mock_settings(
+            provider_type="gemini",
+            gemini_api_key="secret",
+        )
+
+        provider = get_provider()
+
+        assert isinstance(provider, GeminiProvider)
+        assert provider._base_url == (
+            "https://generativelanguage.googleapis.com/v1beta/openai"
+        )
+        assert provider._api_key == "secret"
+
+
+@pytest.mark.asyncio
+async def test_get_provider_gemini_missing_api_key():
+    """Gemini with empty API key raises HTTPException 503."""
+    with patch("api.dependencies.get_settings") as mock_settings:
+        mock_settings.return_value = _make_mock_settings(
+            provider_type="gemini",
+            gemini_api_key="",
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            get_provider()
+
+        assert exc_info.value.status_code == 503
+        assert "GEMINI_API_KEY" in exc_info.value.detail
+        assert "aistudio.google.com" in exc_info.value.detail
 
 
 @pytest.mark.asyncio

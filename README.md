@@ -37,7 +37,7 @@ Free Claude Code routes Anthropic Messages API traffic from Claude Code to any p
 ## What You Get
 
 - Drop-in proxy for Claude Code's Anthropic API calls.
-- Twelve provider backends: NVIDIA NIM, OpenRouter, Mistral La Plateforme, DeepSeek, Kimi, Wafer, LM Studio, llama.cpp, Ollama, OpenCode Zen, OpenCode Go, and Z.ai.
+- Fourteen provider backends: NVIDIA NIM, OpenRouter, Mistral La Plateforme, DeepSeek, Kimi, Wafer, LM Studio, llama.cpp, Ollama, OpenCode Zen, OpenCode Go, Z.ai, Fireworks AI, and Google AI Studio (Gemini).
 - Per-model routing: send Opus, Sonnet, Haiku, and fallback traffic to different providers.
 - Native Claude Code `/model` picker support through the proxy's `/v1/models` endpoint (Claude Code must opt in to Gateway model discovery; see [Model Picker](#model-picker)).
 - Streaming, tool use, reasoning/thinking block handling, and local request optimizations.
@@ -248,7 +248,30 @@ Popular examples:
 
 Browse models at [Z.ai](https://z.ai).
 
-### 13. Mix Providers By Model Tier
+### 13. [Fireworks AI](https://fireworks.ai/)
+
+Get an API key at [fireworks.ai/account/api-keys](https://fireworks.ai/account/api-keys).
+
+In the Admin UI, paste it into `FIREWORKS_API_KEY`, then set `MODEL` to a Fireworks model slug such as `fireworks/accounts/fireworks/models/llama-v3p3-70b-instruct`.
+
+Fireworks exposes an OpenAI-compatible Chat Completions API at `https://api.fireworks.ai/inference/v1`.
+
+Browse models at [fireworks.ai/models](https://fireworks.ai/models).
+
+### 14. [Google AI Studio (Gemini)](https://aistudio.google.com/)
+
+Get a Gemini API key at [Google AI Studio](https://aistudio.google.com/apikey) (see Google's [Gemini OpenAI compatibility](https://ai.google.dev/gemini-api/docs/openai) docs).
+
+In the Admin UI, paste it into `GEMINI_API_KEY`, then set `MODEL` to a Gemini model slug such as `gemini/gemini-2.5-flash` or `gemini/gemini-3.1-flash-lite`.
+
+The Gemini API exposes an OpenAI-compatible endpoint at `https://generativelanguage.googleapis.com/v1beta/openai/`. Free tier quotas are per-model; prompts may be used to improve Google's products outside the UK/CH/EEA/EU unless your account region says otherwise—see Google's terms.
+
+Popular examples:
+
+- `gemini/gemini-2.5-flash`
+- `gemini/gemini-3.1-flash-lite`
+
+### 15. Mix Providers By Model Tier
 
 Each model tier can use a different provider by setting `MODEL_OPUS`, `MODEL_SONNET`, and `MODEL_HAIKU` in the Admin UI. Leave a tier blank to inherit `MODEL`.
 

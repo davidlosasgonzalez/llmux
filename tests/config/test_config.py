@@ -766,6 +766,7 @@ class TestPerModelMapping:
         assert Settings.parse_provider_type("llamacpp/model") == "llamacpp"
         assert Settings.parse_provider_type("ollama/llama3.1") == "ollama"
         assert Settings.parse_provider_type("wafer/DeepSeek-V4-Pro") == "wafer"
+        assert Settings.parse_provider_type("gemini/gemini-2.5-flash") == "gemini"
 
     def test_parse_model_name(self):
         """parse_model_name extracts model name from model string."""
@@ -781,6 +782,9 @@ class TestPerModelMapping:
         assert Settings.parse_model_name("llamacpp/model") == "model"
         assert Settings.parse_model_name("ollama/llama3.1") == "llama3.1"
         assert Settings.parse_model_name("wafer/DeepSeek-V4-Pro") == "DeepSeek-V4-Pro"
+        assert (
+            Settings.parse_model_name("gemini/gemini-2.5-flash") == "gemini-2.5-flash"
+        )
 
     def test_configured_chat_model_refs_collects_unique_models_with_sources(
         self, monkeypatch

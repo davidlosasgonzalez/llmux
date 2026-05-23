@@ -6,6 +6,7 @@ from pathlib import Path
 from messaging.platforms.factory import create_messaging_platform
 from providers.base import BaseProvider
 from providers.deepseek import DeepSeekProvider
+from providers.gemini import GeminiProvider
 from providers.llamacpp import LlamaCppProvider
 from providers.lmstudio import LMStudioProvider
 from providers.mistral import MistralProvider
@@ -82,6 +83,7 @@ def test_provider_and_platform_registries_include_advertised_builtins() -> None:
         "opencode": OpenCodeProvider,
         "opencode_go": OpenCodeProvider,
         "zai": ZaiProvider,
+        "gemini": GeminiProvider,
     }
     for provider_class in provider_classes.values():
         assert issubclass(provider_class, BaseProvider)

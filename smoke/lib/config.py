@@ -53,6 +53,7 @@ PROVIDER_SMOKE_DEFAULT_MODELS: dict[str, str] = {
     "opencode": "opencode/gpt-5.3-codex",
     "opencode_go": "opencode_go/minimax-m2.7",
     "zai": "zai/glm-5.1",
+    "gemini": "gemini/gemini-2.5-flash",
 }
 
 NVIDIA_NIM_CLI_DEFAULT_MODELS: tuple[str, ...] = (
@@ -229,6 +230,8 @@ class SmokeConfig:
             return bool(self.settings.mistral_api_key.strip())
         if provider == "deepseek":
             return bool(self.settings.deepseek_api_key.strip())
+        if provider == "kimi":
+            return bool(self.settings.kimi_api_key.strip())
         if provider == "lmstudio":
             return bool(self.settings.lm_studio_base_url.strip())
         if provider == "llamacpp":
@@ -237,10 +240,16 @@ class SmokeConfig:
             return bool(self.settings.ollama_base_url.strip())
         if provider == "wafer":
             return bool(self.settings.wafer_api_key.strip())
+        if provider == "fireworks":
+            return bool(self.settings.fireworks_api_key.strip())
         if provider == "opencode":
+            return bool(self.settings.opencode_api_key.strip())
+        if provider == "opencode_go":
             return bool(self.settings.opencode_api_key.strip())
         if provider == "zai":
             return bool(self.settings.zai_api_key.strip())
+        if provider == "gemini":
+            return bool(self.settings.gemini_api_key.strip())
         return False
 
 

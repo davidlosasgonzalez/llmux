@@ -200,6 +200,20 @@ FIELDS: tuple[ConfigFieldSpec, ...] = (
         description="Fireworks AI inference API key.",
     ),
     ConfigFieldSpec(
+        "GEMINI_API_KEY",
+        "Gemini API Key",
+        "providers",
+        "secret",
+        settings_attr="gemini_api_key",
+        secret=True,
+        description=(
+            "Google AI Studio Gemini API key (Google AI Studio / Gemini API "
+            "[OpenAI-compatible](https://ai.google.dev/gemini-api/docs/openai)); "
+            "free tier has per-model rate limits and data may be used for improvement "
+            "outside the UK/CH/EEA/EU."
+        ),
+    ),
+    ConfigFieldSpec(
         "LM_STUDIO_BASE_URL",
         "LM Studio Base URL",
         "providers",
@@ -316,6 +330,15 @@ FIELDS: tuple[ConfigFieldSpec, ...] = (
         "providers",
         "secret",
         settings_attr="fireworks_proxy",
+        secret=True,
+        advanced=True,
+    ),
+    ConfigFieldSpec(
+        "GEMINI_PROXY",
+        "Gemini Proxy",
+        "providers",
+        "secret",
+        settings_attr="gemini_proxy",
         secret=True,
         advanced=True,
     ),
@@ -776,6 +799,18 @@ FIELDS: tuple[ConfigFieldSpec, ...] = (
     ConfigFieldSpec(
         "FCC_SMOKE_MODEL_ZAI",
         "Smoke Z.ai Model",
+        "smoke",
+        advanced=True,
+    ),
+    ConfigFieldSpec(
+        "FCC_SMOKE_MODEL_FIREWORKS",
+        "Smoke Fireworks Model",
+        "smoke",
+        advanced=True,
+    ),
+    ConfigFieldSpec(
+        "FCC_SMOKE_MODEL_GEMINI",
+        "Smoke Gemini Model",
         "smoke",
         advanced=True,
     ),
