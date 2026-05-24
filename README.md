@@ -131,7 +131,28 @@ In the Admin UI, paste it into `OPENROUTER_API_KEY`, then set `MODEL` to an Open
 
 Browse [all models](https://openrouter.ai/models) or [free models](https://openrouter.ai/collections/free-models).
 
-### 3. [Mistral La Plateforme](https://console.mistral.ai/)
+### 3. [Google AI Studio (Gemini)](https://aistudio.google.com/)
+
+Get a Gemini API key at [Google AI Studio](https://aistudio.google.com/apikey) (see Google's [Gemini OpenAI compatibility](https://ai.google.dev/gemini-api/docs/openai) docs).
+
+In the Admin UI, paste it into `GEMINI_API_KEY`, then set `MODEL` to a Gemini model slug such as `gemini/gemini-2.5-flash` or `gemini/gemini-3.1-flash-lite`.
+
+The Gemini API exposes an OpenAI-compatible endpoint at `https://generativelanguage.googleapis.com/v1beta/openai/`. Free tier quotas are per-model; prompts may be used to improve Google's products outside the UK/CH/EEA/EU unless your account region says otherwise—see Google's terms.
+
+Popular examples:
+
+- `gemini/gemini-2.5-flash`
+- `gemini/gemini-3.1-flash-lite`
+
+### 4. [DeepSeek](https://platform.deepseek.com/)
+
+Get a key at [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys).
+
+In the Admin UI, paste it into `DEEPSEEK_API_KEY`, then set `MODEL` to a DeepSeek slug such as `deepseek/deepseek-chat`.
+
+This provider uses DeepSeek's Anthropic-compatible endpoint, not the OpenAI chat-completions endpoint.
+
+### 5. [Mistral La Plateforme](https://console.mistral.ai/)
 
 [Mistral](https://mistral.ai) hosts an OpenAI-compatible Chat Completions API at `https://api.mistral.ai/v1`. Activate the **Experiment** plan on [console.mistral.ai](https://console.mistral.ai/) for free-tier API access with rate limits (upgrade for higher quotas).
 
@@ -144,46 +165,15 @@ Popular examples:
 
 Browse models at [Mistral documentation](https://docs.mistral.ai/).
 
-### 4. [Mistral Codestral](https://console.mistral.ai/)
+### 6. [Mistral Codestral](https://console.mistral.ai/)
 
-Mistral’s **Codestral** gateway uses a **separate API key** from La Plateforme: provision `CODESTRAL_API_KEY`, then route with the `mistral_codestral/` prefix. The default upstream is **`https://codestral.mistral.ai/v1`** (OpenAI-compatible Chat Completions; same request shaping as the `mistral` provider). See Mistral’s [coding / FIM domains](https://docs.mistral.ai/mistral-vibe/using-fim-api); the curated [free LLM API list](https://github.com/cheahjs/free-llm-api-resources#mistral-codestral) summarizes typical Codestral access terms.
+Mistral's **Codestral** gateway uses a **separate API key** from La Plateforme: provision `CODESTRAL_API_KEY`, then route with the `mistral_codestral/` prefix. The default upstream is **`https://codestral.mistral.ai/v1`** (OpenAI-compatible Chat Completions; same request shaping as the `mistral` provider). See Mistral's [coding / FIM domains](https://docs.mistral.ai/mistral-vibe/using-fim-api); the curated [free LLM API list](https://github.com/cheahjs/free-llm-api-resources#mistral-codestral) summarizes typical Codestral access terms.
 
 Popular examples:
 
 - `mistral_codestral/codestral-latest`
 
-### 5. [DeepSeek](https://platform.deepseek.com/)
-
-Get a key at [platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys).
-
-In the Admin UI, paste it into `DEEPSEEK_API_KEY`, then set `MODEL` to a DeepSeek slug such as `deepseek/deepseek-chat`.
-
-This provider uses DeepSeek's Anthropic-compatible endpoint, not the OpenAI chat-completions endpoint.
-
-### 6. [Kimi](https://platform.moonshot.ai/)
-
-Get a key at [platform.moonshot.ai/console/api-keys](https://platform.moonshot.ai/console/api-keys).
-
-In the Admin UI, paste it into `KIMI_API_KEY`, then set `MODEL` to a Kimi slug such as `kimi/kimi-k2.5`.
-
-This provider calls Kimi's **Anthropic-compatible** Messages API (`https://api.moonshot.ai/anthropic/v1/messages`; model discovery uses OpenAI-compat `GET https://api.moonshot.ai/v1/models`). It is **not** the OpenAI Chat Completions path.
-
-Browse models at [platform.moonshot.ai](https://platform.moonshot.ai).
-
-### 7. [Wafer](https://wafer.ai/)
-
-Get a key from [wafer.ai](https://wafer.ai). In the Admin UI, paste it into `WAFER_API_KEY`, then set `MODEL` to a Wafer Pass model such as `wafer/DeepSeek-V4-Pro`.
-
-Popular examples:
-
-- `wafer/DeepSeek-V4-Pro`
-- `wafer/MiniMax-M2.7`
-- `wafer/Qwen3.5-397B-A17B`
-- `wafer/GLM-5.1`
-
-This provider uses Wafer's Anthropic-compatible endpoint at `https://pass.wafer.ai/v1/messages`.
-
-### 8. [OpenCode Zen](https://opencode.ai/)
+### 7. [OpenCode Zen](https://opencode.ai/)
 
 Get an API key at [opencode.ai/auth](https://opencode.ai/auth).
 
@@ -202,7 +192,7 @@ Popular examples:
 
 Browse available models at [opencode.ai](https://opencode.ai).
 
-### 9. [OpenCode Go](https://opencode.ai/)
+### 8. [OpenCode Go](https://opencode.ai/)
 
 Get an API key at [opencode.ai/auth](https://opencode.ai/auth) (same as OpenCode Zen).
 
@@ -216,7 +206,60 @@ Popular examples:
 
 Browse available models at [opencode.ai](https://opencode.ai).
 
-### 10. [Z.ai](https://z.ai/)
+### 9. [Wafer](https://wafer.ai/)
+
+Get a key from [wafer.ai](https://wafer.ai). In the Admin UI, paste it into `WAFER_API_KEY`, then set `MODEL` to a Wafer Pass model such as `wafer/DeepSeek-V4-Pro`.
+
+Popular examples:
+
+- `wafer/DeepSeek-V4-Pro`
+- `wafer/MiniMax-M2.7`
+- `wafer/Qwen3.5-397B-A17B`
+- `wafer/GLM-5.1`
+
+This provider uses Wafer's Anthropic-compatible endpoint at `https://pass.wafer.ai/v1/messages`.
+
+### 10. [Kimi](https://platform.moonshot.ai/)
+
+Get a key at [platform.moonshot.ai/console/api-keys](https://platform.moonshot.ai/console/api-keys).
+
+In the Admin UI, paste it into `KIMI_API_KEY`, then set `MODEL` to a Kimi slug such as `kimi/kimi-k2.5`.
+
+This provider calls Kimi's **Anthropic-compatible** Messages API (`https://api.moonshot.ai/anthropic/v1/messages`; model discovery uses OpenAI-compat `GET https://api.moonshot.ai/v1/models`). It is **not** the OpenAI Chat Completions path.
+
+Browse models at [platform.moonshot.ai](https://platform.moonshot.ai).
+
+### 11. [Cerebras Inference](https://inference-docs.cerebras.ai/quickstart)
+
+Sign up and create an API key in the [Cerebras Cloud Console](https://cloud.cerebras.ai) (see [Quickstart](https://inference-docs.cerebras.ai/quickstart)).
+
+In the Admin UI, set `CEREBRAS_API_KEY`, then route with `MODEL` such as `cerebras/llama3.1-8b` or `cerebras/gpt-oss-120b` (ids from [List models](https://inference-docs.cerebras.ai/api-reference/models/list-models)).
+
+Cerebras exposes an OpenAI-compatible API at `https://api.cerebras.ai/v1` ([OpenAI compatibility](https://inference-docs.cerebras.ai/resources/openai)). Non-standard request fields should go in `extra_body` when using the OpenAI client; see the same page. For reasoning models and parameters, see [Reasoning](https://inference-docs.cerebras.ai/capabilities/reasoning). This proxy follows other OpenAI-compat adapters for thinking via `reasoning_content` when Claude-style thinking is enabled.
+
+### 12. [Groq](https://console.groq.com/)
+
+Get an API key at [console.groq.com/keys](https://console.groq.com/keys).
+
+In the Admin UI, paste it into `GROQ_API_KEY`, then set `MODEL` to a Groq OpenAI-compat model slug such as `groq/llama-3.3-70b-versatile`.
+
+Groq routes through `https://api.groq.com/openai/v1` ([OpenAI-compatible Chat Completions](https://console.groq.com/docs/openai)). Some request fields yield HTTP 400; this adapter strips known-unsupported shapes (documented in Groq's compatibility notes).
+
+Reasoning-heavy models expose extra knobs documented under [Groq reasoning](https://console.groq.com/docs/reasoning). This release mirrors other OpenAI-compat adapters for thinking via `reasoning_content` deltas when Claude-style thinking is enabled; you can tune advanced parameters through request `extra_body` when needed.
+
+Browse models at [console.groq.com/docs/models](https://console.groq.com/docs/models).
+
+### 13. [Fireworks AI](https://fireworks.ai/)
+
+Get an API key at [fireworks.ai/account/api-keys](https://fireworks.ai/account/api-keys).
+
+In the Admin UI, paste it into `FIREWORKS_API_KEY`, then set `MODEL` to a Fireworks model slug such as `fireworks/accounts/fireworks/models/llama-v3p3-70b-instruct`.
+
+Fireworks exposes an **Anthropic-compatible** Messages API at `https://api.fireworks.ai/inference/v1/messages` (same inference host as before; Chat Completions is not used here). Vendor-specific JSON keys can still be merged from request `extra_body` when allowed.
+
+Browse models at [fireworks.ai/models](https://fireworks.ai/models).
+
+### 14. [Z.ai](https://z.ai/)
 
 Get an API key at [Z.ai/manage-apikey/apikey-list](https://z.ai/manage-apikey/apikey-list).
 
@@ -230,49 +273,6 @@ Popular examples:
 - `zai/glm-5-turbo`
 
 Browse models at [Z.ai](https://z.ai).
-
-### 11. [Fireworks AI](https://fireworks.ai/)
-
-Get an API key at [fireworks.ai/account/api-keys](https://fireworks.ai/account/api-keys).
-
-In the Admin UI, paste it into `FIREWORKS_API_KEY`, then set `MODEL` to a Fireworks model slug such as `fireworks/accounts/fireworks/models/llama-v3p3-70b-instruct`.
-
-Fireworks exposes an **Anthropic-compatible** Messages API at `https://api.fireworks.ai/inference/v1/messages` (same inference host as before; Chat Completions is not used here). Vendor-specific JSON keys can still be merged from request `extra_body` when allowed.
-
-Browse models at [fireworks.ai/models](https://fireworks.ai/models).
-
-### 12. [Google AI Studio (Gemini)](https://aistudio.google.com/)
-
-Get a Gemini API key at [Google AI Studio](https://aistudio.google.com/apikey) (see Google's [Gemini OpenAI compatibility](https://ai.google.dev/gemini-api/docs/openai) docs).
-
-In the Admin UI, paste it into `GEMINI_API_KEY`, then set `MODEL` to a Gemini model slug such as `gemini/gemini-2.5-flash` or `gemini/gemini-3.1-flash-lite`.
-
-The Gemini API exposes an OpenAI-compatible endpoint at `https://generativelanguage.googleapis.com/v1beta/openai/`. Free tier quotas are per-model; prompts may be used to improve Google's products outside the UK/CH/EEA/EU unless your account region says otherwise—see Google's terms.
-
-Popular examples:
-
-- `gemini/gemini-2.5-flash`
-- `gemini/gemini-3.1-flash-lite`
-
-### 13. [Groq](https://console.groq.com/)
-
-Get an API key at [console.groq.com/keys](https://console.groq.com/keys).
-
-In the Admin UI, paste it into `GROQ_API_KEY`, then set `MODEL` to a Groq OpenAI-compat model slug such as `groq/llama-3.3-70b-versatile`.
-
-Groq routes through `https://api.groq.com/openai/v1` ([OpenAI-compatible Chat Completions](https://console.groq.com/docs/openai)). Some request fields yield HTTP 400; this adapter strips known-unsupported shapes (documented in Groq's compatibility notes).
-
-Reasoning-heavy models expose extra knobs documented under [Groq reasoning](https://console.groq.com/docs/reasoning). This release mirrors other OpenAI-compat adapters for thinking via `reasoning_content` deltas when Claude-style thinking is enabled; you can tune advanced parameters through request `extra_body` when needed.
-
-Browse models at [console.groq.com/docs/models](https://console.groq.com/docs/models).
-
-### 14. [Cerebras Inference](https://inference-docs.cerebras.ai/quickstart)
-
-Sign up and create an API key in the [Cerebras Cloud Console](https://cloud.cerebras.ai) (see [Quickstart](https://inference-docs.cerebras.ai/quickstart)).
-
-In the Admin UI, set `CEREBRAS_API_KEY`, then route with `MODEL` such as `cerebras/llama3.1-8b` or `cerebras/gpt-oss-120b` (ids from [List models](https://inference-docs.cerebras.ai/api-reference/models/list-models)).
-
-Cerebras exposes an OpenAI-compatible API at `https://api.cerebras.ai/v1` ([OpenAI compatibility](https://inference-docs.cerebras.ai/resources/openai)). Non-standard request fields should go in `extra_body` when using the OpenAI client; see the same page. For reasoning models and parameters, see [Reasoning](https://inference-docs.cerebras.ai/capabilities/reasoning). This proxy follows other OpenAI-compat adapters for thinking via `reasoning_content` when Claude-style thinking is enabled.
 
 ### 15. [LM Studio](https://lmstudio.ai/)
 
