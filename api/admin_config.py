@@ -146,6 +146,18 @@ FIELDS: tuple[ConfigFieldSpec, ...] = (
         ),
     ),
     ConfigFieldSpec(
+        "CODESTRAL_API_KEY",
+        "Codestral API Key",
+        "providers",
+        "secret",
+        settings_attr="codestral_api_key",
+        secret=True,
+        description=(
+            "Mistral Codestral endpoint (codestral.mistral.ai); distinct from Mistral "
+            "La Plateforme ``MISTRAL_API_KEY``. See Mistral docs for coding/FIM domains."
+        ),
+    ),
+    ConfigFieldSpec(
         "DEEPSEEK_API_KEY",
         "DeepSeek API Key",
         "providers",
@@ -284,6 +296,15 @@ FIELDS: tuple[ConfigFieldSpec, ...] = (
         "providers",
         "secret",
         settings_attr="mistral_proxy",
+        secret=True,
+        advanced=True,
+    ),
+    ConfigFieldSpec(
+        "CODESTRAL_PROXY",
+        "Codestral Proxy",
+        "providers",
+        "secret",
+        settings_attr="codestral_proxy",
         secret=True,
         advanced=True,
     ),
@@ -789,6 +810,12 @@ FIELDS: tuple[ConfigFieldSpec, ...] = (
     ConfigFieldSpec(
         "FCC_SMOKE_MODEL_MISTRAL",
         "Smoke Mistral Model",
+        "smoke",
+        advanced=True,
+    ),
+    ConfigFieldSpec(
+        "FCC_SMOKE_MODEL_MISTRAL_CODESTRAL",
+        "Smoke Mistral Codestral Model",
         "smoke",
         advanced=True,
     ),

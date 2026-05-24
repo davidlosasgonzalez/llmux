@@ -23,6 +23,8 @@ DEEPSEEK_DEFAULT_BASE = DEEPSEEK_ANTHROPIC_DEFAULT_BASE
 FIREWORKS_DEFAULT_BASE = "https://api.fireworks.ai/inference/v1"
 OPENROUTER_DEFAULT_BASE = "https://openrouter.ai/api/v1"
 MISTRAL_DEFAULT_BASE = "https://api.mistral.ai/v1"
+# Codestral IDE/personal endpoint (distinct from La Plateforme ``api.mistral.ai`` keys).
+CODESTRAL_DEFAULT_BASE = "https://codestral.mistral.ai/v1"
 LMSTUDIO_DEFAULT_BASE = "http://localhost:1234/v1"
 LLAMACPP_DEFAULT_BASE = "http://localhost:8080/v1"
 OLLAMA_DEFAULT_BASE = "http://localhost:11434"
@@ -81,6 +83,16 @@ PROVIDER_CATALOG: dict[str, ProviderDescriptor] = {
         credential_attr="mistral_api_key",
         default_base_url=MISTRAL_DEFAULT_BASE,
         proxy_attr="mistral_proxy",
+        capabilities=("chat", "streaming", "tools", "thinking", "rate_limit"),
+    ),
+    "mistral_codestral": ProviderDescriptor(
+        provider_id="mistral_codestral",
+        transport_type="openai_chat",
+        credential_env="CODESTRAL_API_KEY",
+        credential_url="https://console.mistral.ai/",
+        credential_attr="codestral_api_key",
+        default_base_url=CODESTRAL_DEFAULT_BASE,
+        proxy_attr="codestral_proxy",
         capabilities=("chat", "streaming", "tools", "thinking", "rate_limit"),
     ),
     "deepseek": ProviderDescriptor(

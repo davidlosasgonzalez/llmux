@@ -44,16 +44,24 @@ def _create_open_router(config: ProviderConfig, _settings: Settings) -> BaseProv
     return OpenRouterProvider(config)
 
 
-def _create_deepseek(config: ProviderConfig, _settings: Settings) -> BaseProvider:
-    from providers.deepseek import DeepSeekProvider
-
-    return DeepSeekProvider(config)
-
-
 def _create_mistral(config: ProviderConfig, _settings: Settings) -> BaseProvider:
     from providers.mistral import MistralProvider
 
     return MistralProvider(config)
+
+
+def _create_mistral_codestral(
+    config: ProviderConfig, _settings: Settings
+) -> BaseProvider:
+    from providers.codestral import CodestralProvider
+
+    return CodestralProvider(config)
+
+
+def _create_deepseek(config: ProviderConfig, _settings: Settings) -> BaseProvider:
+    from providers.deepseek import DeepSeekProvider
+
+    return DeepSeekProvider(config)
 
 
 def _create_lmstudio(config: ProviderConfig, _settings: Settings) -> BaseProvider:
@@ -132,6 +140,7 @@ PROVIDER_FACTORIES: dict[str, ProviderFactory] = {
     "nvidia_nim": _create_nvidia_nim,
     "open_router": _create_open_router,
     "mistral": _create_mistral,
+    "mistral_codestral": _create_mistral_codestral,
     "deepseek": _create_deepseek,
     "lmstudio": _create_lmstudio,
     "llamacpp": _create_llamacpp,

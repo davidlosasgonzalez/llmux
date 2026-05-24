@@ -45,6 +45,7 @@ PROVIDER_SMOKE_DEFAULT_MODELS: dict[str, str] = {
     "nvidia_nim": "nvidia_nim/z-ai/glm4.7",
     "open_router": "open_router/stepfun/step-3.5-flash:free",
     "mistral": "mistral/devstral-small-latest",
+    "mistral_codestral": "mistral_codestral/codestral-latest",
     "deepseek": "deepseek/deepseek-v4-pro",
     "lmstudio": "lmstudio/local-model",
     "llamacpp": "llamacpp/local-model",
@@ -230,6 +231,8 @@ class SmokeConfig:
             return bool(self.settings.open_router_api_key.strip())
         if provider == "mistral":
             return bool(self.settings.mistral_api_key.strip())
+        if provider == "mistral_codestral":
+            return bool(self.settings.codestral_api_key.strip())
         if provider == "deepseek":
             return bool(self.settings.deepseek_api_key.strip())
         if provider == "kimi":

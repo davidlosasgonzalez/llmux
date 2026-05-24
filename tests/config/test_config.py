@@ -761,6 +761,10 @@ class TestPerModelMapping:
         assert (
             Settings.parse_provider_type("mistral/devstral-small-latest") == "mistral"
         )
+        assert (
+            Settings.parse_provider_type("mistral_codestral/codestral-latest")
+            == "mistral_codestral"
+        )
         assert Settings.parse_provider_type("deepseek/deepseek-chat") == "deepseek"
         assert Settings.parse_provider_type("lmstudio/qwen") == "lmstudio"
         assert Settings.parse_provider_type("llamacpp/model") == "llamacpp"
@@ -778,6 +782,10 @@ class TestPerModelMapping:
         assert (
             Settings.parse_model_name("mistral/devstral-small-latest")
             == "devstral-small-latest"
+        )
+        assert (
+            Settings.parse_model_name("mistral_codestral/codestral-latest")
+            == "codestral-latest"
         )
         assert Settings.parse_model_name("deepseek/deepseek-chat") == "deepseek-chat"
         assert Settings.parse_model_name("lmstudio/qwen") == "qwen"
