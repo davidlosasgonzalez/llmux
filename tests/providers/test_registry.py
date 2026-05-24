@@ -10,8 +10,10 @@ from config.provider_ids import SUPPORTED_PROVIDER_IDS
 from providers.cerebras import CerebrasProvider
 from providers.deepseek import DeepSeekProvider
 from providers.exceptions import UnknownProviderTypeError
+from providers.fireworks import FireworksProvider
 from providers.gemini import GeminiProvider
 from providers.groq import GroqProvider
+from providers.kimi import KimiProvider
 from providers.llamacpp import LlamaCppProvider
 from providers.lmstudio import LMStudioProvider
 from providers.mistral import MistralProvider
@@ -49,12 +51,13 @@ def _make_settings(**overrides):
     mock.llamacpp_proxy = ""
     mock.mistral_proxy = ""
     mock.kimi_proxy = ""
+    mock.kimi_api_key = "test_kimi_key"
     mock.wafer_proxy = ""
     mock.opencode_proxy = ""
     mock.opencode_go_proxy = ""
     mock.zai_proxy = ""
     mock.fireworks_proxy = ""
-    mock.fireworks_api_key = ""
+    mock.fireworks_api_key = "test_fireworks_key"
     mock.gemini_api_key = ""
     mock.gemini_proxy = ""
     mock.groq_api_key = ""
@@ -162,11 +165,15 @@ def test_create_provider_instantiates_each_builtin():
         gemini_api_key="test_gemini_key",
         groq_api_key="test_groq_key",
         cerebras_api_key="test_cerebras_key",
+        fireworks_api_key="test_fireworks_key",
+        kimi_api_key="test_kimi_key",
     )
     cases = {
         "nvidia_nim": NvidiaNimProvider,
         "mistral": MistralProvider,
         "deepseek": DeepSeekProvider,
+        "kimi": KimiProvider,
+        "fireworks": FireworksProvider,
         "lmstudio": LMStudioProvider,
         "llamacpp": LlamaCppProvider,
         "ollama": OllamaProvider,

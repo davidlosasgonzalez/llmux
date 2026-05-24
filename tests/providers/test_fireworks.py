@@ -1,41 +1,15 @@
-"""Tests for Fireworks AI provider."""
+"""Tests for Fireworks AI native Anthropic Messages provider."""
 
 from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
+from api.models.anthropic import Message, MessagesRequest
+from config.constants import ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS
 from providers.base import ProviderConfig
+from providers.exceptions import InvalidRequestError
 from providers.fireworks import FIREWORKS_BASE_URL, FireworksProvider
-
-
-class MockMessage:
-    def __init__(self, role, content):
-        self.role = role
-        self.content = content
-
-
-class MockBlock:
-    def __init__(self, **kwargs):
-        for key, value in kwargs.items():
-            setattr(self, key, value)
-
-
-class MockRequest:
-    def __init__(self, **kwargs):
-        self.model = "accounts/fireworks/models/glm-5p1"
-        self.messages = [MockMessage("user", "Hello")]
-        self.max_tokens = 100
-        self.temperature = 0.5
-        self.top_p = 0.9
-        self.system = "System prompt"
-        self.stop_sequences = None
-        self.tools = []
-        self.extra_body = {}
-        self.thinking = MagicMock()
-        self.thinking.enabled = True
-        for key, value in kwargs.items():
-            setattr(self, key, value)
 
 
 @pytest.fixture
@@ -51,13 +25,11 @@ def fireworks_config():
 
 @pytest.fixture(autouse=True)
 def mock_rate_limiter():
-    """Mock the global rate limiter to prevent waiting."""
-
     @asynccontextmanager
     async def _slot():
         yield
 
-    with patch("providers.openai_compat.GlobalRateLimiter") as mock:
+    with patch("providers.anthropic_messages.GlobalRateLimiter") as mock:
         instance = mock.get_scoped_instance.return_value
 
         async def _passthrough(fn, *args, **kwargs):
@@ -74,136 +46,138 @@ def fireworks_provider(fireworks_config):
 
 
 def test_init(fireworks_config):
-    """Test provider initialization."""
-    with patch("providers.openai_compat.AsyncOpenAI") as mock_openai:
+    with patch("httpx.AsyncClient") as mock_client:
         provider = FireworksProvider(fireworks_config)
-        assert provider._api_key == "test_fireworks_key"
-        assert provider._base_url == FIREWORKS_BASE_URL
-        mock_openai.assert_called_once()
+    assert provider._api_key == "test_fireworks_key"
+    assert provider._base_url == FIREWORKS_BASE_URL
+    assert mock_client.called
 
 
 def test_base_url_constant():
-    """FIREWORKS_BASE_URL points to the Fireworks AI inference endpoint."""
     assert FIREWORKS_BASE_URL == "https://api.fireworks.ai/inference/v1"
 
 
-def test_build_request_body_basic(fireworks_provider):
-    """Basic request body conversion works for Fireworks AI."""
-    req = MockRequest()
-    body = fireworks_provider._build_request_body(req)
+def test_request_headers(fireworks_provider):
+    h = fireworks_provider._request_headers()
+    assert h["Authorization"] == "Bearer test_fireworks_key"
+    assert h["anthropic-version"] == "2023-06-01"
+    assert h["Accept"] == "text/event-stream"
 
+
+def test_build_request_body_native_shape(fireworks_provider):
+    request = MessagesRequest(
+        model="accounts/fireworks/models/glm-5p1",
+        max_tokens=100,
+        messages=[Message(role="user", content="Hello")],
+        system="System prompt",
+    )
+    body = fireworks_provider._build_request_body(request)
     assert body["model"] == "accounts/fireworks/models/glm-5p1"
-    assert body["messages"][0]["role"] == "system"
+    assert body["stream"] is True
+    assert body["max_tokens"] == 100
+    assert body["system"] == "System prompt"
+    assert body["messages"][0]["role"] == "user"
+
+
+def test_build_request_body_default_max_tokens(fireworks_provider):
+    request = MessagesRequest(
+        model="m",
+        messages=[Message(role="user", content="x")],
+    )
+    body = fireworks_provider._build_request_body(request)
+    assert body["max_tokens"] == ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS
 
 
 def test_build_request_body_global_disable_blocks_thinking():
-    """Global disable suppresses provider-side thinking."""
     provider = FireworksProvider(
         ProviderConfig(
-            api_key="test_fireworks_key",
+            api_key="k",
             base_url=FIREWORKS_BASE_URL,
-            rate_limit=10,
-            rate_window=60,
+            rate_limit=1,
+            rate_window=1,
             enable_thinking=False,
         )
     )
-    req = MockRequest()
-    body = provider._build_request_body(req)
-
-    # When thinking is disabled, no thinking-related fields should appear
-    assert "extra_body" not in body or "thinking" not in body.get("extra_body", {})
+    request = MessagesRequest.model_validate(
+        {
+            "model": "m",
+            "messages": [{"role": "user", "content": "x"}],
+            "thinking": {"type": "enabled", "budget_tokens": 1},
+        }
+    )
+    body = provider._build_request_body(request)
+    assert "thinking" not in body
 
 
 def test_build_request_body_request_disable_blocks_thinking(fireworks_provider):
-    """Request-level disable suppresses provider-side thinking when global is enabled."""
-    req = MockRequest()
-    req.thinking.enabled = False
-    body = fireworks_provider._build_request_body(req)
-
-    assert "extra_body" not in body or "thinking" not in body.get("extra_body", {})
-
-
-def test_build_request_body_preserves_caller_extra_body(fireworks_provider):
-    """Caller-provided extra_body should be preserved."""
-    req = MockRequest(
-        extra_body={"custom_param": "value"},
+    request = MessagesRequest.model_validate(
+        {
+            "model": "m",
+            "messages": [{"role": "user", "content": "x"}],
+            "thinking": {"enabled": False},
+        }
     )
-    body = fireworks_provider._build_request_body(req)
+    body = fireworks_provider._build_request_body(request)
+    assert "thinking" not in body
 
-    assert body["extra_body"]["custom_param"] == "value"
+
+def test_build_request_body_merges_safe_extra_body(fireworks_provider):
+    request = MessagesRequest.model_validate(
+        {
+            "model": "m",
+            "messages": [{"role": "user", "content": "x"}],
+            "extra_body": {"custom_param": "value"},
+        }
+    )
+    body = fireworks_provider._build_request_body(request)
+    assert body["custom_param"] == "value"
 
 
-@pytest.mark.asyncio
-async def test_stream_response_text(fireworks_provider):
-    """Text content deltas are emitted as text blocks."""
-    req = MockRequest()
-
-    mock_chunk = MagicMock()
-    mock_chunk.choices = [
-        MagicMock(
-            delta=MagicMock(
-                content="Hello back!",
-                reasoning_content=None,
-                tool_calls=None,
-            ),
-            finish_reason="stop",
-        )
-    ]
-    mock_chunk.usage = MagicMock(completion_tokens=5, prompt_tokens=10)
-
-    async def mock_stream():
-        yield mock_chunk
-
-    with patch.object(
-        fireworks_provider._client.chat.completions, "create", new_callable=AsyncMock
-    ) as mock_create:
-        mock_create.return_value = mock_stream()
-
-        events = [event async for event in fireworks_provider.stream_response(req)]
-
-        assert any(
-            '"text_delta"' in event and "Hello back!" in event for event in events
-        )
+def test_build_request_body_rejects_reserved_extra_body_keys(fireworks_provider):
+    request = MessagesRequest.model_validate(
+        {
+            "model": "m",
+            "messages": [{"role": "user", "content": "x"}],
+            "extra_body": {"temperature": 0.1},
+        }
+    )
+    with pytest.raises(InvalidRequestError, match="extra_body must not override"):
+        fireworks_provider._build_request_body(request)
 
 
 @pytest.mark.asyncio
-async def test_stream_response_reasoning_content(fireworks_provider):
-    """reasoning_content deltas are emitted as thinking blocks."""
-    req = MockRequest()
+async def test_stream_uses_post_messages_path(fireworks_provider):
+    request = MessagesRequest(
+        model="m",
+        messages=[Message(role="user", content="hi")],
+    )
+    called: dict[str, str] = {}
 
-    mock_chunk = MagicMock()
-    mock_chunk.choices = [
-        MagicMock(
-            delta=MagicMock(
-                content=None,
-                reasoning_content="Thinking...",
-                tool_calls=None,
-            ),
-            finish_reason="stop",
-        )
-    ]
-    mock_chunk.usage = MagicMock(completion_tokens=2, prompt_tokens=10)
+    async def fake_send(request, *args, **kwargs):
+        called["path"] = request.url.path
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.is_closed = False
+        mock_resp.raise_for_status = lambda: None
 
-    async def mock_stream():
-        yield mock_chunk
+        async def aiter():
+            if False:  # pragma: no cover
+                yield ""
 
-    with patch.object(
-        fireworks_provider._client.chat.completions, "create", new_callable=AsyncMock
-    ) as mock_create:
-        mock_create.return_value = mock_stream()
+        mock_resp.aiter_lines = aiter
+        mock_resp.aclose = AsyncMock()
+        return mock_resp
 
-        events = [event async for event in fireworks_provider.stream_response(req)]
+    fireworks_provider._client.send = fake_send
+    _ = [x async for x in fireworks_provider.stream_response(request, request_id="r1")]
 
-        assert any(
-            '"thinking_delta"' in event and "Thinking..." in event for event in events
-        )
+    assert called["path"].endswith("/messages")
 
 
 @pytest.mark.asyncio
-async def test_cleanup(fireworks_provider):
-    """cleanup closes the OpenAI client."""
+async def test_cleanup_aclose(fireworks_provider):
     fireworks_provider._client = AsyncMock()
 
     await fireworks_provider.cleanup()
 
-    fireworks_provider._client.close.assert_called_once()
+    fireworks_provider._client.aclose.assert_awaited_once()

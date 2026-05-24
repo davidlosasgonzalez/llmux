@@ -7,8 +7,10 @@ from messaging.platforms.factory import create_messaging_platform
 from providers.base import BaseProvider
 from providers.cerebras import CerebrasProvider
 from providers.deepseek import DeepSeekProvider
+from providers.fireworks import FireworksProvider
 from providers.gemini import GeminiProvider
 from providers.groq import GroqProvider
+from providers.kimi import KimiProvider
 from providers.llamacpp import LlamaCppProvider
 from providers.lmstudio import LMStudioProvider
 from providers.mistral import MistralProvider
@@ -78,6 +80,8 @@ def test_provider_and_platform_registries_include_advertised_builtins() -> None:
         "open_router": OpenRouterProvider,
         "mistral": MistralProvider,
         "deepseek": DeepSeekProvider,
+        "kimi": KimiProvider,
+        "fireworks": FireworksProvider,
         "lmstudio": LMStudioProvider,
         "llamacpp": LlamaCppProvider,
         "ollama": OllamaProvider,

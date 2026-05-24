@@ -619,3 +619,28 @@ def test_listed_server_tools_routed_on_open_router() -> None:
     )
     service.create_message(request)
     mock_provider.preflight_stream.assert_called()
+
+
+def test_listed_server_tools_routed_on_zai() -> None:
+    """Z.ai uses native Anthropic Messages; listed server tools are not OpenAI-chat blocked."""
+    settings = Settings()
+
+    async def fake_stream(*_a, **_k):
+        yield 'event: message_start\ndata: {"type":"message_start"}\n\n'
+        yield 'event: message_stop\ndata: {"type":"message_stop"}\n\n'
+
+    mock_provider = MagicMock()
+    mock_provider.stream_response = fake_stream
+    service = ClaudeProxyService(
+        settings,
+        provider_getter=lambda _: mock_provider,
+        model_router=FixedProviderModelRouter(settings, "zai"),
+    )
+    request = MessagesRequest(
+        model="m",
+        max_tokens=20,
+        messages=[Message(role="user", content="q")],
+        tools=[Tool(name="web_search", type="web_search_20250305")],
+    )
+    service.create_message(request)
+    mock_provider.preflight_stream.assert_called()

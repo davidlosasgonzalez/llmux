@@ -13,7 +13,8 @@ TransportType = Literal["openai_chat", "anthropic_messages"]
 
 # Default upstream base URLs (also re-exported via :mod:`providers.defaults`)
 NVIDIA_NIM_DEFAULT_BASE = "https://integrate.api.nvidia.com/v1"
-KIMI_DEFAULT_BASE = "https://api.moonshot.ai/v1"
+# Moonshot Kimi Anthropic-compatible Messages API (POST …/messages).
+KIMI_DEFAULT_BASE = "https://api.moonshot.ai/anthropic/v1"
 WAFER_DEFAULT_BASE = "https://pass.wafer.ai/v1"
 # DeepSeek Anthropic-compatible Messages API (not OpenAI ``/v1`` chat completions).
 DEEPSEEK_ANTHROPIC_DEFAULT_BASE = "https://api.deepseek.com/anthropic"
@@ -27,7 +28,8 @@ LLAMACPP_DEFAULT_BASE = "http://localhost:8080/v1"
 OLLAMA_DEFAULT_BASE = "http://localhost:11434"
 OPENCODE_DEFAULT_BASE = "https://opencode.ai/zen/v1"
 OPENCODE_GO_DEFAULT_BASE = "https://opencode.ai/zen/go/v1"
-ZAI_DEFAULT_BASE = "https://api.z.ai/api/coding/paas/v4"
+# Z.ai Anthropic-compatible Messages API (not OpenAI Coding Plan chat completions).
+ZAI_DEFAULT_BASE = "https://api.z.ai/api/anthropic/v1"
 # Google AI Studio Gemini API OpenAI-compat layer (not Vertex AI).
 GEMINI_DEFAULT_BASE = "https://generativelanguage.googleapis.com/v1beta/openai/"
 GROQ_DEFAULT_BASE = "https://api.groq.com/openai/v1"
@@ -92,13 +94,19 @@ PROVIDER_CATALOG: dict[str, ProviderDescriptor] = {
     ),
     "kimi": ProviderDescriptor(
         provider_id="kimi",
-        transport_type="openai_chat",
+        transport_type="anthropic_messages",
         credential_env="KIMI_API_KEY",
         credential_url="https://platform.moonshot.cn/console/api-keys",
         credential_attr="kimi_api_key",
         default_base_url=KIMI_DEFAULT_BASE,
         proxy_attr="kimi_proxy",
-        capabilities=("chat", "streaming", "tools"),
+        capabilities=(
+            "chat",
+            "streaming",
+            "tools",
+            "thinking",
+            "native_anthropic",
+        ),
     ),
     "wafer": ProviderDescriptor(
         provider_id="wafer",
@@ -165,22 +173,36 @@ PROVIDER_CATALOG: dict[str, ProviderDescriptor] = {
     ),
     "zai": ProviderDescriptor(
         provider_id="zai",
-        transport_type="openai_chat",
+        transport_type="anthropic_messages",
         credential_env="ZAI_API_KEY",
         credential_attr="zai_api_key",
         default_base_url=ZAI_DEFAULT_BASE,
         proxy_attr="zai_proxy",
-        capabilities=("chat", "streaming", "tools", "thinking", "rate_limit"),
+        capabilities=(
+            "chat",
+            "streaming",
+            "tools",
+            "thinking",
+            "native_anthropic",
+            "rate_limit",
+        ),
     ),
     "fireworks": ProviderDescriptor(
         provider_id="fireworks",
-        transport_type="openai_chat",
+        transport_type="anthropic_messages",
         credential_env="FIREWORKS_API_KEY",
         credential_url="https://fireworks.ai/account/api-keys",
         credential_attr="fireworks_api_key",
         default_base_url=FIREWORKS_DEFAULT_BASE,
         proxy_attr="fireworks_proxy",
-        capabilities=("chat", "streaming", "tools", "thinking", "rate_limit"),
+        capabilities=(
+            "chat",
+            "streaming",
+            "tools",
+            "thinking",
+            "native_anthropic",
+            "rate_limit",
+        ),
     ),
     "gemini": ProviderDescriptor(
         provider_id="gemini",
