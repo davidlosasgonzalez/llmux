@@ -31,6 +31,14 @@ class MockRequest:
             setattr(self, key, value)
 
 
+def _simulate_openai_sdk_wire_json(body: dict) -> dict:
+    wire = {key: value for key, value in body.items() if key != "extra_body"}
+    sdk_extra = body.get("extra_body")
+    if isinstance(sdk_extra, dict):
+        wire.update(sdk_extra)
+    return wire
+
+
 @pytest.fixture
 def gemini_config():
     return ProviderConfig(
@@ -94,11 +102,31 @@ def test_build_request_body_basic(gemini_provider):
     assert body["reasoning_effort"] == "high"
     eb = body.get("extra_body")
     assert isinstance(eb, dict)
-    gc = eb.get("google")
+    literal_extra_body = eb.get("extra_body")
+    assert isinstance(literal_extra_body, dict)
+    gc = literal_extra_body.get("google")
     assert isinstance(gc, dict)
     tc = gc.get("thinking_config")
     assert isinstance(tc, dict)
     assert tc.get("include_thoughts") is True
+    assert "google" not in eb
+
+
+def test_build_request_body_sdk_wire_json_has_literal_extra_body(gemini_provider):
+    """Regression for issue #542: SDK merge must not send top-level google."""
+    req = MockRequest()
+
+    body = gemini_provider._build_request_body(req)
+    wire_json = _simulate_openai_sdk_wire_json(body)
+
+    assert "google" not in wire_json
+    literal_extra_body = wire_json.get("extra_body")
+    assert isinstance(literal_extra_body, dict)
+    google = literal_extra_body.get("google")
+    assert isinstance(google, dict)
+    thinking_config = google.get("thinking_config")
+    assert isinstance(thinking_config, dict)
+    assert thinking_config.get("include_thoughts") is True
 
 
 def test_build_request_body_global_disable_sets_reasoning_none():
@@ -128,6 +156,39 @@ def test_build_request_body_preserves_caller_extra_body(gemini_provider):
     eb = body.get("extra_body")
     assert isinstance(eb, dict)
     assert eb.get("metadata") == {"user": "u1"}
+    literal_extra_body = eb.get("extra_body")
+    assert isinstance(literal_extra_body, dict)
+    google = literal_extra_body.get("google")
+    assert isinstance(google, dict)
+
+
+def test_build_request_body_merges_caller_nested_google(gemini_provider):
+    req = MockRequest(
+        extra_body={
+            "metadata": {"user": "u1"},
+            "extra_body": {
+                "google": {
+                    "thinking_config": {"budget_tokens": 128},
+                    "cached_content": "cachedContents/example",
+                }
+            },
+        }
+    )
+
+    body = gemini_provider._build_request_body(req)
+
+    eb = body.get("extra_body")
+    assert isinstance(eb, dict)
+    assert eb.get("metadata") == {"user": "u1"}
+    literal_extra_body = eb.get("extra_body")
+    assert isinstance(literal_extra_body, dict)
+    google = literal_extra_body.get("google")
+    assert isinstance(google, dict)
+    assert google.get("cached_content") == "cachedContents/example"
+    thinking_config = google.get("thinking_config")
+    assert isinstance(thinking_config, dict)
+    assert thinking_config.get("budget_tokens") == 128
+    assert thinking_config.get("include_thoughts") is True
 
 
 @pytest.mark.asyncio

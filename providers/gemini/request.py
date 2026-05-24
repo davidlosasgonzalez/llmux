@@ -2,13 +2,32 @@
 
 from __future__ import annotations
 
-from typing import Any
+from copy import deepcopy
+from typing import Any, cast
 
 from loguru import logger
 
 from core.anthropic import ReasoningReplayMode, build_base_request_body
 from core.anthropic.conversion import OpenAIConversionError
 from providers.exceptions import InvalidRequestError
+
+
+def _ensure_dict(container: dict[str, Any], key: str) -> dict[str, Any]:
+    value = container.get(key)
+    if isinstance(value, dict):
+        return cast(dict[str, Any], value)
+    nested: dict[str, Any] = {}
+    container[key] = nested
+    return nested
+
+
+def _apply_thinking_config(extra_body: dict[str, Any]) -> None:
+    # OpenAI's SDK merges its ``extra_body`` argument into the request JSON.
+    # Google expects its extension fields under a literal JSON ``extra_body`` key.
+    literal_extra_body = _ensure_dict(extra_body, "extra_body")
+    google_section = _ensure_dict(literal_extra_body, "google")
+    thinking_cfg = _ensure_dict(google_section, "thinking_config")
+    thinking_cfg.setdefault("include_thoughts", True)
 
 
 def build_request_body(request_data: Any, *, thinking_enabled: bool) -> dict:
@@ -30,16 +49,12 @@ def build_request_body(request_data: Any, *, thinking_enabled: bool) -> dict:
 
     extra_body: dict[str, Any] = {}
     request_extra = getattr(request_data, "extra_body", None)
-    if request_extra:
-        extra_body.update(request_extra)
+    if isinstance(request_extra, dict):
+        extra_body.update(deepcopy(request_extra))
 
     if thinking_enabled:
         body["reasoning_effort"] = "high"
-        google_section = extra_body.setdefault("google", {})
-        if isinstance(google_section, dict):
-            thinking_cfg = google_section.setdefault("thinking_config", {})
-            if isinstance(thinking_cfg, dict):
-                thinking_cfg.setdefault("include_thoughts", True)
+        _apply_thinking_config(extra_body)
     else:
         body["reasoning_effort"] = "none"
 
