@@ -14,6 +14,7 @@ $ErrorActionPreference = "Stop"
 
 $RepoGitUrl = "git+https://github.com/Alishahryar1/free-claude-code.git"
 $PythonVersion = "3.14.0"
+$MinUvVersion = "0.11.0"
 $UvInstallUrl = "https://astral.sh/uv/install.ps1"
 
 function Show-Usage {
@@ -103,6 +104,184 @@ function Assert-CommandAvailable {
     }
 }
 
+function Invoke-ProbeCommand {
+    param(
+        [string] $FilePath,
+        [string[]] $Arguments = @()
+    )
+
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+
+    try {
+        $output = & $FilePath @Arguments 2>$null
+        return [pscustomobject] @{
+            ExitCode = $LASTEXITCODE
+            Output = ($output | Out-String)
+        }
+    }
+    catch {
+        return [pscustomobject] @{
+            ExitCode = 1
+            Output = ""
+        }
+    }
+    finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+}
+
+function Get-InstalledUvVersion {
+    $version = ""
+
+    $selfVersionProbe = Invoke-ProbeCommand -FilePath "uv" -Arguments @("self", "version", "--short")
+    if ($selfVersionProbe.ExitCode -eq 0) {
+        $version = $selfVersionProbe.Output.Trim()
+    }
+
+    if ([string]::IsNullOrWhiteSpace($version)) {
+        $versionProbe = Invoke-ProbeCommand -FilePath "uv" -Arguments @("--version")
+        if (($versionProbe.ExitCode -eq 0) -and ($versionProbe.Output -match '^uv\s+([^\s]+)')) {
+            $version = $Matches[1]
+        }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($version)) {
+        throw "Unable to determine uv version."
+    }
+
+    return $version
+}
+
+function Test-UvVersionAtLeast {
+    param(
+        [string] $Version,
+        [string] $Minimum
+    )
+
+    $normalizedVersion = $Version -replace '[-+].*$', ''
+    $normalizedMinimum = $Minimum -replace '[-+].*$', ''
+    return ([version] $normalizedVersion) -ge ([version] $normalizedMinimum)
+}
+
+function Test-UvVersionSatisfiesMinimum {
+    $version = Get-InstalledUvVersion
+    return Test-UvVersionAtLeast -Version $version -Minimum $MinUvVersion
+}
+
+function Assert-MinUvVersion {
+    if ($DryRun) {
+        return
+    }
+
+    $version = Get-InstalledUvVersion
+    if (-not (Test-UvVersionAtLeast -Version $version -Minimum $MinUvVersion)) {
+        throw "uv $MinUvVersion or newer is required; found uv $version. Upgrade uv with its installer or package manager, then rerun this installer."
+    }
+}
+
+function Test-UvSelfUpdateSupported {
+    $probe = Invoke-ProbeCommand -FilePath "uv" -Arguments @("self", "update", "--dry-run")
+    return $probe.ExitCode -eq 0
+}
+
+function Test-UvInstalledByScoop {
+    if (-not (Get-Command scoop -ErrorAction SilentlyContinue)) {
+        return $false
+    }
+
+    $probe = Invoke-ProbeCommand -FilePath "scoop" -Arguments @("list", "uv")
+    return ($probe.ExitCode -eq 0) -and ($probe.Output -match '(^|\s)uv(\s|$)')
+}
+
+function Test-UvInstalledByWinget {
+    if (-not (Get-Command winget -ErrorAction SilentlyContinue)) {
+        return $false
+    }
+
+    $probe = Invoke-ProbeCommand -FilePath "winget" -Arguments @("list", "--id", "astral-sh.uv", "-e")
+    return ($probe.ExitCode -eq 0) -and ($probe.Output -match 'astral-sh\.uv')
+}
+
+function Test-UvInstalledByPipx {
+    if (-not (Get-Command pipx -ErrorAction SilentlyContinue)) {
+        return $false
+    }
+
+    $probe = Invoke-ProbeCommand -FilePath "pipx" -Arguments @("list")
+    return ($probe.ExitCode -eq 0) -and ($probe.Output -match '(?m)\bpackage uv\b')
+}
+
+function Test-UvInstalledInActiveVirtualenv {
+    if ([string]::IsNullOrWhiteSpace($env:VIRTUAL_ENV)) {
+        return $false
+    }
+
+    $uvCommand = Get-Command uv -ErrorAction SilentlyContinue
+    if (-not $uvCommand) {
+        return $false
+    }
+
+    $uvPath = [IO.Path]::GetFullPath($uvCommand.Source)
+    $venvPath = ([IO.Path]::GetFullPath($env:VIRTUAL_ENV)).TrimEnd(
+        [IO.Path]::DirectorySeparatorChar,
+        [IO.Path]::AltDirectorySeparatorChar
+    )
+    $nativePrefix = "$venvPath$([IO.Path]::DirectorySeparatorChar)"
+    $alternatePrefix = "$venvPath$([IO.Path]::AltDirectorySeparatorChar)"
+
+    return $uvPath.StartsWith($nativePrefix, [StringComparison]::OrdinalIgnoreCase) -or
+        $uvPath.StartsWith($alternatePrefix, [StringComparison]::OrdinalIgnoreCase)
+}
+
+function Update-ExistingUv {
+    if (Test-UvSelfUpdateSupported) {
+        Invoke-InstallCommand -FilePath "uv" -Arguments @("self", "update")
+        return
+    }
+
+    if (Test-UvInstalledByScoop) {
+        Invoke-InstallCommand -FilePath "scoop" -Arguments @("update", "uv")
+        return
+    }
+
+    if (Test-UvInstalledByWinget) {
+        Invoke-InstallCommand -FilePath "winget" -Arguments @(
+            "upgrade",
+            "--id",
+            "astral-sh.uv",
+            "-e",
+            "--accept-package-agreements",
+            "--accept-source-agreements"
+        )
+        return
+    }
+
+    if (Test-UvInstalledByPipx) {
+        Invoke-InstallCommand -FilePath "pipx" -Arguments @("upgrade", "uv")
+        return
+    }
+
+    if (Test-UvInstalledInActiveVirtualenv) {
+        Invoke-InstallCommand -FilePath "python" -Arguments @("-m", "pip", "install", "--upgrade", "uv")
+        return
+    }
+
+    if (Test-UvVersionSatisfiesMinimum) {
+        Write-Host "uv is already installed and satisfies >=$MinUvVersion; skipping automatic uv update because the install source was not detected."
+        return
+    }
+
+    $version = "unknown"
+    try {
+        $version = Get-InstalledUvVersion
+    }
+    catch {
+        $version = "unknown"
+    }
+    throw "uv $MinUvVersion or newer is required; found uv $version. The existing uv install source was not detected. Upgrade uv manually with the package manager that installed it, then rerun this installer."
+}
+
 function Install-ClaudeIfMissing {
     if (Get-Command claude -ErrorAction SilentlyContinue) {
         Write-Host "Claude Code already found on PATH; skipping install."
@@ -117,7 +296,8 @@ function Install-OrUpdateUv {
     Add-UvToPath
 
     if (Get-Command uv -ErrorAction SilentlyContinue) {
-        Invoke-InstallCommand -FilePath "uv" -Arguments @("self", "update")
+        Update-ExistingUv
+        Assert-MinUvVersion
         return
     }
 
@@ -127,6 +307,8 @@ function Install-OrUpdateUv {
     if ((-not $DryRun) -and (-not (Get-Command uv -ErrorAction SilentlyContinue))) {
         throw "uv was installed, but it is not available on PATH. Open a new terminal or add uv's bin directory to PATH."
     }
+
+    Assert-MinUvVersion
 }
 
 function Get-PackageSpec {
