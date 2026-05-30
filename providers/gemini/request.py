@@ -53,7 +53,6 @@ def build_request_body(request_data: Any, *, thinking_enabled: bool) -> dict:
         extra_body.update(deepcopy(request_extra))
 
     if thinking_enabled:
-        body["reasoning_effort"] = "high"
         _apply_thinking_config(extra_body)
     else:
         body["reasoning_effort"] = "none"
