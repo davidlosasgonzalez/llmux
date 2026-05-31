@@ -12,6 +12,7 @@ from loguru import logger
 from config.constants import (
     ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS,
     NATIVE_MESSAGES_ERROR_BODY_LOG_CAP_BYTES,
+    PROVIDER_ERROR_BODY_DISPLAY_CAP_BYTES,
 )
 from core.anthropic import iter_provider_stream_error_sse_events
 from core.anthropic.emitted_sse_tracker import EmittedNativeSseTracker
@@ -25,6 +26,8 @@ from core.anthropic.native_sse_block_policy import (
 from core.trace import provider_native_messages_body_snapshot, trace_event
 from providers.base import BaseProvider, ProviderConfig
 from providers.error_mapping import (
+    attach_provider_error_body,
+    extract_provider_error_detail,
     map_error,
     user_visible_message_for_mapped_provider_error,
 )
@@ -166,19 +169,22 @@ class AnthropicMessagesTransport(BaseProvider):
         try:
             response.raise_for_status()
         except httpx.HTTPStatusError as error:
+            preview, truncated = await self._read_error_body_preview(
+                response, PROVIDER_ERROR_BODY_DISPLAY_CAP_BYTES
+            )
+            attach_provider_error_body(error, preview, truncated=truncated)
             if self._config.log_api_error_tracebacks:
-                preview, truncated = await self._read_error_body_preview(
-                    response, NATIVE_MESSAGES_ERROR_BODY_LOG_CAP_BYTES
-                )
-                if preview:
-                    text = preview.decode("utf-8", errors="replace")
+                log_preview = preview[:NATIVE_MESSAGES_ERROR_BODY_LOG_CAP_BYTES]
+                log_truncated = truncated or len(preview) > len(log_preview)
+                if log_preview:
+                    text = log_preview.decode("utf-8", errors="replace")
                     logger.error(
                         "{}_ERROR:{} HTTP {} body_preview_bytes={} truncated={}: {}",
                         self._provider_name,
                         req_tag,
                         response.status_code,
-                        len(preview),
-                        truncated,
+                        len(log_preview),
+                        log_truncated,
                         text,
                     )
                 else:
@@ -191,12 +197,18 @@ class AnthropicMessagesTransport(BaseProvider):
             else:
                 cl = response.headers.get("content-length", "").strip()
                 extra = f" content_length_declared={cl}" if cl.isdigit() else ""
+                body_extra = (
+                    " empty_error_body"
+                    if not preview
+                    else f" error_body_bytes_read={len(preview)}"
+                )
                 logger.error(
-                    "{}_ERROR:{} HTTP {}{}",
+                    "{}_ERROR:{} HTTP {}{}{}",
                     self._provider_name,
                     req_tag,
                     response.status_code,
                     extra,
+                    body_extra,
                 )
             raise error
 
@@ -266,12 +278,6 @@ class AnthropicMessagesTransport(BaseProvider):
             )
         return event
 
-    def _format_error_message(self, base_message: str, request_id: str | None) -> str:
-        """Apply provider-specific request-id formatting to an error message."""
-        if request_id:
-            return f"{base_message}\nRequest ID: {request_id}"
-        return base_message
-
     def _get_error_message(self, error: Exception, request_id: str | None) -> str:
         """Map an exception into a user-facing provider error message."""
         mapped_error = map_error(error, rate_limiter=self._global_rate_limiter)
@@ -279,8 +285,10 @@ class AnthropicMessagesTransport(BaseProvider):
             mapped_error,
             provider_name=self._provider_name,
             read_timeout_s=self._config.http_read_timeout,
+            detail=extract_provider_error_detail(error),
+            request_id=request_id,
         )
-        return self._format_error_message(base_message, request_id)
+        return base_message
 
     def _emit_error_events(
         self,

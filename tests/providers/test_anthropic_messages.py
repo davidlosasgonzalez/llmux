@@ -230,9 +230,10 @@ async def test_stream_maps_non_200_to_error_event_and_closes_response(
 
     assert response.is_closed
     assert_canonical_stream_error_envelope(
-        events, user_message_substr="Provider API request failed"
+        events, user_message_substr="Upstream provider TEST_NATIVE returned HTTP 500."
     )
     blob = "".join(events)
+    assert "Internal Server Error" in blob
     assert "REQ_123" in blob
 
 

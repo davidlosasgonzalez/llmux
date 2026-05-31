@@ -5,14 +5,18 @@ from unittest.mock import MagicMock, patch
 
 import openai
 import pytest
-from httpx import ReadTimeout, Request, Response
+from httpx import HTTPStatusError, ReadTimeout, Request, Response
 
+from config.constants import PROVIDER_ERROR_BODY_DISPLAY_CAP_BYTES
 from core.anthropic import (
     append_request_id,
     format_user_error_preview,
     get_user_facing_error_message,
 )
 from providers.error_mapping import (
+    attach_provider_error_body,
+    extract_provider_error_detail,
+    format_provider_error_message,
     map_error,
     user_visible_message_for_mapped_provider_error,
 )
@@ -168,6 +172,120 @@ def test_user_visible_message_for_mapped_provider_error_405():
         mapped, provider_name="ACME", read_timeout_s=30.0
     )
     assert "ACME" in msg and "405" in msg
+
+
+def test_openai_bad_request_body_is_user_visible():
+    exc = _make_openai_error(
+        openai.BadRequestError,
+        message="Thinking mode does not support this tool_choice",
+        status_code=400,
+    )
+    mapped = map_error(exc)
+    msg = format_provider_error_message(
+        mapped,
+        extract_provider_error_detail(exc),
+        provider_name="NIM",
+        read_timeout_s=60.0,
+        request_id="req_body",
+    )
+
+    assert "Upstream provider NIM returned HTTP 400." in msg
+    assert "Category: invalid_request_error" in msg
+    assert "Thinking mode does not support this tool_choice" in msg
+    assert (
+        '{"error":{"message":"Thinking mode does not support this tool_choice"}}' in msg
+    )
+    assert "Request ID: req_body" in msg
+
+
+def test_auth_status_with_model_error_body_is_not_only_check_api_key():
+    body = {
+        "type": "error",
+        "error": {
+            "type": "ModelError",
+            "message": "Model qwen3.7-max is not supported for format oa-compat",
+        },
+    }
+    exc = openai.AuthenticationError(
+        "Unauthorized",
+        response=Response(status_code=401, request=Request("POST", "http://test")),
+        body=body,
+    )
+    mapped = map_error(exc)
+    msg = format_provider_error_message(
+        mapped,
+        extract_provider_error_detail(exc),
+        provider_name="OPENCODE_GO",
+        read_timeout_s=60.0,
+        request_id="req_model",
+    )
+
+    assert "Upstream provider OPENCODE_GO returned HTTP 401." in msg
+    assert "Category: ModelError" in msg
+    assert "Provider authentication failed. Check API key." in msg
+    assert "Model qwen3.7-max is not supported for format oa-compat" in msg
+    assert msg != "Provider authentication failed. Check API key."
+
+
+def test_http_status_error_json_body_is_compact_and_visible():
+    response = Response(
+        status_code=400,
+        request=Request("POST", "http://test"),
+        json={"error": {"type": "BadRequest", "message": "bad field"}},
+    )
+    exc = HTTPStatusError("Bad Request", request=response.request, response=response)
+    mapped = map_error(exc)
+    msg = user_visible_message_for_mapped_provider_error(
+        mapped,
+        provider_name="LOCAL",
+        read_timeout_s=30.0,
+        detail=extract_provider_error_detail(exc),
+        request_id="req_json",
+    )
+
+    assert "Upstream provider LOCAL returned HTTP 400." in msg
+    assert "Category: BadRequest" in msg
+    assert '{"error":{"type":"BadRequest","message":"bad field"}}' in msg
+    assert "Request ID: req_json" in msg
+
+
+def test_empty_http_error_body_is_explicitly_reported():
+    response = Response(
+        status_code=500,
+        request=Request("POST", "http://test"),
+        content=b"",
+    )
+    exc = HTTPStatusError("Server Error", request=response.request, response=response)
+    mapped = map_error(exc)
+    msg = format_provider_error_message(
+        mapped,
+        extract_provider_error_detail(exc),
+        provider_name="EMPTY",
+        read_timeout_s=30.0,
+    )
+
+    assert "Upstream provider EMPTY returned HTTP 500." in msg
+    assert "(empty upstream error body)" in msg
+
+
+def test_attached_provider_error_body_is_capped_for_display():
+    response = Response(
+        status_code=500,
+        request=Request("POST", "http://test"),
+        content=b"",
+    )
+    exc = HTTPStatusError("Server Error", request=response.request, response=response)
+    attach_provider_error_body(exc, "x" * (PROVIDER_ERROR_BODY_DISPLAY_CAP_BYTES + 10))
+    mapped = map_error(exc)
+    msg = format_provider_error_message(
+        mapped,
+        extract_provider_error_detail(exc),
+        provider_name="LONG",
+        read_timeout_s=30.0,
+    )
+
+    assert f"truncated after {PROVIDER_ERROR_BODY_DISPLAY_CAP_BYTES} bytes" in msg
+    assert "x" * 100 in msg
 
 
 def test_streaming_transports_pass_scoped_rate_limiter_to_map_error():

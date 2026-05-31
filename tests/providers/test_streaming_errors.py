@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
+import openai
 import pytest
 
 from config.nim import NimSettings
@@ -203,7 +204,7 @@ class TestStreamingExceptionHandling:
 
         event_text = "".join(events)
         assert "timed out after" in event_text
-        assert "request_id=req_timeout123" in event_text
+        assert "Request ID: req_timeout123" in event_text
         assert "message_stop" in event_text
         _assert_no_content_deltas_after_error_text(events, "timed out after")
 
@@ -505,11 +506,99 @@ class TestStreamingExceptionHandling:
             "Upstream provider NIM rejected the request method or endpoint (HTTP 405)."
             in event_text
         )
-        assert "request_id=REQ405" in event_text
+        assert "Request ID: REQ405" in event_text
         _assert_no_content_deltas_after_error_text(
             events,
             "Upstream provider NIM rejected the request method or endpoint (HTTP 405).",
         )
+
+    @pytest.mark.asyncio
+    async def test_stream_with_openai_bad_request_surfaces_upstream_body(self):
+        """OpenAI SDK bodies should be emitted so users can copy exact provider errors."""
+        provider = _make_provider()
+        request = _make_request()
+        response = httpx.Response(
+            status_code=400,
+            request=httpx.Request("POST", "https://example.com/v1/chat/completions"),
+        )
+        body = {
+            "error": {
+                "type": "BadRequest",
+                "message": "Thinking mode does not support this tool_choice",
+            }
+        }
+        error = openai.BadRequestError("Bad Request", response=response, body=body)
+
+        with patch.object(
+            provider._client.chat.completions,
+            "create",
+            new_callable=AsyncMock,
+            side_effect=error,
+        ):
+            events = [
+                e
+                async for e in provider.stream_response(
+                    request,
+                    request_id="REQ_BODY",
+                )
+            ]
+
+        event_text = "".join(events)
+        message_text = "".join(
+            str(ev.data.get("delta", {}).get("text", ""))
+            for ev in parse_sse_text(event_text)
+            if ev.event == "content_block_delta"
+            and ev.data.get("delta", {}).get("type") == "text_delta"
+        )
+        assert "Upstream provider NIM returned HTTP 400." in event_text
+        assert "Category: BadRequest" in event_text
+        assert "Thinking mode does not support this tool_choice" in event_text
+        assert (
+            '{"error":{"type":"BadRequest","message":"Thinking mode does not support this tool_choice"}}'
+            in message_text
+        )
+        assert "Request ID: REQ_BODY" in event_text
+        _assert_no_content_deltas_after_error_text(
+            events,
+            "Upstream provider NIM returned HTTP 400.",
+        )
+
+    @pytest.mark.asyncio
+    async def test_error_after_native_tool_call_top_level_error_includes_body(self):
+        """After a tool_use block, detailed provider errors remain top-level SSE errors."""
+        provider = _make_provider()
+        request = _make_request()
+        tool_chunk = _make_tool_calls_chunk(
+            name="echo_smoke", arguments="{}", tool_id="call_body", index=0
+        )
+        response = httpx.Response(
+            status_code=400,
+            request=httpx.Request("POST", "https://example.com/v1/chat/completions"),
+        )
+        body = {"error": {"message": "bad after tool"}}
+        error = openai.BadRequestError("Bad Request", response=response, body=body)
+        stream_mock = AsyncStreamMock([tool_chunk], error=error)
+
+        with patch.object(
+            provider._client.chat.completions,
+            "create",
+            new_callable=AsyncMock,
+            return_value=stream_mock,
+        ):
+            events = [
+                e
+                async for e in provider.stream_response(
+                    request,
+                    request_id="REQ_TOOL_BODY",
+                )
+            ]
+
+        event_text = "".join(events)
+        assert "tool_use" in event_text
+        assert "event: error\n" in event_text
+        assert "bad after tool" in event_text
+        assert "Request ID: REQ_TOOL_BODY" in event_text
+        _assert_error_not_in_text_deltas_after_tool(events, "bad after tool")
 
     @pytest.mark.asyncio
     async def test_stream_rate_limited_retries_via_execute_with_retry(self):

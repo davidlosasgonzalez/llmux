@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterator
 from typing import Any
 
-from core.anthropic import append_request_id, iter_provider_stream_error_sse_events
+from core.anthropic import iter_provider_stream_error_sse_events
 from core.anthropic.native_sse_block_policy import (
     NativeSseBlockPolicyState,
     is_terminal_openrouter_done_event,
@@ -102,10 +102,6 @@ class OpenRouterProvider(AnthropicMessagesTransport):
                 event, state, thinking_enabled=thinking_enabled
             )
         return event
-
-    def _format_error_message(self, base_message: str, request_id: str | None) -> str:
-        """Keep OpenRouter's existing request-id suffix format."""
-        return append_request_id(base_message, request_id)
 
     def _emit_error_events(
         self,

@@ -20,12 +20,12 @@ from core.anthropic import (
     HeuristicToolParser,
     SSEBuilder,
     ThinkTagParser,
-    append_request_id,
     map_stop_reason,
 )
 from core.trace import provider_chat_body_snapshot, trace_event
 from providers.base import BaseProvider, ProviderConfig
 from providers.error_mapping import (
+    extract_provider_error_detail,
     map_error,
     user_visible_message_for_mapped_provider_error,
 )
@@ -466,8 +466,10 @@ class OpenAIChatTransport(BaseProvider):
                     mapped_e,
                     provider_name=tag,
                     read_timeout_s=self._config.http_read_timeout,
+                    detail=extract_provider_error_detail(e),
+                    request_id=request_id,
                 )
-                error_message = append_request_id(base_message, request_id)
+                error_message = base_message
                 trace_event(
                     stage="provider",
                     event="provider.response.error",
