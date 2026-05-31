@@ -7,6 +7,7 @@ import pytest
 
 from providers.base import ProviderConfig
 from providers.gemini import GEMINI_DEFAULT_BASE, GeminiProvider
+from providers.gemini.request import GEMINI_SKIP_THOUGHT_SIGNATURE_VALIDATOR
 
 
 class MockMessage:
@@ -194,6 +195,137 @@ def test_build_request_body_merges_caller_nested_google(gemini_provider):
     assert thinking_config.get("include_thoughts") is True
 
 
+def test_build_request_body_preserves_tool_call_extra_content(gemini_provider):
+    req = MockRequest(
+        system=None,
+        messages=[
+            MockMessage("user", "Find files"),
+            MockMessage(
+                "assistant",
+                [
+                    {
+                        "type": "tool_use",
+                        "id": "function-call-1",
+                        "name": "Glob",
+                        "input": {"pattern": "*.py"},
+                        "extra_content": {
+                            "google": {"thought_signature": "sig-from-client"}
+                        },
+                    }
+                ],
+            ),
+            MockMessage(
+                "user",
+                [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "function-call-1",
+                        "content": "[]",
+                    }
+                ],
+            ),
+        ],
+    )
+
+    body = gemini_provider._build_request_body(req)
+
+    tool_call = body["messages"][1]["tool_calls"][0]
+    assert tool_call["extra_content"] == {
+        "google": {"thought_signature": "sig-from-client"}
+    }
+
+
+def test_build_request_body_uses_cached_tool_call_signature(gemini_provider):
+    gemini_provider._record_tool_call_extra_content(
+        "function-call-1", {"google": {"thought_signature": "sig-from-cache"}}
+    )
+    req = MockRequest(
+        system=None,
+        messages=[
+            MockMessage("user", "Find files"),
+            MockMessage(
+                "assistant",
+                [
+                    {
+                        "type": "tool_use",
+                        "id": "function-call-1",
+                        "name": "Glob",
+                        "input": {"pattern": "*.py"},
+                    }
+                ],
+            ),
+            MockMessage(
+                "user",
+                [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "function-call-1",
+                        "content": "[]",
+                    }
+                ],
+            ),
+        ],
+    )
+
+    body = gemini_provider._build_request_body(req)
+
+    tool_call = body["messages"][1]["tool_calls"][0]
+    assert tool_call["extra_content"] == {
+        "google": {"thought_signature": "sig-from-cache"}
+    }
+
+
+def test_build_request_body_adds_gemini3_current_turn_fallback_signature(
+    gemini_provider,
+):
+    req = MockRequest(
+        system=None,
+        messages=[
+            MockMessage("user", "Find files"),
+            MockMessage(
+                "assistant",
+                [
+                    {
+                        "type": "tool_use",
+                        "id": "function-call-1",
+                        "name": "Glob",
+                        "input": {"pattern": "*.py"},
+                    },
+                    {
+                        "type": "tool_use",
+                        "id": "function-call-2",
+                        "name": "Read",
+                        "input": {"file_path": "a.py"},
+                    },
+                ],
+            ),
+            MockMessage(
+                "user",
+                [
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "function-call-1",
+                        "content": "[]",
+                    },
+                    {
+                        "type": "tool_result",
+                        "tool_use_id": "function-call-2",
+                        "content": "contents",
+                    },
+                ],
+            ),
+        ],
+    )
+
+    body = gemini_provider._build_request_body(req)
+
+    tool_calls = body["messages"][1]["tool_calls"]
+    assert tool_calls[0]["extra_content"] == {
+        "google": {"thought_signature": GEMINI_SKIP_THOUGHT_SIGNATURE_VALIDATOR}
+    }
+    assert "extra_content" not in tool_calls[1]
+
+
 @pytest.mark.asyncio
 async def test_stream_response_text(gemini_provider):
     req = MockRequest()
@@ -235,6 +367,54 @@ async def test_stream_response_text(gemini_provider):
         thinking_config = google.get("thinking_config")
         assert isinstance(thinking_config, dict)
         assert thinking_config.get("include_thoughts") is True
+
+
+@pytest.mark.asyncio
+async def test_stream_response_preserves_tool_call_extra_content(gemini_provider):
+    req = MockRequest()
+
+    mock_tc = MagicMock()
+    mock_tc.index = 0
+    mock_tc.id = "function-call-1"
+    mock_tc.extra_content = {"google": {"thought_signature": "sig-stream"}}
+    mock_tc.function = MagicMock()
+    mock_tc.function.name = "Glob"
+    mock_tc.function.arguments = '{"pattern":"*.py"}'
+
+    mock_chunk = MagicMock()
+    mock_chunk.choices = [
+        MagicMock(
+            delta=MagicMock(
+                content=None,
+                reasoning_content=None,
+                tool_calls=[mock_tc],
+            ),
+            finish_reason="tool_calls",
+        )
+    ]
+    mock_chunk.usage = MagicMock(completion_tokens=5, prompt_tokens=10)
+
+    async def mock_stream():
+        yield mock_chunk
+
+    with patch.object(
+        gemini_provider._client.chat.completions, "create", new_callable=AsyncMock
+    ) as mock_create:
+        mock_create.return_value = mock_stream()
+
+        events = [event async for event in gemini_provider.stream_response(req)]
+
+    tool_starts = [
+        event
+        for event in events
+        if '"content_block_start"' in event and '"tool_use"' in event
+    ]
+    assert any(
+        '"extra_content"' in event and "sig-stream" in event for event in tool_starts
+    )
+    assert gemini_provider._tool_call_extra_content_by_id["function-call-1"] == {
+        "google": {"thought_signature": "sig-stream"}
+    }
 
 
 @pytest.mark.asyncio

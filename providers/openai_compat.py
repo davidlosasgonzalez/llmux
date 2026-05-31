@@ -57,6 +57,30 @@ def _iter_heuristic_tool_use_sse(
     yield sse.content_block_stop(block_idx)
 
 
+def _tool_call_extra_content(tool_call: Any) -> dict[str, Any] | None:
+    if isinstance(tool_call, dict):
+        value = tool_call.get("extra_content")
+        return value if isinstance(value, dict) else None
+
+    value = getattr(tool_call, "extra_content", None)
+    if isinstance(value, dict):
+        return value
+
+    model_extra = getattr(tool_call, "model_extra", None)
+    if isinstance(model_extra, dict):
+        value = model_extra.get("extra_content")
+        if isinstance(value, dict):
+            return value
+
+    pydantic_extra = getattr(tool_call, "__pydantic_extra__", None)
+    if isinstance(pydantic_extra, dict):
+        value = pydantic_extra.get("extra_content")
+        if isinstance(value, dict):
+            return value
+
+    return None
+
+
 class OpenAIChatTransport(BaseProvider):
     """Base for OpenAI-compatible ``/chat/completions`` adapters (NIM, …)."""
 
@@ -132,6 +156,11 @@ class OpenAIChatTransport(BaseProvider):
     def _prepare_create_body(self, body: dict[str, Any]) -> dict[str, Any]:
         """Return the body passed to the upstream OpenAI-compatible client."""
         return body
+
+    def _record_tool_call_extra_content(
+        self, tool_call_id: str, extra_content: dict[str, Any]
+    ) -> None:
+        """Hook for providers that must replay OpenAI tool-call metadata later."""
 
     def _tool_argument_aliases(self, body: dict[str, Any]) -> dict[str, dict[str, str]]:
         """Return provider-specific per-tool argument aliases for this request."""
@@ -246,6 +275,15 @@ class OpenAIChatTransport(BaseProvider):
         if tc.get("id") is not None:
             sse.blocks.set_stream_tool_id(tc_index, tc.get("id"))
 
+        raw_extra_content = tc.get("extra_content")
+        extra_content = (
+            raw_extra_content
+            if isinstance(raw_extra_content, dict) and raw_extra_content
+            else None
+        )
+        if extra_content:
+            sse.blocks.set_tool_extra_content(tc_index, extra_content)
+
         if incoming_name is not None:
             sse.blocks.register_tool_name(tc_index, incoming_name)
 
@@ -260,7 +298,15 @@ class OpenAIChatTransport(BaseProvider):
             if name_ok:
                 tool_id = str(resolved_id) if resolved_id else f"tool_{uuid.uuid4()}"
                 display_name = (resolved_name or "").strip() or "tool_call"
-                yield sse.start_tool_block(tc_index, tool_id, display_name)
+                start_extra_content = state.extra_content if state else extra_content
+                if start_extra_content:
+                    self._record_tool_call_extra_content(tool_id, start_extra_content)
+                yield sse.start_tool_block(
+                    tc_index,
+                    tool_id,
+                    display_name,
+                    extra_content=start_extra_content,
+                )
                 state = sse.blocks.tool_states[tc_index]
                 if state.pre_start_args:
                     pre = state.pre_start_args
@@ -274,6 +320,8 @@ class OpenAIChatTransport(BaseProvider):
                     )
 
         state = sse.blocks.tool_states.get(tc_index)
+        if state is not None and state.tool_id and extra_content:
+            self._record_tool_call_extra_content(state.tool_id, extra_content)
         if not arguments:
             return
         if state is None or not state.started:
@@ -441,6 +489,7 @@ class OpenAIChatTransport(BaseProvider):
                         for event in sse.close_content_blocks():
                             yield event
                         for tc in delta.tool_calls:
+                            extra_content = _tool_call_extra_content(tc)
                             tc_info = {
                                 "index": tc.index,
                                 "id": tc.id,
@@ -449,6 +498,8 @@ class OpenAIChatTransport(BaseProvider):
                                     "arguments": tc.function.arguments,
                                 },
                             }
+                            if extra_content:
+                                tc_info["extra_content"] = extra_content
                             for event in self._process_tool_call(
                                 tc_info,
                                 sse,

@@ -342,6 +342,24 @@ def test_convert_assistant_message_tool_use():
     assert json.loads(tc["function"]["arguments"]) == {"query": "python"}
 
 
+def test_convert_assistant_tool_use_preserves_extra_content():
+    content = [
+        MockBlock(
+            type="tool_use",
+            id="call_1",
+            name="search",
+            input={"query": "python"},
+            extra_content={"google": {"thought_signature": "sig"}},
+        ),
+    ]
+    messages = [MockMessage("assistant", content)]
+    result = AnthropicToOpenAIConverter.convert_messages(messages)
+
+    assert result[0]["tool_calls"][0]["extra_content"] == {
+        "google": {"thought_signature": "sig"}
+    }
+
+
 def test_convert_assistant_message_empty_content():
     # Verify that empty content becomes a single space (NIM requirement)
     # if no tool calls are present.

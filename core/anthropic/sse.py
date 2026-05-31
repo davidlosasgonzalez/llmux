@@ -4,6 +4,7 @@ import hashlib
 import json
 from collections.abc import Iterator
 from dataclasses import dataclass, field
+from typing import Any
 
 from loguru import logger
 
@@ -54,6 +55,7 @@ class ToolCallState:
     block_index: int
     tool_id: str
     name: str
+    extra_content: dict[str, Any] | None = None
     contents: list[str] = field(default_factory=list)
     started: bool = False
     task_arg_buffer: str = ""
@@ -89,6 +91,15 @@ class ContentBlockManager:
             return
         state = self.ensure_tool_state(index)
         state.tool_id = str(tool_id)
+
+    def set_tool_extra_content(
+        self, index: int, extra_content: dict[str, Any] | None
+    ) -> None:
+        """Record provider-specific OpenAI tool-call metadata before block start."""
+        if not extra_content:
+            return
+        state = self.ensure_tool_state(index)
+        state.extra_content = extra_content
 
     def register_tool_name(self, index: int, name: str) -> None:
         """Record tool name fragments as they arrive from chunked OpenAI streams.
@@ -237,6 +248,9 @@ class SSEBuilder:
             content_block["id"] = kwargs.get("id", "")
             content_block["name"] = kwargs.get("name", "")
             content_block["input"] = kwargs.get("input", {})
+            extra_content = kwargs.get("extra_content")
+            if isinstance(extra_content, dict) and extra_content:
+                content_block["extra_content"] = extra_content
 
         return self._format_event(
             "content_block_start",
@@ -302,21 +316,37 @@ class SSEBuilder:
         self.blocks.text_started = False
         return self.content_block_stop(self.blocks.text_index)
 
-    def start_tool_block(self, tool_index: int, tool_id: str, name: str) -> str:
+    def start_tool_block(
+        self,
+        tool_index: int,
+        tool_id: str,
+        name: str,
+        *,
+        extra_content: dict[str, Any] | None = None,
+    ) -> str:
         block_idx = self.blocks.allocate_index()
         if tool_index in self.blocks.tool_states:
             state = self.blocks.tool_states[tool_index]
             state.block_index = block_idx
             state.tool_id = tool_id
+            if extra_content:
+                state.extra_content = extra_content
             state.started = True
         else:
             self.blocks.tool_states[tool_index] = ToolCallState(
                 block_index=block_idx,
                 tool_id=tool_id,
                 name=name,
+                extra_content=extra_content,
                 started=True,
             )
-        return self.content_block_start(block_idx, "tool_use", id=tool_id, name=name)
+        return self.content_block_start(
+            block_idx,
+            "tool_use",
+            id=tool_id,
+            name=name,
+            extra_content=extra_content,
+        )
 
     def emit_tool_delta(self, tool_index: int, partial_json: str) -> str:
         state = self.blocks.tool_states[tool_index]

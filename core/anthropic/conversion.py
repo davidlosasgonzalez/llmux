@@ -1,6 +1,7 @@
 """Message and tool format converters."""
 
 import json
+from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Any
@@ -83,6 +84,24 @@ def _think_tag_content(reasoning: str) -> str:
     return f"<think>\n{reasoning}\n</think>"
 
 
+def _tool_call_from_tool_use(block: Any) -> dict[str, Any]:
+    tool_input = get_block_attr(block, "input", {})
+    tool_call: dict[str, Any] = {
+        "id": get_block_attr(block, "id"),
+        "type": "function",
+        "function": {
+            "name": get_block_attr(block, "name"),
+            "arguments": json.dumps(tool_input)
+            if isinstance(tool_input, dict)
+            else str(tool_input),
+        },
+    }
+    extra_content = get_block_attr(block, "extra_content", None)
+    if isinstance(extra_content, dict) and extra_content:
+        tool_call["extra_content"] = deepcopy(extra_content)
+    return tool_call
+
+
 @dataclass
 class _PendingAfterTools:
     """Assistant content that appears after ``tool_use`` in an Anthropic message.
@@ -112,23 +131,11 @@ def _index_first_tool_use(blocks: list[Any]) -> int | None:
 
 
 def _iter_tool_uses_in_order(blocks: list[Any]) -> list[dict[str, Any]]:
-    tool_calls: list[dict[str, Any]] = []
-    for block in blocks:
-        if get_block_type(block) == "tool_use":
-            tool_input = get_block_attr(block, "input", {})
-            tool_calls.append(
-                {
-                    "id": get_block_attr(block, "id"),
-                    "type": "function",
-                    "function": {
-                        "name": get_block_attr(block, "name"),
-                        "arguments": json.dumps(tool_input)
-                        if isinstance(tool_input, dict)
-                        else str(tool_input),
-                    },
-                }
-            )
-    return tool_calls
+    return [
+        _tool_call_from_tool_use(block)
+        for block in blocks
+        if get_block_type(block) == "tool_use"
+    ]
 
 
 def _deferred_post_tool_blocks(
@@ -362,19 +369,7 @@ class AnthropicToOpenAIConverter:
                 # or reasoning_content for OpenAI chat upstreams.
                 continue
             elif block_type == "tool_use":
-                tool_input = get_block_attr(block, "input", {})
-                tool_calls.append(
-                    {
-                        "id": get_block_attr(block, "id"),
-                        "type": "function",
-                        "function": {
-                            "name": get_block_attr(block, "name"),
-                            "arguments": json.dumps(tool_input)
-                            if isinstance(tool_input, dict)
-                            else str(tool_input),
-                        },
-                    }
-                )
+                tool_calls.append(_tool_call_from_tool_use(block))
             else:
                 _assert_no_forbidden_assistant_block(block)
 

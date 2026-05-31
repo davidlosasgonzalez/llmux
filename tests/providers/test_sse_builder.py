@@ -173,6 +173,22 @@ class TestSSEBuilderContentBlocks:
         assert data["content_block"]["name"] == "Read"
         assert data["content_block"]["input"] == {}
 
+    def test_content_block_start_tool_use_extra_content(self):
+        builder = SSEBuilder("msg_1", "model")
+        sse = builder.content_block_start(
+            2,
+            "tool_use",
+            id="tool_123",
+            name="Read",
+            input={},
+            extra_content={"google": {"thought_signature": "sig"}},
+        )
+
+        data = _parse_sse(sse)
+        assert data["content_block"]["extra_content"] == {
+            "google": {"thought_signature": "sig"}
+        }
+
     def test_content_block_delta_text(self):
         builder = SSEBuilder("msg_1", "model")
         sse = builder.content_block_delta(0, "text_delta", "hello world")
