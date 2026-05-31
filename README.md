@@ -48,7 +48,7 @@ Free Claude Code routes Anthropic Messages API traffic from Claude Code to any p
 
 ## Quick Start
 
-### 1. Install/Update Free Claude Code
+### 1. Install/Update The Proxy
 
 macOS/Linux:
 
