@@ -1,7 +1,9 @@
 """FastAPI application factory and configuration."""
 
+import os
 import traceback
 from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -85,9 +87,8 @@ class GracefulLifespanApp:
 def create_app(*, lifespan_enabled: bool = True) -> FastAPI:
     """Create and configure the FastAPI application."""
     settings = get_settings()
-    configure_logging(
-        server_log_path(), verbose_third_party=settings.log_raw_api_payloads
-    )
+    log_path = Path(os.getenv("LOG_FILE", server_log_path()))
+    configure_logging(log_path, verbose_third_party=settings.log_raw_api_payloads)
 
     app_kwargs: dict[str, Any] = {
         "title": "Claude Code Proxy",

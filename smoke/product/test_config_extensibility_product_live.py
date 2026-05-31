@@ -138,17 +138,26 @@ def test_proxy_timeout_config_e2e(smoke_config: SmokeConfig, tmp_path) -> None:
 
 @pytest.mark.smoke_target("extensibility")
 def test_provider_registry_e2e() -> None:
-    settings = Settings(
-        open_router_api_key="openrouter-key",
-        deepseek_api_key="deepseek-key",
-        nvidia_nim_api_key="nim-key",
-        lm_studio_base_url="http://localhost:1234/v1",
-        llamacpp_base_url="http://localhost:8080/v1",
-    )
+    settings_kwargs: dict[str, str] = {}
+    for descriptor in PROVIDER_DESCRIPTORS.values():
+        if descriptor.credential_attr is not None:
+            settings_kwargs[_settings_init_key(descriptor.credential_attr)] = (
+                f"{descriptor.provider_id}-key"
+            )
+        if descriptor.base_url_attr is not None and descriptor.default_base_url:
+            settings_kwargs[_settings_init_key(descriptor.base_url_attr)] = (
+                descriptor.default_base_url
+            )
+    settings = Settings.model_validate(settings_kwargs)
     for descriptor in PROVIDER_DESCRIPTORS.values():
         config = build_provider_config(descriptor, settings)
         assert config.base_url
         assert config.api_key
+
+
+def _settings_init_key(field_name: str) -> str:
+    alias = Settings.model_fields[field_name].validation_alias
+    return alias if isinstance(alias, str) else field_name
 
 
 @pytest.mark.smoke_target("extensibility")

@@ -412,7 +412,7 @@ FIELDS: tuple[ConfigFieldSpec, ...] = (
         "Default Model",
         "models",
         settings_attr="model",
-        default="nvidia_nim/z-ai/glm4.7",
+        default="nvidia_nim/nvidia/nemotron-3-super-120b-a12b",
         description="Fallback provider/model route for all Claude model names.",
     ),
     ConfigFieldSpec(

@@ -17,7 +17,7 @@ class MockMessage:
 
 class MockRequest:
     def __init__(self, **kwargs):
-        self.model = "gemini-2.5-flash"
+        self.model = "models/gemini-3.1-flash-lite"
         self.messages = [MockMessage("user", "Hello")]
         self.max_tokens = 100
         self.temperature = 0.5
@@ -97,7 +97,7 @@ def test_build_request_body_basic(gemini_provider):
     req = MockRequest()
     body = gemini_provider._build_request_body(req)
 
-    assert body["model"] == "gemini-2.5-flash"
+    assert body["model"] == "models/gemini-3.1-flash-lite"
     assert body["messages"][0]["role"] == "system"
     assert "reasoning_effort" not in body
     eb = body.get("extra_body")

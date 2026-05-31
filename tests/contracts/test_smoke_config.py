@@ -147,7 +147,9 @@ def test_provider_smoke_model_override_accepts_model_name_without_prefix(
 def test_provider_smoke_model_override_accepts_owner_model_name(
     monkeypatch,
 ) -> None:
-    monkeypatch.setenv("FCC_SMOKE_MODEL_NVIDIA_NIM", "z-ai/glm4.7")
+    monkeypatch.setenv(
+        "FCC_SMOKE_MODEL_NVIDIA_NIM", "nvidia/nemotron-3-super-120b-a12b"
+    )
     config = _smoke_config(
         settings=_settings(
             model="deepseek/deepseek-chat",
@@ -160,7 +162,7 @@ def test_provider_smoke_model_override_accepts_owner_model_name(
 
     models = config.provider_smoke_models()
 
-    assert models[0].full_model == "nvidia_nim/z-ai/glm4.7"
+    assert models[0].full_model == "nvidia_nim/nvidia/nemotron-3-super-120b-a12b"
     assert models[0].source == "FCC_SMOKE_MODEL_NVIDIA_NIM"
 
 

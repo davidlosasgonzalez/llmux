@@ -32,7 +32,7 @@ class TestSettings:
         monkeypatch.delenv("HTTP_CONNECT_TIMEOUT", raising=False)
         monkeypatch.setitem(Settings.model_config, "env_file", ())
         settings = Settings()
-        assert settings.model == "nvidia_nim/z-ai/glm4.7"
+        assert settings.model == "nvidia_nim/nvidia/nemotron-3-super-120b-a12b"
         assert isinstance(settings.provider_rate_limit, int)
         assert isinstance(settings.provider_rate_window, int)
         assert isinstance(settings.nim.temperature, float)
@@ -770,7 +770,10 @@ class TestPerModelMapping:
         assert Settings.parse_provider_type("llamacpp/model") == "llamacpp"
         assert Settings.parse_provider_type("ollama/llama3.1") == "ollama"
         assert Settings.parse_provider_type("wafer/DeepSeek-V4-Pro") == "wafer"
-        assert Settings.parse_provider_type("gemini/gemini-2.5-flash") == "gemini"
+        assert (
+            Settings.parse_provider_type("gemini/models/gemini-3.1-flash-lite")
+            == "gemini"
+        )
         assert Settings.parse_provider_type("groq/llama-3.3-70b-versatile") == "groq"
         assert Settings.parse_provider_type("cerebras/llama3.1-8b") == "cerebras"
 
@@ -793,7 +796,8 @@ class TestPerModelMapping:
         assert Settings.parse_model_name("ollama/llama3.1") == "llama3.1"
         assert Settings.parse_model_name("wafer/DeepSeek-V4-Pro") == "DeepSeek-V4-Pro"
         assert (
-            Settings.parse_model_name("gemini/gemini-2.5-flash") == "gemini-2.5-flash"
+            Settings.parse_model_name("gemini/models/gemini-3.1-flash-lite")
+            == "models/gemini-3.1-flash-lite"
         )
         assert (
             Settings.parse_model_name("groq/llama-3.3-70b-versatile")

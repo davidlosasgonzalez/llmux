@@ -30,7 +30,7 @@ def test_entrypoint_init_e2e(smoke_config: SmokeConfig, tmp_path: Path) -> None:
         check=False,
     )
     assert result.returncode == 0, result.stderr or result.stdout
-    env_file = tmp_path / ".config" / "free-claude-code" / ".env"
+    env_file = tmp_path / ".fcc" / ".env"
     assert env_file.is_file()
     assert env_file.read_text(encoding="utf-8").strip()
 
@@ -91,8 +91,9 @@ async def test_cli_session_stop_kills_child_e2e(tmp_path: Path) -> None:
     process.wait = AsyncMock(side_effect=[asyncio.TimeoutError, 0])
     session.process = process
 
-    stopped = await session.stop()
+    with patch("cli.session.kill_pid_tree_best_effort") as kill_tree:
+        stopped = await session.stop()
 
     assert stopped is True
-    process.terminate.assert_called_once()
+    kill_tree.assert_called_once_with(process.pid)
     process.kill.assert_called_once()

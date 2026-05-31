@@ -219,7 +219,7 @@ def test_admin_apply_writes_gemini_key_and_masks_preview(monkeypatch, tmp_path):
         "/admin/api/config/apply",
         json={
             "values": {
-                "MODEL": "gemini/gemini-2.5-flash",
+                "MODEL": "gemini/models/gemini-3.1-flash-lite",
                 "GEMINI_API_KEY": "gm-secret",
             }
         },
@@ -231,7 +231,7 @@ def test_admin_apply_writes_gemini_key_and_masks_preview(monkeypatch, tmp_path):
     assert "GEMINI_API_KEY=********" in body["env_preview"]
     env_file = tmp_path / ".fcc" / ".env"
     text = env_file.read_text(encoding="utf-8")
-    assert "MODEL=gemini/gemini-2.5-flash" in text
+    assert "MODEL=gemini/models/gemini-3.1-flash-lite" in text
     assert "GEMINI_API_KEY=gm-secret" in text
 
 

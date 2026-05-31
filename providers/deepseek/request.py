@@ -395,6 +395,7 @@ def build_request_body(request_data: Any, *, thinking_enabled: bool) -> dict:
         data["messages"] = _strip_unsupported_attachment_blocks(data["messages"])
     _validate_deepseek_native_request_dict(data)
     data.pop("extra_body", None)
+    _downgrade_forced_tool_choice(data)
 
     has_tool_history = _has_tool_history(data)
     has_replayable_tool_thinking = _has_replayable_tool_thinking(data)
@@ -456,3 +457,19 @@ def build_request_body(request_data: Any, *, thinking_enabled: bool) -> dict:
         len(data.get("tools", [])),
     )
     return data
+
+
+def _downgrade_forced_tool_choice(data: dict[str, Any]) -> None:
+    tool_choice = data.get("tool_choice")
+    if not isinstance(tool_choice, dict):
+        return
+    if tool_choice.get("type") != "tool" or not isinstance(
+        tool_choice.get("name"), str
+    ):
+        return
+    logger.debug(
+        "DEEPSEEK_REQUEST: downgrading forced tool_choice to auto for unsupported "
+        "native request shape tool={}",
+        tool_choice["name"],
+    )
+    data["tool_choice"] = {"type": "auto"}

@@ -31,6 +31,8 @@ _UPSTREAM_UNAVAILABLE_MARKERS = (
     "overloaded",
     "capacity",
     "upstream provider",
+    "provider api request failed",
+    "httpstatuserror",
 )
 _HTTP_429_PATTERNS = (
     r'HTTP/1\.[01]" 429\b',
@@ -694,7 +696,15 @@ def _has_proxy_regression(log_delta: str) -> bool:
 
 
 def _has_proxy_request(log_delta: str) -> bool:
-    return "POST /v1/messages" in log_delta or "API_REQUEST:" in log_delta
+    return (
+        "POST /v1/messages" in log_delta
+        or "API_REQUEST:" in log_delta
+        or '"event": "api.request.received"' in log_delta
+        or (
+            '"http_method": "POST"' in log_delta
+            and '"http_path": "/v1/messages"' in log_delta
+        )
+    )
 
 
 def _tool_catalog_has(log_delta: str, tool_name: str) -> bool:
@@ -755,7 +765,8 @@ def _has_upstream_unavailable_text(text: str) -> bool:
 def _request_count(log_delta: str) -> int:
     access_log_count = log_delta.count("POST /v1/messages")
     service_log_count = log_delta.count("API_REQUEST:")
-    return max(access_log_count, service_log_count)
+    structured_log_count = log_delta.count('"event": "api.request.received"')
+    return max(access_log_count, service_log_count, structured_log_count)
 
 
 def _marker(scope: str, prefix: str) -> str:

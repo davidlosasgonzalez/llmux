@@ -234,7 +234,8 @@ class OpenAIChatTransport(BaseProvider):
         tool_argument_alias_buffers: dict[int, str] | None = None,
     ) -> Iterator[str]:
         """Process a single tool call delta and yield SSE events."""
-        tc_index = tc.get("index", 0)
+        raw_index = tc.get("index", 0)
+        tc_index = raw_index if isinstance(raw_index, int) else 0
         if tc_index < 0:
             tc_index = len(sse.blocks.tool_states)
 

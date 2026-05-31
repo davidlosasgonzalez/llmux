@@ -708,6 +708,23 @@ class TestProcessToolCall:
         # Should not crash, should still emit events
         assert len(events) > 0
 
+    def test_none_tool_index_defaults_to_zero(self):
+        """Gemini may stream tool_call deltas with a null index."""
+        provider = _make_provider()
+        from core.anthropic import SSEBuilder
+
+        sse = SSEBuilder("msg_test", "test-model")
+        tc = {
+            "index": None,
+            "id": "call_none",
+            "function": {"name": "test", "arguments": "{}"},
+        }
+        events = list(provider._process_tool_call(tc, sse))
+        event_text = "".join(events)
+
+        assert "tool_use" in event_text
+        assert "call_none" in event_text
+
     def test_tool_args_emitted_as_delta(self):
         """Arguments are emitted as input_json_delta events."""
         provider = _make_provider()

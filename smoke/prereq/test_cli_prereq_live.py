@@ -31,7 +31,7 @@ def test_fcc_init_scaffolds_user_config(
         check=False,
     )
     assert result.returncode == 0, result.stderr or result.stdout
-    assert (tmp_path / ".config" / "free-claude-code" / ".env").is_file()
+    assert (tmp_path / ".fcc" / ".env").is_file()
 
 
 def test_free_claude_code_entrypoint_starts_server(smoke_config: SmokeConfig) -> None:

@@ -331,6 +331,36 @@ def test_cli_matrix_agent_prompt_text_without_tool_evidence_does_not_pass(
     assert outcome.token_evidence["agent_tool_count"] == 0
 
 
+def test_cli_matrix_structured_provider_error_is_upstream_unavailable(
+    tmp_path: Path,
+) -> None:
+    run = ClaudeCliRun(
+        command=("claude", "-p", "x"),
+        returncode=0,
+        stdout="Provider API request failed. (request_id=req_123)",
+        stderr="",
+        duration_s=0.1,
+    )
+    outcome = make_outcome(
+        model="minimax/minimax-m2.5:free",
+        full_model="open_router/minimax/minimax-m2.5:free",
+        source="openrouter_free_cli_default",
+        feature="tool_use_roundtrip",
+        marker="FCC_OPENROUTER_FREE_TOOL",
+        run=run,
+        log_delta=(
+            '{"event": "api.request.received", "http_method": "POST", '
+            '"http_path": "/v1/messages"}\n'
+            '{"event": "provider.response.error", "exc_type": "HTTPStatusError"}'
+        ),
+        log_path=tmp_path / "server.log",
+        requires_tool_result=True,
+    )
+
+    assert outcome.classification == "upstream_unavailable"
+    assert outcome.request_count == 1
+
+
 def test_nvidia_nim_cli_timeout_is_not_model_missing(
     tmp_path: Path,
 ) -> None:

@@ -644,3 +644,26 @@ def test_create_app_writes_server_log_under_fcc_home(monkeypatch, tmp_path):
     assert canonical_log.is_file()
     assert "canonical log path test" in canonical_log.read_text(encoding="utf-8")
     assert not (run_dir / "logs" / "server.log").exists()
+
+
+def test_create_app_honors_process_log_file_override(monkeypatch, tmp_path):
+    """Smoke subprocesses can redirect app logs without changing Settings."""
+    from loguru import logger
+
+    import config.logging_config as logging_config_mod
+    from api.app import create_app
+    from config.paths import server_log_path
+
+    custom_log = tmp_path / "smoke" / "server.log"
+    monkeypatch.setenv("HOME", str(tmp_path))
+    monkeypatch.setenv("USERPROFILE", str(tmp_path))
+    monkeypatch.setenv("LOG_FILE", str(custom_log))
+    monkeypatch.setattr(logging_config_mod, "_configured", False)
+
+    create_app(lifespan_enabled=False)
+    logger.info("process log path test")
+    logger.complete()
+
+    assert custom_log.is_file()
+    assert "process log path test" in custom_log.read_text(encoding="utf-8")
+    assert not server_log_path().exists()

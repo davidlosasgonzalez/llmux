@@ -25,7 +25,7 @@ class MockMessage:
 
 class MockRequest:
     def __init__(self, **kwargs):
-        self.model = "stepfun/step-3.5-flash:free"
+        self.model = "moonshotai/kimi-k2.6:free"
         self.messages = [MockMessage("user", "Hello")]
         self.max_tokens = 100
         self.temperature = 0.5
@@ -132,7 +132,7 @@ def test_build_request_body_is_native_anthropic(open_router_provider):
     req = MockRequest()
     body = open_router_provider._build_request_body(req)
 
-    assert body["model"] == "stepfun/step-3.5-flash:free"
+    assert body["model"] == "moonshotai/kimi-k2.6:free"
     assert body["temperature"] == 0.5
     assert body["stream"] is True
     assert body["messages"] == [{"role": "user", "content": "Hello"}]

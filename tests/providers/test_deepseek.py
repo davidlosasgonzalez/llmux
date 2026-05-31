@@ -154,6 +154,31 @@ def test_build_request_body_tool_choice_keeps_thinking(deepseek_provider):
     assert body["tool_choice"] == {"type": "auto"}
 
 
+def test_build_request_body_forced_tool_choice_downgrades_to_auto(
+    deepseek_provider,
+):
+    request = MessagesRequest.model_validate(
+        {
+            "model": "m",
+            "messages": [{"role": "user", "content": "x"}],
+            "tool_choice": {"type": "tool", "name": "Read"},
+            "tools": [
+                {
+                    "name": "Read",
+                    "description": "Read a file",
+                    "input_schema": {"type": "object", "properties": {}},
+                }
+            ],
+            "thinking": {"type": "enabled", "budget_tokens": 2000},
+        }
+    )
+
+    body = deepseek_provider._build_request_body(request)
+
+    assert body["thinking"] == {"type": "enabled", "budget_tokens": 2000}
+    assert body["tool_choice"] == {"type": "auto"}
+
+
 def test_build_request_body_respects_global_thinking_disable():
     provider = DeepSeekProvider(
         ProviderConfig(
