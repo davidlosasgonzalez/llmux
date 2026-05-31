@@ -294,9 +294,18 @@ async def test_stream_response_thinking_reasoning_content(nim_provider):
         )
     ]
     mock_chunk.usage = None
+    stop_chunk = MagicMock()
+    stop_chunk.choices = [
+        MagicMock(
+            delta=MagicMock(content=None, reasoning_content=None, tool_calls=None),
+            finish_reason="stop",
+        )
+    ]
+    stop_chunk.usage = None
 
     async def mock_stream():
         yield mock_chunk
+        yield stop_chunk
 
     with patch.object(
         nim_provider._client.chat.completions, "create", new_callable=AsyncMock

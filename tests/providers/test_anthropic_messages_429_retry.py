@@ -41,6 +41,9 @@ async def test_native_stream_retries_on_http_429_then_streams(provider_config):
             "event: message_start",
             'data: {"type":"message_start"}',
             "",
+            "event: message_stop",
+            'data: {"type":"message_stop"}',
+            "",
         ]
         ok_response = FakeResponse(lines=ok_lines)
         too_many = FakeResponse(status_code=429, text="rate limited")
@@ -75,6 +78,9 @@ async def test_native_stream_retries_on_http_429_then_streams(provider_config):
             "event: message_start\n",
             'data: {"type":"message_start"}\n',
             "\n",
+            "event: message_stop\n",
+            'data: {"type":"message_stop"}\n',
+            "\n",
         ]
     finally:
         GlobalRateLimiter.reset_instance()
@@ -94,6 +100,9 @@ async def test_native_stream_retries_on_http_5xx_then_streams(
         ok_lines = [
             "event: message_start",
             'data: {"type":"message_start"}',
+            "",
+            "event: message_stop",
+            'data: {"type":"message_stop"}',
             "",
         ]
         ok_response = FakeResponse(lines=ok_lines)
@@ -128,6 +137,9 @@ async def test_native_stream_retries_on_http_5xx_then_streams(
         assert events == [
             "event: message_start\n",
             'data: {"type":"message_start"}\n',
+            "\n",
+            "event: message_stop\n",
+            'data: {"type":"message_stop"}\n',
             "\n",
         ]
     finally:

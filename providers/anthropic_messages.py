@@ -23,6 +23,20 @@ from core.anthropic.native_sse_block_policy import (
     NativeSseBlockPolicyState,
     transform_native_sse_block_event,
 )
+from core.anthropic.stream_contracts import parse_sse_text
+from core.anthropic.stream_recovery import (
+    EARLY_TRANSPARENT_RETRIES,
+    MIDSTREAM_RECOVERY_ATTEMPTS,
+    RecoveryHoldbackBuffer,
+    TruncatedProviderStreamError,
+    accept_tool_json_repair,
+    continuation_suffix,
+    is_retryable_stream_error,
+    make_native_text_recovery_body,
+    make_native_tool_repair_body,
+    parse_complete_tool_input,
+    tool_schemas_by_name,
+)
 from core.trace import provider_native_messages_body_snapshot, trace_event
 from providers.base import BaseProvider, ProviderConfig
 from providers.error_mapping import (
@@ -290,6 +304,19 @@ class AnthropicMessagesTransport(BaseProvider):
         )
         return base_message
 
+    async def _validated_stream_send(
+        self, body: dict, *, req_tag: str
+    ) -> httpx.Response:
+        """Send request and raise mapped HTTP errors before yielding body chunks."""
+        send_response = await self._send_stream_request(body)
+        if send_response.status_code != 200:
+            try:
+                await self._raise_for_status(send_response, req_tag=req_tag)
+            finally:
+                if not send_response.is_closed:
+                    await _maybe_await_aclose(send_response)
+        return send_response
+
     def _emit_error_events(
         self,
         *,
@@ -344,6 +371,168 @@ class AnthropicMessagesTransport(BaseProvider):
             if output_event is not None:
                 yield output_event
 
+    async def _collect_native_recovery_text(
+        self,
+        body: dict[str, Any],
+        *,
+        req_tag: str,
+        thinking_enabled: bool,
+    ) -> tuple[str, str]:
+        """Collect text/thinking from an internal native recovery request."""
+        last_error: Exception | None = None
+        for attempt in range(MIDSTREAM_RECOVERY_ATTEMPTS):
+            response: httpx.Response | None = None
+            try:
+                response = await self._global_rate_limiter.execute_with_retry(
+                    self._validated_stream_send, body, req_tag=req_tag
+                )
+                state = self._new_stream_state(None, thinking_enabled=thinking_enabled)
+                chunks = [
+                    chunk
+                    async for chunk in self._iter_stream_chunks(
+                        response,
+                        state=state,
+                        thinking_enabled=thinking_enabled,
+                    )
+                ]
+                text_parts: list[str] = []
+                thinking_parts: list[str] = []
+                for event in parse_sse_text("".join(chunks)):
+                    delta = event.data.get("delta")
+                    if not isinstance(delta, dict):
+                        continue
+                    text = delta.get("text")
+                    if isinstance(text, str):
+                        text_parts.append(text)
+                    thinking = delta.get("thinking")
+                    if isinstance(thinking, str):
+                        thinking_parts.append(thinking)
+                return "".join(text_parts), "".join(thinking_parts)
+            except Exception as error:
+                last_error = error
+                if not is_retryable_stream_error(error):
+                    raise
+                trace_event(
+                    stage="provider",
+                    event="provider.recovery.retry",
+                    source="provider",
+                    provider=self._provider_name,
+                    recovery_kind="native_text",
+                    attempt=attempt + 1,
+                    max_attempts=MIDSTREAM_RECOVERY_ATTEMPTS,
+                    exc_type=type(error).__name__,
+                )
+            finally:
+                if response is not None and not response.is_closed:
+                    await _maybe_await_aclose(response)
+        if last_error is not None:
+            raise last_error
+        return "", ""
+
+    async def _native_recovery_events(
+        self,
+        *,
+        body: dict[str, Any],
+        request: Any,
+        tracker: EmittedNativeSseTracker,
+        error: Exception,
+        request_id: str | None,
+        req_tag: str,
+        thinking_enabled: bool,
+    ) -> list[str] | None:
+        if not is_retryable_stream_error(error):
+            return None
+
+        schemas = tool_schemas_by_name(request)
+        if tracker.has_tool_block():
+            repair_events: list[str] = []
+            for index, block in enumerate(tracker.tool_blocks()):
+                if (
+                    block.tool_id
+                    and block.name
+                    and parse_complete_tool_input(block.content, block.name, schemas)
+                    is not None
+                ):
+                    continue
+                schema = schemas.get(block.name)
+                recovery_body = make_native_tool_repair_body(
+                    body,
+                    tool_name=block.name,
+                    prefix=block.content,
+                    input_schema=schema.input_schema if schema is not None else None,
+                )
+                accepted_suffix: str | None = None
+                for attempt in range(MIDSTREAM_RECOVERY_ATTEMPTS):
+                    text, _ = await self._collect_native_recovery_text(
+                        recovery_body,
+                        req_tag=req_tag,
+                        thinking_enabled=thinking_enabled,
+                    )
+                    repair = accept_tool_json_repair(
+                        block.content,
+                        text,
+                        tool_name=block.name,
+                        schemas=schemas,
+                    )
+                    if repair is not None:
+                        accepted_suffix = repair.suffix
+                        trace_event(
+                            stage="provider",
+                            event="provider.recovery.tool_repaired",
+                            source="provider",
+                            provider=self._provider_name,
+                            tool_name=block.name,
+                            attempt=attempt + 1,
+                        )
+                        break
+                if accepted_suffix is None:
+                    return None
+                repair_events.extend(
+                    tracker.append_tool_repair_suffix(index, accepted_suffix)
+                )
+
+            if not tracker.can_salvage_tool_use(schemas):
+                return None
+            events = list(repair_events)
+            events.extend(tracker.iter_success_tail("tool_use"))
+            trace_event(
+                stage="provider",
+                event="provider.recovery.tool_salvaged",
+                source="provider",
+                provider=self._provider_name,
+                request_id=request_id,
+            )
+            return events
+
+        partial_text = tracker.emitted_text()
+        partial_thinking = tracker.emitted_thinking()
+        if not partial_text and not partial_thinking:
+            return None
+        recovery_body = make_native_text_recovery_body(body, partial_text)
+        text, thinking = await self._collect_native_recovery_text(
+            recovery_body,
+            req_tag=req_tag,
+            thinking_enabled=thinking_enabled,
+        )
+        text_suffix = continuation_suffix(partial_text, text)
+        thinking_suffix = continuation_suffix(partial_thinking, thinking)
+        events: list[str] = []
+        if thinking_suffix:
+            events.extend(tracker.append_thinking_suffix(thinking_suffix))
+        if text_suffix:
+            events.extend(tracker.append_text_suffix(text_suffix))
+        if not events:
+            return None
+        events.extend(tracker.iter_success_tail("end_turn"))
+        trace_event(
+            stage="provider",
+            event="provider.recovery.continued",
+            source="provider",
+            provider=self._provider_name,
+            request_id=request_id,
+        )
+        return events
+
     async def stream_response(
         self,
         request: Any,
@@ -374,87 +563,163 @@ class AnthropicMessagesTransport(BaseProvider):
         sent_any_event = False
         state = self._new_stream_state(request, thinking_enabled=thinking_enabled)
         emitted_tracker = EmittedNativeSseTracker()
+        holdback = RecoveryHoldbackBuffer()
 
         async with self._global_rate_limiter.concurrency_slot():
-            try:
-
-                async def _validated_stream_send() -> httpx.Response:
-                    """Send request; retries apply to 429/5xx raises after structured logging."""
-                    send_response = await self._send_stream_request(body)
-                    if send_response.status_code != 200:
-                        try:
-                            await self._raise_for_status(send_response, req_tag=req_tag)
-                        finally:
-                            if not send_response.is_closed:
-                                await _maybe_await_aclose(send_response)
-                    return send_response
-
-                response = await self._global_rate_limiter.execute_with_retry(
-                    _validated_stream_send
-                )
-
-                chunk_count = 0
-                chunk_bytes = 0
-
-                async for chunk in self._iter_stream_chunks(
-                    response,
-                    state=state,
-                    thinking_enabled=thinking_enabled,
-                ):
-                    chunk_count += 1
-                    chunk_bytes += len(chunk.encode("utf-8", errors="replace"))
-                    sent_any_event = True
-                    emitted_tracker.feed(chunk)
-                    yield chunk
-
-                trace_event(
-                    stage="provider",
-                    event="provider.response.completed",
-                    source="provider",
-                    provider=self._provider_name,
-                    gateway_model=request.model,
-                    sse_chunks_out=chunk_count,
-                    sse_bytes_out=chunk_bytes,
-                )
-
-            except Exception as error:
-                if not isinstance(error, httpx.HTTPStatusError):
-                    self._log_stream_transport_error(
-                        tag, req_tag, error, request_id=request_id
+            early_retries = 0
+            while True:
+                stream_opened = False
+                try:
+                    response = await self._global_rate_limiter.execute_with_retry(
+                        self._validated_stream_send, body, req_tag=req_tag
                     )
-                error_message = self._get_error_message(error, request_id)
+                    stream_opened = True
 
-                if response is not None and not response.is_closed:
-                    await _maybe_await_aclose(response)
+                    chunk_count = 0
+                    chunk_bytes = 0
 
-                trace_event(
-                    stage="provider",
-                    event="provider.response.error",
-                    source="provider",
-                    provider=self._provider_name,
-                    error_message=error_message,
-                    exc_type=type(error).__name__,
-                    mid_stream=sent_any_event,
-                )
-                if sent_any_event:
-                    for event in emitted_tracker.iter_close_unclosed_blocks():
-                        yield event
-                    for event in emitted_tracker.iter_midstream_error_tail(
-                        error_message,
-                        request=request,
-                        input_tokens=input_tokens,
-                        log_raw_sse_events=self._config.log_raw_sse_events,
+                    async for chunk in self._iter_stream_chunks(
+                        response,
+                        state=state,
+                        thinking_enabled=thinking_enabled,
                     ):
+                        chunk_count += 1
+                        chunk_bytes += len(chunk.encode("utf-8", errors="replace"))
+                        emitted_tracker.feed(chunk)
+                        for event in holdback.push(chunk):
+                            sent_any_event = True
+                            yield event
+
+                    if not emitted_tracker.has_terminal_message():
+                        raise TruncatedProviderStreamError(
+                            "Provider stream ended without message_stop."
+                        )
+
+                    trace_event(
+                        stage="provider",
+                        event="provider.response.completed",
+                        source="provider",
+                        provider=self._provider_name,
+                        gateway_model=request.model,
+                        sse_chunks_out=chunk_count,
+                        sse_bytes_out=chunk_bytes,
+                    )
+                    for event in holdback.flush():
+                        sent_any_event = True
                         yield event
-                else:
-                    for event in self._emit_error_events(
-                        request=request,
-                        input_tokens=input_tokens,
+                    return
+
+                except Exception as error:
+                    committed = holdback.committed
+                    generated_output = emitted_tracker.has_content_block()
+                    complete_tool_salvageable = (
+                        generated_output
+                        and emitted_tracker.can_salvage_tool_use(
+                            tool_schemas_by_name(request)
+                        )
+                    )
+                    if (
+                        not committed
+                        and stream_opened
+                        and is_retryable_stream_error(error)
+                        and not complete_tool_salvageable
+                        and early_retries < EARLY_TRANSPARENT_RETRIES
+                    ):
+                        early_retries += 1
+                        holdback.discard()
+                        holdback = RecoveryHoldbackBuffer()
+                        if response is not None and not response.is_closed:
+                            await _maybe_await_aclose(response)
+                        response = None
+                        state = self._new_stream_state(
+                            request, thinking_enabled=thinking_enabled
+                        )
+                        emitted_tracker = EmittedNativeSseTracker()
+                        sent_any_event = False
+                        trace_event(
+                            stage="provider",
+                            event="provider.recovery.early_retry",
+                            source="provider",
+                            provider=self._provider_name,
+                            request_id=request_id,
+                            attempt=early_retries,
+                            max_attempts=EARLY_TRANSPARENT_RETRIES,
+                            exc_type=type(error).__name__,
+                        )
+                        continue
+
+                    if generated_output and is_retryable_stream_error(error):
+                        try:
+                            recovery_events = await self._native_recovery_events(
+                                body=body,
+                                request=request,
+                                tracker=emitted_tracker,
+                                error=error,
+                                request_id=request_id,
+                                req_tag=req_tag,
+                                thinking_enabled=thinking_enabled,
+                            )
+                        except Exception as recovery_error:
+                            trace_event(
+                                stage="provider",
+                                event="provider.recovery.failed",
+                                source="provider",
+                                provider=self._provider_name,
+                                request_id=request_id,
+                                exc_type=type(recovery_error).__name__,
+                            )
+                            recovery_events = None
+                        if recovery_events is not None:
+                            if not committed:
+                                for event in holdback.flush():
+                                    sent_any_event = True
+                                    yield event
+                            for event in recovery_events:
+                                yield event
+                            return
+
+                    if not isinstance(error, httpx.HTTPStatusError):
+                        self._log_stream_transport_error(
+                            tag, req_tag, error, request_id=request_id
+                        )
+                    error_message = self._get_error_message(error, request_id)
+
+                    if response is not None and not response.is_closed:
+                        await _maybe_await_aclose(response)
+
+                    trace_event(
+                        stage="provider",
+                        event="provider.response.error",
+                        source="provider",
+                        provider=self._provider_name,
                         error_message=error_message,
-                        sent_any_event=False,
-                    ):
-                        yield event
-                return
-            finally:
-                if response is not None and not response.is_closed:
-                    await _maybe_await_aclose(response)
+                        exc_type=type(error).__name__,
+                        mid_stream=sent_any_event or committed or holdback.has_buffered,
+                    )
+                    if committed or holdback.has_buffered:
+                        if not committed:
+                            for event in holdback.flush():
+                                sent_any_event = True
+                                yield event
+                        for event in emitted_tracker.iter_close_unclosed_blocks():
+                            yield event
+                        for event in emitted_tracker.iter_midstream_error_tail(
+                            error_message,
+                            request=request,
+                            input_tokens=input_tokens,
+                            log_raw_sse_events=self._config.log_raw_sse_events,
+                        ):
+                            yield event
+                    else:
+                        holdback.discard()
+                        for event in self._emit_error_events(
+                            request=request,
+                            input_tokens=input_tokens,
+                            error_message=error_message,
+                            sent_any_event=False,
+                        ):
+                            yield event
+                    return
+                finally:
+                    if response is not None and not response.is_closed:
+                        await _maybe_await_aclose(response)

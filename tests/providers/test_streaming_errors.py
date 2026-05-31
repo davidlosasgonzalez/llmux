@@ -601,6 +601,148 @@ class TestStreamingExceptionHandling:
         _assert_error_not_in_text_deltas_after_tool(events, "bad after tool")
 
     @pytest.mark.asyncio
+    async def test_clean_eof_after_complete_tool_call_salvages_tool_use(self):
+        """A complete tool JSON payload missing finish_reason is committed as tool_use."""
+        provider = _make_provider()
+        request = _make_request()
+        tool_chunk = _make_tool_calls_chunk(
+            name="echo_smoke", arguments='{"message":"ok"}', tool_id="call_eof"
+        )
+        stream_mock = AsyncStreamMock([tool_chunk])
+
+        with patch.object(
+            provider._client.chat.completions,
+            "create",
+            new_callable=AsyncMock,
+            return_value=stream_mock,
+        ):
+            events = await _collect_stream(provider, request)
+
+        parsed = parse_sse_text("".join(events))
+        assert parsed[-1].event == "message_stop"
+        assert any(
+            event.event == "message_delta"
+            and event.data.get("delta", {}).get("stop_reason") == "tool_use"
+            for event in parsed
+        )
+        assert not any(event.event == "error" for event in parsed)
+
+    @pytest.mark.asyncio
+    async def test_precommit_openai_holdback_retries_without_leaking_partial(self):
+        """A retryable early cutoff before holdback commit is retried invisibly."""
+        provider = _make_provider()
+        request = _make_request()
+        first_stream = AsyncStreamMock(
+            [_make_chunk(content="hidden")],
+            error=httpx.ReadError("early cutoff"),
+        )
+        second_stream = AsyncStreamMock(
+            [
+                _make_chunk(content="visible"),
+                _make_chunk(finish_reason="stop"),
+            ]
+        )
+
+        with patch.object(
+            provider._client.chat.completions,
+            "create",
+            new_callable=AsyncMock,
+            side_effect=[first_stream, second_stream],
+        ) as mock_create:
+            events = await _collect_stream(provider, request)
+
+        event_text = "".join(events)
+        assert mock_create.await_count == 2
+        assert "hidden" not in event_text
+        assert "visible" in event_text
+        assert parse_sse_text(event_text)[-1].event == "message_stop"
+
+    @pytest.mark.asyncio
+    async def test_clean_eof_after_text_continues_with_overlap_trim(self):
+        """A truncated text stream is continued and duplicate overlap is trimmed."""
+        provider = _make_provider()
+        request = _make_request()
+        stream_mock = AsyncStreamMock([_make_chunk(content="hello wor")])
+
+        with (
+            patch.object(
+                provider._client.chat.completions,
+                "create",
+                new_callable=AsyncMock,
+                return_value=stream_mock,
+            ),
+            patch.object(
+                provider,
+                "_collect_recovery_text",
+                new_callable=AsyncMock,
+                return_value=("world", ""),
+            ),
+        ):
+            events = await _collect_stream(provider, request)
+
+        parsed = parse_sse_text("".join(events))
+        text = "".join(
+            event.data.get("delta", {}).get("text", "")
+            for event in parsed
+            if event.event == "content_block_delta"
+        )
+        assert text == "hello world"
+        assert any(
+            event.event == "message_delta"
+            and event.data.get("delta", {}).get("stop_reason") == "end_turn"
+            for event in parsed
+        )
+        assert not any(event.event == "error" for event in parsed)
+
+    @pytest.mark.asyncio
+    async def test_incomplete_tool_call_repair_appends_schema_valid_suffix(self):
+        """A truncated tool JSON prefix is repaired append-only before tool_use tail."""
+        provider = _make_provider()
+        request = _make_request()
+        request.tools = [
+            SimpleNamespace(
+                name="echo_smoke",
+                description="Echo",
+                input_schema={
+                    "type": "object",
+                    "properties": {"message": {"type": "string"}},
+                    "required": ["message"],
+                    "additionalProperties": False,
+                },
+            )
+        ]
+        tool_chunk = _make_tool_calls_chunk(
+            name="echo_smoke", arguments='{"message":', tool_id="call_repair"
+        )
+        stream_mock = AsyncStreamMock([tool_chunk])
+
+        with (
+            patch.object(
+                provider._client.chat.completions,
+                "create",
+                new_callable=AsyncMock,
+                return_value=stream_mock,
+            ),
+            patch.object(
+                provider,
+                "_collect_recovery_text",
+                new_callable=AsyncMock,
+                return_value=('"ok"}', ""),
+            ),
+        ):
+            events = await _collect_stream(provider, request)
+
+        event_text = "".join(events)
+        parsed = parse_sse_text(event_text)
+        assert '"partial_json": "\\"ok\\"}"' in event_text
+        assert any(
+            event.event == "message_delta"
+            and event.data.get("delta", {}).get("stop_reason") == "tool_use"
+            for event in parsed
+        )
+        assert not any(event.event == "error" for event in parsed)
+
+    @pytest.mark.asyncio
     async def test_stream_rate_limited_retries_via_execute_with_retry(self):
         """When rate limited, execute_with_retry handles retries transparently."""
         provider = _make_provider()

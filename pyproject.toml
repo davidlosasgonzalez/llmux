@@ -22,6 +22,7 @@ dependencies = [
     "openai>=2.38.0",
     "loguru>=0.7.0",
     "aiohttp>=3.13.4",
+    "jsonschema>=4.25.0",
 ]
 
 [project.scripts]

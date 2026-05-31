@@ -42,7 +42,7 @@ async def test_nim_stream_retries_on_openai_5xx_then_streams(status_code):
         mock_chunk.choices = [
             MagicMock(
                 delta=MagicMock(content="Hi", reasoning_content=""),
-                finish_reason=None,
+                finish_reason="stop",
             )
         ]
         mock_chunk.usage = None

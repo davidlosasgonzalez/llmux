@@ -197,6 +197,9 @@ async def test_stream_uses_post_messages_path(wafer_provider):
             "event: message_start",
             'data: {"type":"message_start"}',
             "",
+            "event: message_stop",
+            'data: {"type":"message_stop"}',
+            "",
         ]
     )
 
@@ -216,6 +219,9 @@ async def test_stream_uses_post_messages_path(wafer_provider):
     assert events == [
         "event: message_start\n",
         'data: {"type":"message_start"}\n',
+        "\n",
+        "event: message_stop\n",
+        'data: {"type":"message_stop"}\n',
         "\n",
     ]
     assert response.is_closed
