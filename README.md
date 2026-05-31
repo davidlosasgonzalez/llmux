@@ -48,9 +48,7 @@ Free Claude Code routes Anthropic Messages API traffic from Claude Code to any p
 
 ## Quick Start
 
-### 1. Fast Install
-
-Install Claude Code if missing, install or update uv, then install Python 3.14.0 and Free Claude Code:
+### 1. Install/Update Free Claude Code
 
 macOS/Linux:
 
