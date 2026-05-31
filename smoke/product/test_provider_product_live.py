@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 import httpx
 import pytest
 
@@ -61,6 +63,20 @@ def test_provider_tool_use_then_text_history_e2e(smoke_config: SmokeConfig) -> N
 @pytest.mark.smoke_target("tools")
 def test_provider_tool_result_continuation_e2e(smoke_config: SmokeConfig) -> None:
     _run_for_each_provider(smoke_config, _scenario_tool_result_continuation)
+
+
+@pytest.mark.smoke_target("tools")
+def test_gemini_thought_signature_tool_continuation_e2e(
+    smoke_config: SmokeConfig,
+) -> None:
+    models = [
+        model
+        for model in ProviderMatrixDriver(smoke_config).provider_smoke_models()
+        if model.provider == "gemini"
+    ]
+    if not models:
+        pytest.skip("missing_env: gemini is not configured")
+    _scenario_gemini_thought_signature_tool_continuation(smoke_config, models[0])
 
 
 @pytest.mark.smoke_target("tools")
@@ -342,6 +358,67 @@ def _scenario_tool_result_continuation(
         second = driver.stream(second_payload)
     assert_product_stream(first.events)
     assert_product_stream(second.events)
+
+
+def _scenario_gemini_thought_signature_tool_continuation(
+    smoke_config: SmokeConfig, provider_model: ProviderModel
+) -> None:
+    first_payload = {
+        "model": "claude-sonnet-4-5-20250929",
+        "max_tokens": 256,
+        "messages": [
+            {"role": "user", "content": "Use echo_smoke once with value FCC_TOOL."}
+        ],
+        "tools": [echo_tool_schema()],
+        "tool_choice": {"type": "tool", "name": "echo_smoke"},
+        "thinking": {"type": "adaptive", "budget_tokens": 1024},
+    }
+    with _server_for_provider(
+        smoke_config, provider_model, "gemini-signature"
+    ) as server:
+        driver = ConversationDriver(server, smoke_config)
+        first = driver.stream(first_payload)
+        tool_uses = tool_use_blocks(first.events)
+        assert tool_uses, "gemini did not emit a tool_use block"
+        tool_use = tool_uses[0]
+        signature = _gemini_tool_thought_signature(tool_use)
+        assert signature, (
+            "gemini tool_use did not preserve extra_content.google.thought_signature"
+        )
+        second_payload = {
+            "model": "claude-sonnet-4-5-20250929",
+            "max_tokens": 256,
+            "messages": [
+                first_payload["messages"][0],
+                {"role": "assistant", "content": first.assistant_content},
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": tool_use["id"],
+                            "content": "FCC_TOOL",
+                        }
+                    ],
+                },
+            ],
+            "tools": [echo_tool_schema()],
+            "thinking": {"type": "adaptive", "budget_tokens": 1024},
+        }
+        second = driver.stream(second_payload)
+    assert_product_stream(first.events)
+    assert_product_stream(second.events)
+
+
+def _gemini_tool_thought_signature(tool_use: dict[str, Any]) -> str | None:
+    extra_content = tool_use.get("extra_content")
+    if not isinstance(extra_content, dict):
+        return None
+    google = extra_content.get("google")
+    if not isinstance(google, dict):
+        return None
+    signature = google.get("thought_signature")
+    return signature if isinstance(signature, str) and signature else None
 
 
 def _scenario_reasoning_tool_continuation(
