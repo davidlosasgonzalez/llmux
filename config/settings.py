@@ -48,11 +48,6 @@ def _configured_env_files(model_config: Mapping[str, Any]) -> tuple[Path, ...]:
     return tuple(Path(item) for item in configured)
 
 
-def _env_file_contains_key(path: Path, key: str) -> bool:
-    """Check whether a dotenv-style file defines the given key."""
-    return _env_file_value(path, key) is not None
-
-
 def _env_file_value(path: Path, key: str) -> str | None:
     """Return a dotenv value when the file explicitly defines the key."""
     if not path.is_file():
@@ -77,31 +72,6 @@ def _env_file_override(model_config: Mapping[str, Any], key: str) -> str | None:
         if value is not None:
             configured_value = value
     return configured_value
-
-
-def _removed_env_var_message(model_config: Mapping[str, Any]) -> str | None:
-    """Return a migration error for removed env vars, if present."""
-    removed_keys = ("NIM_ENABLE_THINKING", "ENABLE_THINKING")
-    replacement = (
-        "ENABLE_MODEL_THINKING, ENABLE_OPUS_THINKING, "
-        "ENABLE_SONNET_THINKING, or ENABLE_HAIKU_THINKING"
-    )
-
-    for removed_key in removed_keys:
-        if removed_key in os.environ:
-            return (
-                f"{removed_key} has been removed in this release. "
-                f"Rename it to {replacement}."
-            )
-
-        for env_file in _configured_env_files(model_config):
-            if _env_file_contains_key(env_file, removed_key):
-                return (
-                    f"{removed_key} has been removed in this release. "
-                    f"Rename it to {replacement}. Found in {env_file}."
-                )
-
-    return None
 
 
 class Settings(BaseSettings):
@@ -332,14 +302,6 @@ class Settings(BaseSettings):
     anthropic_auth_token: str = Field(
         default="", validation_alias="ANTHROPIC_AUTH_TOKEN"
     )
-
-    @model_validator(mode="before")
-    @classmethod
-    def reject_removed_env_vars(cls, data: Any) -> Any:
-        """Fail fast when removed environment variables are still configured."""
-        if message := _removed_env_var_message(cls.model_config):
-            raise ValueError(message)
-        return data
 
     # Handle empty strings for optional string fields
     @field_validator(

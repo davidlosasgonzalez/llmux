@@ -350,21 +350,34 @@ class TestSettings:
         assert settings.anthropic_auth_token == "server-token"
         assert settings.uses_process_anthropic_auth_token() is False
 
-    def test_removed_nim_enable_thinking_raises(self, monkeypatch):
-        """NIM_ENABLE_THINKING now fails fast with a migration message."""
+    @pytest.mark.parametrize("removed_key", ["NIM_ENABLE_THINKING", "ENABLE_THINKING"])
+    def test_removed_thinking_env_keys_are_ignored(self, monkeypatch, removed_key):
+        """Stale thinking env keys do not block startup or affect settings."""
         from config.settings import Settings
 
-        monkeypatch.setenv("NIM_ENABLE_THINKING", "false")
-        with pytest.raises(ValidationError, match="ENABLE_MODEL_THINKING"):
-            Settings()
+        monkeypatch.setenv(removed_key, "false")
+        monkeypatch.setitem(Settings.model_config, "env_file", ())
 
-    def test_removed_enable_thinking_raises(self, monkeypatch):
-        """ENABLE_THINKING now fails fast with a migration message."""
+        settings = Settings()
+
+        assert settings.enable_model_thinking is True
+
+    @pytest.mark.parametrize("removed_key", ["NIM_ENABLE_THINKING", "ENABLE_THINKING"])
+    @pytest.mark.parametrize("value", ["false", ""])
+    def test_removed_thinking_dotenv_keys_are_ignored(
+        self, monkeypatch, tmp_path, removed_key, value
+    ):
+        """Stale thinking dotenv keys do not block startup or affect settings."""
         from config.settings import Settings
 
-        monkeypatch.setenv("ENABLE_THINKING", "false")
-        with pytest.raises(ValidationError, match="ENABLE_MODEL_THINKING"):
-            Settings()
+        env_file = tmp_path / ".env"
+        env_file.write_text(f"{removed_key}={value}\n", encoding="utf-8")
+        monkeypatch.delenv(removed_key, raising=False)
+        monkeypatch.setitem(Settings.model_config, "env_file", (env_file,))
+
+        settings = Settings()
+
+        assert settings.enable_model_thinking is True
 
 
 # --- NimSettings Validation Tests ---
