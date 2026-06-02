@@ -118,6 +118,7 @@ markers = [
     "voice: voice transcription checks",
     "contract: deterministic feature contract checks",
     "smoke_target(name): route a smoke test behind FCC_SMOKE_TARGETS",
+    "xdist_group(name): group smoke provider items under pytest-xdist --dist=loadgroup",
 ]
 
 [tool.ty.environment]

@@ -71,6 +71,8 @@ def classify_outcome(*, nodeid: str, outcome: str, detail: str) -> str:
     if outcome == "skipped":
         if "smoke target disabled" in text:
             return "target_disabled"
+        if "missing_env" in text:
+            return "missing_env"
         if any(
             marker in text
             for marker in (

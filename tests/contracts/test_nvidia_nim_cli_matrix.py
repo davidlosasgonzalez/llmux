@@ -342,8 +342,8 @@ def test_cli_matrix_structured_provider_error_is_upstream_unavailable(
         duration_s=0.1,
     )
     outcome = make_outcome(
-        model="minimax/minimax-m2.5:free",
-        full_model="open_router/minimax/minimax-m2.5:free",
+        model="poolside/laguna-m.1:free",
+        full_model="open_router/poolside/laguna-m.1:free",
         source="openrouter_free_cli_default",
         feature="tool_use_roundtrip",
         marker="FCC_OPENROUTER_FREE_TOOL",

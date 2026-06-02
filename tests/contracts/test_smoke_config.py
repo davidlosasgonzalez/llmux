@@ -3,6 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 from types import SimpleNamespace
 
+from smoke.conftest import (
+    DISABLED_PROVIDER_MODEL,
+    provider_model_params,
+    provider_xdist_group,
+)
 from smoke.lib.config import (
     ALL_TARGETS,
     DEFAULT_TARGETS,
@@ -110,6 +115,19 @@ def test_provider_smoke_models_cover_configured_providers_independent_of_model_m
     assert models[0].source == "provider_default"
 
 
+def test_openrouter_provider_smoke_uses_concrete_free_model(monkeypatch) -> None:
+    monkeypatch.delenv("FCC_SMOKE_MODEL_OPEN_ROUTER", raising=False)
+    config = _smoke_config(
+        settings=_settings(open_router_api_key="openrouter-key", ollama_base_url="")
+    )
+
+    models = config.provider_smoke_models()
+
+    assert [model.provider for model in models] == ["open_router"]
+    assert models[0].full_model == "open_router/moonshotai/kimi-k2.6:free"
+    assert models[0].source == "provider_default"
+
+
 def test_wafer_provider_configuration_uses_api_key(monkeypatch) -> None:
     monkeypatch.delenv("FCC_SMOKE_MODEL_WAFER", raising=False)
     config = _smoke_config(
@@ -200,6 +218,41 @@ def test_provider_smoke_matrix_filters_provider_catalog(monkeypatch) -> None:
     assert [model.provider for model in config.provider_smoke_models()] == [
         "nvidia_nim"
     ]
+
+
+def test_provider_smoke_collection_params_are_grouped_by_provider(
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("FCC_SMOKE_MODEL_DEEPSEEK", raising=False)
+    monkeypatch.delenv("FCC_SMOKE_MODEL_NVIDIA_NIM", raising=False)
+    config = _smoke_config(
+        live=True,
+        settings=_settings(
+            deepseek_api_key="deepseek-key",
+            nvidia_nim_api_key="nim-key",
+            ollama_base_url="",
+        ),
+    )
+
+    params = provider_model_params(config)
+
+    assert [param.id for param in params] == ["nvidia_nim", "deepseek"]
+    groups = [
+        mark.args[0]
+        for param in params
+        for mark in param.marks
+        if mark.name == "xdist_group"
+    ]
+    assert groups == ["provider:nvidia_nim", "provider:deepseek"]
+
+
+def test_provider_smoke_collection_uses_disabled_placeholder_when_not_live() -> None:
+    config = _smoke_config(live=False, settings=_settings(ollama_base_url=""))
+
+    params = provider_model_params(config)
+
+    assert [param.values[0] for param in params] == [DISABLED_PROVIDER_MODEL]
+    assert provider_xdist_group(DISABLED_PROVIDER_MODEL) == "provider:smoke_disabled"
 
 
 def test_provider_smoke_includes_local_provider_when_model_mapping_uses_it(

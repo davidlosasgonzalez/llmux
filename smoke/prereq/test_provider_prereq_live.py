@@ -10,7 +10,7 @@ from core.anthropic.stream_contracts import (
     text_content,
     thinking_content,
 )
-from smoke.lib.config import SmokeConfig, auth_headers
+from smoke.lib.config import ProviderModel, SmokeConfig, auth_headers
 from smoke.lib.e2e import ProviderMatrixDriver
 from smoke.lib.http import collect_message_stream, message_payload
 from smoke.lib.server import start_server
@@ -45,41 +45,35 @@ def test_mixed_provider_model_mapping_when_configured(
 
 
 def test_configured_provider_models_stream_successfully(
-    smoke_config: SmokeConfig,
+    smoke_config: SmokeConfig, provider_model: ProviderModel
 ) -> None:
-    models = ProviderMatrixDriver(smoke_config).provider_smoke_models()
-
-    failures: list[str] = []
-    for provider_model in models:
-        try:
-            with start_server(
+    try:
+        with start_server(
+            smoke_config,
+            env_overrides={
+                "MODEL": provider_model.full_model,
+                "MESSAGING_PLATFORM": "none",
+            },
+            name=f"provider-{provider_model.provider}",
+        ) as server:
+            events = collect_message_stream(
+                server,
+                message_payload(smoke_config.prompt, model="fcc-smoke-default"),
                 smoke_config,
-                env_overrides={
-                    "MODEL": provider_model.full_model,
-                    "MESSAGING_PLATFORM": "none",
-                },
-                name=f"provider-{provider_model.provider}",
-            ) as server:
-                events = collect_message_stream(
-                    server,
-                    message_payload(smoke_config.prompt, model="fcc-smoke-default"),
-                    smoke_config,
-                )
-                skip_if_upstream_unavailable_events(events)
-                assert_anthropic_stream_contract(events)
-                has_text = bool(text_content(events).strip())
-                has_thinking = bool(thinking_content(events).strip())
-                assert has_text or has_thinking, (
-                    "provider returned no visible text or thinking content"
-                )
-        except Exception as exc:
-            skip_if_upstream_unavailable_exception(exc)
-            failures.append(
-                f"{provider_model.source}={provider_model.full_model}: "
-                f"{type(exc).__name__}: {exc}"
             )
-
-    assert not failures, "\n".join(failures)
+            skip_if_upstream_unavailable_events(events)
+            assert_anthropic_stream_contract(events)
+            has_text = bool(text_content(events).strip())
+            has_thinking = bool(thinking_content(events).strip())
+            assert has_text or has_thinking, (
+                "provider returned no visible text or thinking content"
+            )
+    except Exception as exc:
+        skip_if_upstream_unavailable_exception(exc)
+        raise AssertionError(
+            f"{provider_model.source}={provider_model.full_model}: "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
 
 
 @pytest.mark.smoke_target("rate_limit")

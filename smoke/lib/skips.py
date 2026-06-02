@@ -5,7 +5,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from core.anthropic.stream_contracts import SSEEvent
+from core.anthropic.stream_contracts import SSEEvent, text_content
 
 UPSTREAM_UNAVAILABLE_MARKERS = (
     "connection refused",
@@ -50,6 +50,10 @@ def skip_if_upstream_unavailable_exception(exc: Exception) -> None:
 
 
 def skip_if_upstream_unavailable_events(events: list[SSEEvent]) -> None:
+    text = text_content(events)
+    if is_upstream_unavailable_text(text):
+        skip_upstream_unavailable(text[:500])
+
     for event in events:
         if getattr(event, "event", None) != "error":
             continue

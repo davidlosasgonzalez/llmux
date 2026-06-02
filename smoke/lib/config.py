@@ -43,7 +43,7 @@ SECRET_KEY_PARTS = ("KEY", "TOKEN", "SECRET", "WEBHOOK", "AUTH")
 
 PROVIDER_SMOKE_DEFAULT_MODELS: dict[str, str] = {
     "nvidia_nim": "nvidia_nim/nvidia/nemotron-3-super-120b-a12b",
-    "open_router": "open_router/openrouter/free",
+    "open_router": "open_router/moonshotai/kimi-k2.6:free",
     "mistral": "mistral/devstral-small-latest",
     "mistral_codestral": "mistral_codestral/codestral-latest",
     "deepseek": "deepseek/deepseek-v4-pro",
@@ -71,8 +71,6 @@ NVIDIA_NIM_CLI_DEFAULT_MODELS: tuple[str, ...] = (
 OPENROUTER_FREE_CLI_DEFAULT_MODELS: tuple[str, ...] = (
     "nvidia/nemotron-3-super-120b-a12b:free",
     "openai/gpt-oss-120b:free",
-    "minimax/minimax-m2.5:free",
-    "inclusionai/ring-2.6-1t:free",
     "poolside/laguna-m.1:free",
 )
 
