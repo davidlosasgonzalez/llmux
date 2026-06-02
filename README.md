@@ -22,6 +22,12 @@ Free Claude Code routes Anthropic Messages API traffic from Claude Code to any p
   <img src="assets/pic.png" alt="Free Claude Code in action" width="700">
 </div>
 
+<a id="model-picker"></a>
+
+<div align="center">
+  <img src="assets/cc-model-picker.png" alt="Claude Code model picker showing gateway models" width="700">
+</div>
+
 ## Star History
 
 <div align="center">
@@ -350,12 +356,6 @@ Set the environment for `acp.registry.claude-acp`:
 ```
 
 Restart the IDE after changing the file.
-
-### 4. Model Picker
-
-<div align="center">
-  <img src="assets/cc-model-picker.png" alt="Claude Code model picker showing gateway models" width="700">
-</div>
 
 ## Optional Integrations
 
