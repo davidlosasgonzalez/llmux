@@ -25,7 +25,8 @@ from core.anthropic.native_sse_block_policy import (
 )
 from core.anthropic.stream_contracts import parse_sse_text
 from core.anthropic.stream_recovery import (
-    EARLY_TRANSPARENT_RETRIES,
+    EARLY_TRANSPARENT_MAX_RETRIES,
+    EARLY_TRANSPARENT_TOTAL_ATTEMPTS,
     MIDSTREAM_RECOVERY_ATTEMPTS,
     RecoveryHoldbackBuffer,
     TruncatedProviderStreamError,
@@ -623,7 +624,7 @@ class AnthropicMessagesTransport(BaseProvider):
                         and stream_opened
                         and is_retryable_stream_error(error)
                         and not complete_tool_salvageable
-                        and early_retries < EARLY_TRANSPARENT_RETRIES
+                        and early_retries < EARLY_TRANSPARENT_MAX_RETRIES
                     ):
                         early_retries += 1
                         holdback.discard()
@@ -643,7 +644,7 @@ class AnthropicMessagesTransport(BaseProvider):
                             provider=self._provider_name,
                             request_id=request_id,
                             attempt=early_retries,
-                            max_attempts=EARLY_TRANSPARENT_RETRIES,
+                            max_attempts=EARLY_TRANSPARENT_TOTAL_ATTEMPTS,
                             exc_type=type(error).__name__,
                         )
                         continue

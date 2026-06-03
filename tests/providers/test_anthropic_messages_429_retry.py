@@ -196,7 +196,7 @@ async def test_native_stream_5xx_retry_exhausted(provider_config, status_code, s
             ):
                 events = [e async for e in provider.stream_response(req)]
 
-            assert mock_send.await_count == 4
+            assert mock_send.await_count == 5
             assert bad.is_closed
             assert_canonical_stream_error_envelope(
                 events,

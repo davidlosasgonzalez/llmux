@@ -3,12 +3,24 @@
 import httpx
 
 from core.anthropic.stream_recovery import (
+    EARLY_TRANSPARENT_MAX_RETRIES,
+    EARLY_TRANSPARENT_TOTAL_ATTEMPTS,
+    MIDSTREAM_RECOVERY_ATTEMPTS,
     RecoveryHoldbackBuffer,
     ToolSchema,
     accept_tool_json_repair,
     continuation_suffix,
     is_retryable_stream_error,
 )
+
+
+def test_early_transparent_retry_total_attempts_is_five() -> None:
+    assert EARLY_TRANSPARENT_TOTAL_ATTEMPTS == 5
+    assert EARLY_TRANSPARENT_MAX_RETRIES == 4
+
+
+def test_midstream_recovery_attempts_total_is_five() -> None:
+    assert MIDSTREAM_RECOVERY_ATTEMPTS == 5
 
 
 def test_retryable_stream_error_classifies_transport_and_http_status() -> None:

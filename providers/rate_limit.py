@@ -16,6 +16,9 @@ from core.trace import trace_event
 
 T = TypeVar("T")
 
+UPSTREAM_TRANSIENT_TOTAL_ATTEMPTS = 5
+DEFAULT_UPSTREAM_MAX_RETRIES = UPSTREAM_TRANSIENT_TOTAL_ATTEMPTS - 1
+
 
 def _upstream_http_retryable(code: int) -> bool:
     """True for rate limit / upstream server failures that should backoff-retry."""
@@ -224,7 +227,7 @@ class GlobalRateLimiter:
         self,
         fn: Callable[..., Any],
         *args: Any,
-        max_retries: int = 3,
+        max_retries: int = DEFAULT_UPSTREAM_MAX_RETRIES,
         base_delay: float = 2.0,
         max_delay: float = 60.0,
         jitter: float = 1.0,

@@ -4,7 +4,16 @@ import time
 import pytest
 import pytest_asyncio
 
-from providers.rate_limit import GlobalRateLimiter
+from providers.rate_limit import (
+    DEFAULT_UPSTREAM_MAX_RETRIES,
+    UPSTREAM_TRANSIENT_TOTAL_ATTEMPTS,
+    GlobalRateLimiter,
+)
+
+
+def test_upstream_transient_retry_total_attempts_is_five() -> None:
+    assert UPSTREAM_TRANSIENT_TOTAL_ATTEMPTS == 5
+    assert DEFAULT_UPSTREAM_MAX_RETRIES == 4
 
 
 class TestProviderRateLimiter:
