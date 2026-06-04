@@ -59,6 +59,29 @@ def test_anthropic_auth_token_accepts_bearer_authorization():
     app.dependency_overrides.clear()
 
 
+def test_anthropic_auth_token_normalizes_configured_whitespace():
+    client = TestClient(app)
+    settings = Settings()
+    settings.anthropic_auth_token = "  spaced-token  \n"
+    app.dependency_overrides[get_settings] = lambda: settings
+
+    payload = {
+        "model": "claude-3-sonnet",
+        "messages": [{"role": "user", "content": "hello"}],
+    }
+
+    with patch("api.routes.get_token_count", return_value=3):
+        r = client.post(
+            "/v1/messages/count_tokens",
+            json=payload,
+            headers={"Authorization": "Bearer spaced-token"},
+        )
+        assert r.status_code == 200
+        assert r.json()["input_tokens"] == 3
+
+    app.dependency_overrides.clear()
+
+
 def test_anthropic_auth_token_applies_to_models_endpoint():
     client = TestClient(app)
     settings = Settings()

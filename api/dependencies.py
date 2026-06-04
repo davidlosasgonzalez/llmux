@@ -96,7 +96,7 @@ def require_api_key(
     Checks `x-api-key` header or `Authorization: Bearer ...` against
     `Settings.anthropic_auth_token`. If `ANTHROPIC_AUTH_TOKEN` is empty, this is a no-op.
     """
-    anthropic_auth_token = settings.anthropic_auth_token
+    anthropic_auth_token = settings.anthropic_auth_token.strip()
     if not anthropic_auth_token:
         # No API key configured -> allow
         return
@@ -110,13 +110,13 @@ def require_api_key(
         raise HTTPException(status_code=401, detail="Missing API key")
 
     # Support both raw key in X-API-Key and Bearer token in Authorization
-    token = header
+    token = header.strip()
     if header.lower().startswith("bearer "):
-        token = header.split(" ", 1)[1]
+        token = header.split(" ", 1)[1].strip()
 
     # Strip anything after the first colon to handle tokens with appended model names
     if token and ":" in token:
-        token = token.split(":", 1)[0]
+        token = token.split(":", 1)[0].strip()
 
     # Constant-time comparison to avoid leaking the configured token via
     # response-time differences on a per-byte mismatch (CWE-208).
