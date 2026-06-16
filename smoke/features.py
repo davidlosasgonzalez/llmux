@@ -468,7 +468,7 @@ FEATURE_INVENTORY: tuple[FeatureCoverage, ...] = (
     ),
     FeatureCoverage(
         "removed_env_migration",
-        "Removed env vars fail fast with migration guidance",
+        "Removed thinking env vars are ignored without changing defaults",
         "public_surface",
         ("tests/config/test_config.py",),
         (),

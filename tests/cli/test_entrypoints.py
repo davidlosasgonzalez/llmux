@@ -19,6 +19,7 @@ def _launcher_settings(
         host="0.0.0.0",
         port=port,
         anthropic_auth_token=token,
+        model="nvidia_nim/test-model",
     )
 
 
@@ -157,6 +158,7 @@ def test_cli_scripts_are_registered() -> None:
     assert scripts["fcc-server"] == "cli.entrypoints:serve"
     assert scripts["free-claude-code"] == "cli.entrypoints:serve"
     assert scripts["fcc-claude"] == "cli.entrypoints:launch_claude"
+    assert scripts["fcc-codex"] == "cli.entrypoints:launch_codex"
 
 
 def test_schedule_open_admin_browser_opens_when_health_ready(
@@ -358,6 +360,46 @@ def test_launch_claude_passes_args_and_child_env(
     assert child_env["CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"] == "1"
     assert child_env["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] == "190000"
     assert child_env["KEEP_ME"] == "yes"
+    register_pid.assert_called_once_with(12345)
+    unregister_pid.assert_called_once_with(12345)
+
+
+def test_launch_codex_passes_responses_config_and_child_env(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from cli.entrypoints import launch_codex
+
+    monkeypatch.setenv("OPENAI_API_KEY", "official-key")
+    monkeypatch.setenv("OPENAI_BASE_URL", "https://api.openai.com/v1")
+    monkeypatch.setenv("CODEX_HOME", "keep-home")
+    settings = _launcher_settings(port=9191, token="proxy-token")
+
+    with (
+        patch("cli.entrypoints.get_settings", return_value=settings),
+        patch("cli.entrypoints._preflight_proxy", return_value=None),
+        patch("cli.entrypoints.shutil.which", return_value="resolved-codex.cmd"),
+        patch("cli.entrypoints.subprocess.Popen") as popen,
+        patch("cli.entrypoints.register_pid") as register_pid,
+        patch("cli.entrypoints.unregister_pid") as unregister_pid,
+        pytest.raises(SystemExit) as exc_info,
+    ):
+        process = popen.return_value
+        process.pid = 12345
+        process.wait.return_value = 0
+        launch_codex(["exec", "hello"])
+
+    assert exc_info.value.code == 0
+    command = popen.call_args.args[0]
+    assert command[0] == "resolved-codex.cmd"
+    assert 'model_provider="fcc"' in command
+    assert 'model_providers.fcc.base_url="http://127.0.0.1:9191/v1"' in command
+    assert 'model_providers.fcc.wire_api="responses"' in command
+    assert command[-2:] == ["exec", "hello"]
+    child_env = popen.call_args.kwargs["env"]
+    assert child_env["FCC_CODEX_API_KEY"] == "proxy-token"
+    assert child_env["CODEX_HOME"] == "keep-home"
+    assert "OPENAI_API_KEY" not in child_env
+    assert "OPENAI_BASE_URL" not in child_env
     register_pid.assert_called_once_with(12345)
     unregister_pid.assert_called_once_with(12345)
 

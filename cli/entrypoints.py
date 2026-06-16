@@ -18,6 +18,9 @@ import uvicorn
 
 from api.admin_urls import local_admin_url, local_proxy_root_url
 from api.app import GracefulLifespanApp, create_app
+from cli.adapters.base import ClientCliAdapter
+from cli.adapters.claude import CLAUDE_CLI_ADAPTER
+from cli.adapters.codex import CODEX_CLI_ADAPTER
 from cli.process_registry import (
     kill_all_best_effort,
     kill_pid_tree_best_effort,
@@ -174,18 +177,11 @@ def _claude_child_env(
 ) -> dict[str, str]:
     """Return a Claude Code environment that targets this proxy."""
 
-    env = {
-        key: value
-        for key, value in base_env.items()
-        if not key.startswith("ANTHROPIC_")
-    }
-    env.pop("ANTHROPIC_API_KEY", None)
-    env["ANTHROPIC_BASE_URL"] = local_proxy_root_url(settings)
-    env["CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"] = "1"
-    env["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] = "190000"
-    if token := settings.anthropic_auth_token.strip():
-        env["ANTHROPIC_AUTH_TOKEN"] = token
-    return env
+    return CLAUDE_CLI_ADAPTER.build_launcher_env(
+        proxy_root_url=local_proxy_root_url(settings),
+        auth_token=settings.anthropic_auth_token,
+        base_env=base_env,
+    )
 
 
 def _preflight_proxy(proxy_root_url: str) -> str | None:
@@ -211,6 +207,20 @@ def _preflight_proxy(proxy_root_url: str) -> str | None:
 def launch_claude(argv: Sequence[str] | None = None) -> None:
     """Launch Claude Code with Free Claude Code proxy environment variables."""
 
+    _launch_client_cli(CLAUDE_CLI_ADAPTER, argv)
+
+
+def launch_codex(argv: Sequence[str] | None = None) -> None:
+    """Launch Codex CLI with Free Claude Code proxy configuration."""
+
+    _launch_client_cli(CODEX_CLI_ADAPTER, argv)
+
+
+def _launch_client_cli(
+    adapter: ClientCliAdapter, argv: Sequence[str] | None = None
+) -> None:
+    """Launch a client CLI with Free Claude Code proxy environment variables."""
+
     settings = get_settings()
     proxy_root_url = local_proxy_root_url(settings)
     if error := _preflight_proxy(proxy_root_url):
@@ -222,20 +232,27 @@ def launch_claude(argv: Sequence[str] | None = None) -> None:
         raise SystemExit(1)
 
     args = list(sys.argv[1:] if argv is None else argv)
-    claude_command = shutil.which(settings.claude_cli_bin)
-    if claude_command is None:
+    binary_name = adapter.get_launcher_binary_name(settings)
+    client_command = shutil.which(binary_name)
+    if client_command is None:
         print(
-            f"Could not find Claude Code command: {settings.claude_cli_bin}",
+            f"Could not find {adapter.display_name} command: {binary_name}",
             file=sys.stderr,
         )
-        print(
-            "Install Claude Code with: npm install -g @anthropic-ai/claude-code",
-            file=sys.stderr,
-        )
+        print(adapter.install_hint, file=sys.stderr)
         raise SystemExit(127)
 
-    command = [claude_command, *args]
-    env = _claude_child_env(settings, os.environ)
+    command = adapter.build_launcher_command(
+        binary_path=client_command,
+        argv=args,
+        settings=settings,
+        proxy_root_url=proxy_root_url,
+    )
+    env = adapter.build_launcher_env(
+        proxy_root_url=proxy_root_url,
+        auth_token=settings.anthropic_auth_token,
+        base_env=os.environ,
+    )
     process: subprocess.Popen[bytes] | None = None
     try:
         process = subprocess.Popen(command, env=env)
@@ -244,13 +261,10 @@ def launch_claude(argv: Sequence[str] | None = None) -> None:
         return_code = process.wait()
     except FileNotFoundError:
         print(
-            f"Could not find Claude Code command: {settings.claude_cli_bin}",
+            f"Could not find {adapter.display_name} command: {binary_name}",
             file=sys.stderr,
         )
-        print(
-            "Install Claude Code with: npm install -g @anthropic-ai/claude-code",
-            file=sys.stderr,
-        )
+        print(adapter.install_hint, file=sys.stderr)
         raise SystemExit(127) from None
     except KeyboardInterrupt:
         if process is not None and process.pid:

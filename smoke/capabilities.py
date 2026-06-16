@@ -246,8 +246,8 @@ CAPABILITY_CONTRACTS: tuple[CapabilityContract, ...] = (
         "removed_env_migration",
         "config.settings.Settings",
         "NIM_ENABLE_THINKING or ENABLE_THINKING in env or dotenv",
-        "startup validation error with rename guidance",
-        "application fails fast",
+        "startup succeeds and stale keys do not change thinking defaults",
+        "removed key ignored",
         ("tests/config/test_config.py",),
     ),
     CapabilityContract(
