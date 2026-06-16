@@ -9,7 +9,10 @@ from collections.abc import AsyncIterable, AsyncIterator, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from .conversion import anthropic_message_response_to_openai_response
+from .conversion import (
+    anthropic_message_response_to_openai_response,
+    responses_tool_identity_from_anthropic_name,
+)
 
 OPENAI_RESPONSES_SSE_HEADERS: dict[str, str] = {
     "X-Accel-Buffering": "no",
@@ -146,6 +149,7 @@ class _ToolState:
     item_id: str
     call_id: str
     name: str
+    namespace: str | None = None
     argument_parts: list[str] = field(default_factory=list)
 
 
@@ -245,11 +249,15 @@ class _ResponsesStreamTransformer:
             call_id = str(block.get("id", "") or _new_call_id())
             item_id = f"fc_{uuid.uuid4().hex[:24]}"
             output_index = len(self._output)
+            namespace, name = responses_tool_identity_from_anthropic_name(
+                self._request, str(block.get("name", ""))
+            )
             state = _ToolState(
                 output_index=output_index,
                 item_id=item_id,
                 call_id=call_id,
-                name=str(block.get("name", "")),
+                name=name,
+                namespace=namespace,
             )
             initial_input = block.get("input")
             if isinstance(initial_input, dict) and initial_input:
@@ -411,6 +419,8 @@ class _ResponsesStreamTransformer:
             "name": state.name,
             "arguments": arguments,
         }
+        if state.namespace:
+            item["namespace"] = state.namespace
         self._output.append(item)
         chunks = [
             format_response_sse_event(

@@ -57,6 +57,39 @@ async def test_anthropic_tool_stream_converts_to_function_call_item() -> None:
 
 
 @pytest.mark.asyncio
+async def test_namespaced_anthropic_tool_stream_restores_responses_namespace() -> None:
+    text = await _collect_sse(
+        iter_anthropic_sse_as_openai_responses(
+            _aiter(_anthropic_tool_stream(tool_name="mcp__node_repl__js")),
+            {
+                "model": "nvidia_nim/test-model",
+                "stream": True,
+                "tools": [
+                    {
+                        "type": "namespace",
+                        "name": "mcp__node_repl",
+                        "tools": [
+                            {
+                                "type": "function",
+                                "name": "js",
+                                "parameters": {"type": "object", "properties": {}},
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+    )
+
+    events = parse_sse_text(text)
+    completed = events[-1].data["response"]
+    function_call = completed["output"][0]
+    assert function_call["type"] == "function_call"
+    assert function_call["namespace"] == "mcp__node_repl"
+    assert function_call["name"] == "js"
+
+
+@pytest.mark.asyncio
 async def test_anthropic_error_stream_converts_to_responses_error_event() -> None:
     text = await _collect_sse(
         iter_anthropic_sse_as_openai_responses(
@@ -141,7 +174,7 @@ def _anthropic_text_stream(text: str) -> list[str]:
     ]
 
 
-def _anthropic_tool_stream() -> list[str]:
+def _anthropic_tool_stream(tool_name: str = "echo") -> list[str]:
     return [
         format_sse_event("message_start", {"type": "message_start", "message": {}}),
         format_sse_event(
@@ -152,7 +185,7 @@ def _anthropic_tool_stream() -> list[str]:
                 "content_block": {
                     "type": "tool_use",
                     "id": "toolu_1",
-                    "name": "echo",
+                    "name": tool_name,
                     "input": {},
                 },
             },

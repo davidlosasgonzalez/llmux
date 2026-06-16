@@ -4,6 +4,7 @@ import pytest
 
 from core.openai_responses import (
     ResponsesConversionError,
+    anthropic_message_response_to_openai_response,
     responses_request_to_anthropic_payload,
 )
 
@@ -131,6 +132,133 @@ def test_responses_tool_choice_none_disables_forwarded_tools() -> None:
 
     assert "tools" not in payload
     assert "tool_choice" not in payload
+
+
+def test_responses_namespace_tools_flatten_for_anthropic() -> None:
+    payload = responses_request_to_anthropic_payload(
+        {
+            "model": "nvidia_nim/test-model",
+            "input": "Use JS",
+            "tools": [
+                {
+                    "type": "namespace",
+                    "name": "mcp__node_repl",
+                    "description": "Node tools",
+                    "tools": [
+                        {
+                            "type": "function",
+                            "name": "js",
+                            "description": "Run JavaScript",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {"code": {"type": "string"}},
+                                "required": ["code"],
+                            },
+                        }
+                    ],
+                }
+            ],
+            "tool_choice": {
+                "type": "function",
+                "namespace": "mcp__node_repl",
+                "name": "js",
+            },
+        }
+    )
+
+    assert payload["tools"] == [
+        {
+            "name": "mcp__node_repl__js",
+            "description": "Run JavaScript",
+            "input_schema": {
+                "type": "object",
+                "properties": {"code": {"type": "string"}},
+                "required": ["code"],
+            },
+        }
+    ]
+    assert payload["tool_choice"] == {"type": "tool", "name": "mcp__node_repl__js"}
+
+
+def test_responses_passive_codex_built_in_tools_are_ignored() -> None:
+    payload = responses_request_to_anthropic_payload(
+        {
+            "model": "nvidia_nim/test-model",
+            "input": "Hello",
+            "tools": [
+                {"type": "web_search", "external_web_access": True},
+                {"type": "image_generation", "output_format": "png"},
+                {
+                    "type": "function",
+                    "name": "echo",
+                    "parameters": {"type": "object", "properties": {}},
+                },
+            ],
+        }
+    )
+
+    assert payload["tools"] == [
+        {"name": "echo", "input_schema": {"type": "object", "properties": {}}}
+    ]
+
+
+def test_responses_namespaced_prior_function_call_flattens_tool_use_name() -> None:
+    payload = responses_request_to_anthropic_payload(
+        {
+            "model": "nvidia_nim/test-model",
+            "input": [
+                {
+                    "type": "function_call",
+                    "call_id": "call_1",
+                    "namespace": "mcp__node_repl",
+                    "name": "js",
+                    "arguments": '{"code":"1+1"}',
+                },
+                {
+                    "type": "function_call_output",
+                    "call_id": "call_1",
+                    "output": "2",
+                },
+            ],
+        }
+    )
+
+    assert payload["messages"][0]["content"][0]["name"] == "mcp__node_repl__js"
+
+
+def test_anthropic_namespaced_tool_response_restores_responses_namespace() -> None:
+    response = anthropic_message_response_to_openai_response(
+        {
+            "content": [
+                {
+                    "type": "tool_use",
+                    "id": "toolu_1",
+                    "name": "mcp__node_repl__js",
+                    "input": {"code": "1+1"},
+                }
+            ]
+        },
+        {
+            "model": "nvidia_nim/test-model",
+            "tools": [
+                {
+                    "type": "namespace",
+                    "name": "mcp__node_repl",
+                    "tools": [
+                        {
+                            "type": "function",
+                            "name": "js",
+                            "parameters": {"type": "object", "properties": {}},
+                        }
+                    ],
+                }
+            ],
+        },
+    )
+
+    call = response["output"][0]
+    assert call["namespace"] == "mcp__node_repl"
+    assert call["name"] == "js"
 
 
 def test_responses_unsupported_tool_type_is_clear() -> None:

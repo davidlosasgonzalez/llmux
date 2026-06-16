@@ -2,11 +2,18 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import re
 import time
 import uuid
 from collections.abc import Mapping
 from typing import Any
+
+_MAX_ANTHROPIC_TOOL_NAME_LEN = 64
+_NAMESPACE_TOOL_SEPARATOR = "__"
+_UNSUPPORTED_PASSIVE_TOOL_TYPES = frozenset({"web_search", "image_generation"})
+_INVALID_TOOL_NAME_CHARS = re.compile(r"[^A-Za-z0-9_-]+")
 
 
 class ResponsesConversionError(ValueError):
@@ -71,10 +78,14 @@ def anthropic_message_response_to_openai_response(
         if block_type == "text":
             text_parts.append(str(block.get("text", "")))
         elif block_type == "tool_use":
+            namespace, name = responses_tool_identity_from_anthropic_name(
+                request, str(block.get("name", ""))
+            )
             output.append(
                 _function_call_item(
                     block_id=str(block.get("id", "") or _new_call_id()),
-                    name=str(block.get("name", "")),
+                    name=name,
+                    namespace=namespace,
                     arguments=json.dumps(block.get("input") or {}),
                     status="completed",
                 )
@@ -134,6 +145,8 @@ def _append_input_item(
         _append_message_item(role, item.get("content", ""), messages, system_parts)
         return
     if item_type == "function_call":
+        namespace = _optional_str(item.get("namespace"))
+        name = _required_str(item.get("name"), "function_call.name")
         messages.append(
             {
                 "role": "assistant",
@@ -141,7 +154,9 @@ def _append_input_item(
                     {
                         "type": "tool_use",
                         "id": _call_id_from_item(item),
-                        "name": _required_str(item.get("name"), "function_call.name"),
+                        "name": responses_tool_name_to_anthropic_name(
+                            name, namespace=namespace
+                        ),
                         "input": _parse_arguments(item.get("arguments")),
                     }
                 ],
@@ -264,29 +279,64 @@ def _convert_tools(value: Any) -> list[dict[str, Any]] | None:
                 f"Unsupported Responses tool: {type(tool).__name__}"
             )
         tool_type = tool.get("type")
+        if tool_type == "function":
+            tools.append(_convert_function_tool(tool, namespace=None))
+            continue
+        if tool_type == "namespace":
+            tools.extend(_convert_namespace_tool(tool))
+            continue
+        if tool_type in _UNSUPPORTED_PASSIVE_TOOL_TYPES:
+            continue
         if tool_type != "function":
             raise ResponsesConversionError(
                 f"Unsupported Responses tool type: {tool_type!r}"
             )
-
-        function = tool.get("function")
-        source = function if isinstance(function, dict) else tool
-        name = _required_str(source.get("name"), "tool.name")
-        schema = source.get("parameters")
-        if schema is None:
-            schema = {"type": "object", "properties": {}}
-        if not isinstance(schema, dict):
-            raise ResponsesConversionError(
-                f"Responses tool {name!r} parameters must be an object"
-            )
-        converted: dict[str, Any] = {
-            "name": name,
-            "input_schema": schema,
-        }
-        if description := _optional_str(source.get("description")):
-            converted["description"] = description
-        tools.append(converted)
     return tools
+
+
+def _convert_namespace_tool(tool: Mapping[str, Any]) -> list[dict[str, Any]]:
+    namespace = _required_str(tool.get("name"), "tool.namespace.name")
+    nested_tools = tool.get("tools")
+    if not isinstance(nested_tools, list):
+        raise ResponsesConversionError(
+            f"Responses namespace tool {namespace!r} tools must be a list"
+        )
+
+    converted_tools: list[dict[str, Any]] = []
+    for nested_tool in nested_tools:
+        if not isinstance(nested_tool, dict):
+            raise ResponsesConversionError(
+                f"Unsupported Responses namespace tool: {type(nested_tool).__name__}"
+            )
+        nested_tool_type = nested_tool.get("type")
+        if nested_tool_type != "function":
+            raise ResponsesConversionError(
+                f"Unsupported Responses namespace tool type: {nested_tool_type!r}"
+            )
+        converted_tools.append(_convert_function_tool(nested_tool, namespace=namespace))
+    return converted_tools
+
+
+def _convert_function_tool(
+    tool: Mapping[str, Any], *, namespace: str | None
+) -> dict[str, Any]:
+    function = tool.get("function")
+    source = function if isinstance(function, dict) else tool
+    name = _required_str(source.get("name"), "tool.name")
+    schema = source.get("parameters")
+    if schema is None:
+        schema = {"type": "object", "properties": {}}
+    if not isinstance(schema, dict):
+        raise ResponsesConversionError(
+            f"Responses tool {name!r} parameters must be an object"
+        )
+    converted: dict[str, Any] = {
+        "name": responses_tool_name_to_anthropic_name(name, namespace=namespace),
+        "input_schema": schema,
+    }
+    if description := _optional_str(source.get("description")):
+        converted["description"] = description
+    return converted
 
 
 def _convert_tool_choice(value: Any) -> dict[str, Any] | None:
@@ -299,13 +349,82 @@ def _convert_tool_choice(value: Any) -> dict[str, Any] | None:
     if isinstance(value, dict):
         choice_type = value.get("type")
         if choice_type == "function":
+            namespace = _optional_str(value.get("namespace"))
+            name = _required_str(value.get("name"), "tool_choice.name")
             return {
                 "type": "tool",
-                "name": _required_str(value.get("name"), "tool_choice.name"),
+                "name": responses_tool_name_to_anthropic_name(
+                    name, namespace=namespace
+                ),
             }
         if choice_type in {"auto", "any", "tool"}:
             return dict(value)
     raise ResponsesConversionError(f"Unsupported Responses tool_choice: {value!r}")
+
+
+def responses_tool_name_to_anthropic_name(
+    name: str, *, namespace: str | None = None
+) -> str:
+    """Return a deterministic Anthropic tool name for a Responses tool identity."""
+
+    if not namespace:
+        return name
+    combined = (
+        f"{_tool_name_part(namespace)}"
+        f"{_NAMESPACE_TOOL_SEPARATOR}"
+        f"{_tool_name_part(name)}"
+    )
+    if len(combined) <= _MAX_ANTHROPIC_TOOL_NAME_LEN:
+        return combined
+    digest = hashlib.sha1(combined.encode("utf-8")).hexdigest()[:8]
+    prefix_len = _MAX_ANTHROPIC_TOOL_NAME_LEN - len(digest) - 1
+    return f"{combined[:prefix_len]}_{digest}"
+
+
+def responses_tool_identity_from_anthropic_name(
+    request: Mapping[str, Any], anthropic_name: str
+) -> tuple[str | None, str]:
+    """Return the Responses namespace/name represented by an Anthropic tool name."""
+
+    tools = request.get("tools")
+    if not isinstance(tools, list):
+        return None, anthropic_name
+    for tool in tools:
+        if not isinstance(tool, dict):
+            continue
+        tool_type = tool.get("type")
+        if tool_type == "function":
+            source = tool.get("function")
+            function = source if isinstance(source, dict) else tool
+            if (name := _optional_str(function.get("name"))) and (
+                responses_tool_name_to_anthropic_name(name) == anthropic_name
+            ):
+                return None, name
+            continue
+        if tool_type != "namespace":
+            continue
+        namespace = _optional_str(tool.get("name"))
+        nested_tools = tool.get("tools")
+        if not namespace or not isinstance(nested_tools, list):
+            continue
+        for nested_tool in nested_tools:
+            if not isinstance(nested_tool, dict):
+                continue
+            if nested_tool.get("type") != "function":
+                continue
+            source = nested_tool.get("function")
+            function = source if isinstance(source, dict) else nested_tool
+            if (name := _optional_str(function.get("name"))) and (
+                responses_tool_name_to_anthropic_name(name, namespace=namespace)
+                == anthropic_name
+            ):
+                return namespace, name
+    return None, anthropic_name
+
+
+def _tool_name_part(value: str) -> str:
+    normalized = _INVALID_TOOL_NAME_CHARS.sub("_", value).strip("_")
+    return normalized or "tool"
 
 
 def _parse_arguments(value: Any) -> dict[str, Any]:
@@ -375,10 +494,11 @@ def _function_call_item(
     *,
     block_id: str,
     name: str,
+    namespace: str | None,
     arguments: str,
     status: str,
 ) -> dict[str, Any]:
-    return {
+    item = {
         "id": block_id if block_id.startswith("fc_") else f"fc_{uuid.uuid4().hex[:24]}",
         "type": "function_call",
         "status": status,
@@ -386,6 +506,9 @@ def _function_call_item(
         "name": name,
         "arguments": arguments,
     }
+    if namespace:
+        item["namespace"] = namespace
+    return item
 
 
 def _openai_usage(value: Any) -> dict[str, int] | None:

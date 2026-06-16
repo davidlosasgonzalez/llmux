@@ -127,6 +127,49 @@ def test_create_response_tool_stream_emits_function_call() -> None:
     assert call["arguments"] == '{"value":"FCC"}'
 
 
+def test_create_response_accepts_codex_namespace_tool_request() -> None:
+    provider = FakeProvider(_anthropic_tool_stream(tool_name="mcp__node_repl__js"))
+    app = create_app(lifespan_enabled=False)
+    with (
+        patch("api.dependencies.resolve_provider", return_value=provider),
+        TestClient(app) as client,
+    ):
+        response = client.post(
+            "/v1/responses",
+            json={
+                "model": "nvidia_nim/test-model",
+                "input": "Use JS",
+                "stream": True,
+                "tools": [
+                    {"type": "web_search", "external_web_access": True},
+                    {"type": "image_generation", "output_format": "png"},
+                    {
+                        "type": "namespace",
+                        "name": "mcp__node_repl",
+                        "tools": [
+                            {
+                                "type": "function",
+                                "name": "js",
+                                "parameters": {
+                                    "type": "object",
+                                    "properties": {"code": {"type": "string"}},
+                                },
+                            }
+                        ],
+                    },
+                ],
+            },
+        )
+
+    assert response.status_code == 200
+    routed = provider.requests[0]
+    assert [tool.name for tool in routed.tools] == ["mcp__node_repl__js"]
+    completed = parse_sse_text(response.text)[-1].data["response"]
+    call = completed["output"][0]
+    assert call["namespace"] == "mcp__node_repl"
+    assert call["name"] == "js"
+
+
 def test_create_response_unsupported_tool_returns_openai_error(
     responses_client: tuple[TestClient, FakeProvider],
 ) -> None:
@@ -182,7 +225,7 @@ def _anthropic_text_stream(text: str) -> list[str]:
     ]
 
 
-def _anthropic_tool_stream() -> list[str]:
+def _anthropic_tool_stream(tool_name: str = "echo") -> list[str]:
     return [
         format_sse_event("message_start", {"type": "message_start", "message": {}}),
         format_sse_event(
@@ -193,7 +236,7 @@ def _anthropic_tool_stream() -> list[str]:
                 "content_block": {
                     "type": "tool_use",
                     "id": "toolu_1",
-                    "name": "echo",
+                    "name": tool_name,
                     "input": {},
                 },
             },
