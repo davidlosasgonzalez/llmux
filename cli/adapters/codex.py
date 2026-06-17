@@ -247,6 +247,16 @@ def _codex_event_to_parser_events(event: dict[str, Any]) -> Iterable[dict[str, A
             "delta": {"type": "text_delta", "text": str(event.get("delta", ""))},
         }
         return
+    if event_type == "response.reasoning_text.delta":
+        yield {
+            "type": "content_block_delta",
+            "index": _event_output_index(event),
+            "delta": {
+                "type": "thinking_delta",
+                "thinking": str(event.get("delta", "")),
+            },
+        }
+        return
     if event_type in {"agent_message", "assistant_message"}:
         text = _event_message(event)
         if text:
@@ -314,6 +324,11 @@ def _event_message(event: Mapping[str, Any]) -> str:
         if isinstance(value, dict) and isinstance(value.get("message"), str):
             return str(value["message"])
     return ""
+
+
+def _event_output_index(event: Mapping[str, Any]) -> int:
+    value = event.get("output_index")
+    return value if isinstance(value, int) else 0
 
 
 def _safe_json_object(value: Any) -> dict[str, Any]:

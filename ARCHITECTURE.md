@@ -309,6 +309,21 @@ where supported, and returning Anthropic SSE strings to the service layer.
 - Anthropic SSE conversion into Responses SSE;
 - OpenAI-compatible error envelopes.
 
+Responses reasoning is handled as protocol conversion, not provider policy.
+`reasoning.effort = "none"` converts to a disabled Anthropic `thinking`
+request; any other explicit Responses reasoning request enables Anthropic
+thinking without translating OpenAI effort names into Anthropic token budgets.
+Prior Responses `reasoning` input items replay plaintext `reasoning_text`, or
+fallback `summary_text`, into assistant `reasoning_content`. Encrypted reasoning
+input is ignored because the proxy cannot decrypt it.
+
+Provider thinking output maps back to Responses reasoning in the same block
+order the upstream Anthropic stream produced. Anthropic `thinking` blocks become
+Responses `reasoning` output items and `response.reasoning_text.*` stream
+events. Anthropic `redacted_thinking` becomes a Responses `reasoning` item with
+`encrypted_content`; the opaque value is not exposed as visible text and FCC
+does not synthesize reasoning summaries.
+
 Provider code should delegate protocol details to these modules. Avoid copying
 conversion code into individual providers, and avoid provider-to-provider imports
 for shared Anthropic behavior.
@@ -366,6 +381,9 @@ adapter:
 - It stores the proxy auth token in `FCC_CODEX_API_KEY` for Codex to read.
 - Managed task invocations use Codex JSON output and map Responses events into
   the messaging parser event shape.
+- Codex `response.reasoning_text.delta` events are converted into the shared
+  Anthropic-style `thinking_delta` parser shape; summary reasoning events remain
+  raw unless a future feature selects them as the proxy wire shape.
 
 [cli/manager.py](cli/manager.py) coordinates multiple `CLISession` instances so
 separate conversations can run in separate client CLI processes while replies
