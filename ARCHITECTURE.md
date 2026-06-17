@@ -139,6 +139,7 @@ defines it, that dotenv value replaces a stale inherited shell token.
 
 - config directory: `~/.fcc`;
 - managed env file: `~/.fcc/.env`;
+- generated Codex model catalog: `~/.fcc/codex-model-catalog.json`;
 - agent workspace: `~/.fcc/agent_workspace`;
 - server log: `~/.fcc/logs/server.log`.
 
@@ -238,6 +239,12 @@ overrides or the global setting.
 Provider model discovery is app-scoped through `ProviderRegistry`, which caches
 model IDs and optional thinking capability metadata for the model-list route and
 admin status.
+
+Codex-specific model picker shaping stays out of this route. `fcc-codex` fetches
+the same `/v1/models` response at launch, converts FCC gateway IDs into
+provider-selectable Codex slugs, writes `~/.fcc/codex-model-catalog.json`, and
+passes it as `model_catalog_json`. Codex users open the native picker with
+`/model`; FCC does not implement a proxy-level `/models` alias.
 
 ## Provider Architecture
 
@@ -378,6 +385,10 @@ adapter:
 - `fcc-codex` strips official OpenAI and Codex credential variables.
 - It creates an ephemeral `fcc` model provider with `wire_api = "responses"` and
   a base URL pointing at the local proxy `/v1` path.
+- After proxy health succeeds, it fetches `/v1/models`, writes a generated Codex
+  `model_catalog_json` file under `~/.fcc/`, and injects that path so Codex's
+  native `/model` picker lists FCC provider slugs. Catalog generation is
+  fail-open: launch continues with a warning if the catalog cannot be prepared.
 - It stores the proxy auth token in `FCC_CODEX_API_KEY` for Codex to read.
 - Managed task invocations use Codex JSON output and map Responses events into
   the messaging parser event shape.

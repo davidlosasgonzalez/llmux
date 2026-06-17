@@ -163,6 +163,11 @@ class CodexCliAdapter:
         env[_CODEX_AUTH_ENV_KEY] = auth_token.strip() or "fcc-no-auth"
         return env
 
+    def build_model_catalog_config_args(self, catalog_path: str) -> list[str]:
+        """Return Codex config args for a generated model catalog."""
+
+        return ["-c", _toml_assignment("model_catalog_json", catalog_path)]
+
     def _task_env(
         self,
         *,
