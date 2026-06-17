@@ -392,7 +392,9 @@ adapter:
 
 - `fcc-claude` strips inherited `ANTHROPIC_*` variables, sets
   `ANTHROPIC_BASE_URL`, enables gateway model discovery, configures the
-  auto-compact window, and forwards `ANTHROPIC_AUTH_TOKEN` when configured.
+  auto-compact window, and always sets `ANTHROPIC_AUTH_TOKEN`. Blank proxy auth
+  becomes the local-only `fcc-no-auth` sentinel so Claude Code reaches the proxy
+  instead of stopping at its login gate.
 - Managed task invocations set `ANTHROPIC_API_URL`, `ANTHROPIC_BASE_URL`,
   gateway model discovery, non-interactive terminal settings, optional
   `--resume`, optional `--fork-session`, and `--output-format stream-json`.

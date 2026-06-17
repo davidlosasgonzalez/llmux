@@ -131,6 +131,32 @@ def test_claude_adapter_launcher_env_targets_proxy() -> None:
     assert "ANTHROPIC_API_KEY" not in env
 
 
+def test_claude_adapter_uses_sentinel_auth_when_proxy_auth_blank() -> None:
+    invocation = CLAUDE_CLI_ADAPTER.build_task_invocation(
+        config=_config(auth_token=""),
+        request=CliTaskRequest(prompt="hello"),
+        base_env={
+            "ANTHROPIC_API_KEY": "official-key",
+            "ANTHROPIC_AUTH_TOKEN": "stale-token",
+        },
+    )
+
+    assert invocation.env["ANTHROPIC_AUTH_TOKEN"] == "fcc-no-auth"
+    assert "ANTHROPIC_API_KEY" not in invocation.env
+
+    env = CLAUDE_CLI_ADAPTER.build_launcher_env(
+        proxy_root_url="http://127.0.0.1:9191",
+        auth_token="",
+        base_env={
+            "ANTHROPIC_API_KEY": "official-key",
+            "ANTHROPIC_AUTH_TOKEN": "stale-token",
+        },
+    )
+
+    assert env["ANTHROPIC_AUTH_TOKEN"] == "fcc-no-auth"
+    assert "ANTHROPIC_API_KEY" not in env
+
+
 def test_claude_adapter_launcher_command_preserves_args() -> None:
     command = CLAUDE_CLI_ADAPTER.build_launcher_command(
         binary_path="claude.cmd",

@@ -329,7 +329,7 @@ def test_claude_child_env_targets_current_proxy_config() -> None:
     assert "ANTHROPIC_API_KEY" not in env
 
 
-def test_claude_child_env_removes_blank_configured_auth_token() -> None:
+def test_claude_child_env_uses_sentinel_for_blank_configured_auth_token() -> None:
     from cli.entrypoints import _claude_child_env
 
     env = _claude_child_env(
@@ -340,7 +340,7 @@ def test_claude_child_env_removes_blank_configured_auth_token() -> None:
         },
     )
 
-    assert "ANTHROPIC_AUTH_TOKEN" not in env
+    assert env["ANTHROPIC_AUTH_TOKEN"] == "fcc-no-auth"
     assert "ANTHROPIC_API_KEY" not in env
 
 

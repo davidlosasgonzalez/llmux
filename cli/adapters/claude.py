@@ -11,6 +11,7 @@ from loguru import logger
 from .base import CliInvocation, CliParseState, CliTaskRequest
 
 _AUTO_COMPACT_WINDOW = "190000"
+_NO_AUTH_SENTINEL = "fcc-no-auth"
 
 
 class ClaudeCliAdapter:
@@ -150,8 +151,7 @@ class ClaudeCliAdapter:
         env["ANTHROPIC_BASE_URL"] = proxy_root_url
         env["CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"] = "1"
         env["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] = _AUTO_COMPACT_WINDOW
-        if token := auth_token.strip():
-            env["ANTHROPIC_AUTH_TOKEN"] = token
+        env["ANTHROPIC_AUTH_TOKEN"] = _claude_auth_token(auth_token)
         return env
 
     def _task_env(
@@ -170,10 +170,7 @@ class ClaudeCliAdapter:
         env["CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"] = "1"
         env["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] = _AUTO_COMPACT_WINDOW
         env.pop("ANTHROPIC_API_KEY", None)
-        if token := auth_token.strip():
-            env["ANTHROPIC_AUTH_TOKEN"] = token
-        else:
-            env.pop("ANTHROPIC_AUTH_TOKEN", None)
+        env["ANTHROPIC_AUTH_TOKEN"] = _claude_auth_token(auth_token)
 
         env["TERM"] = "dumb"
         env["PYTHONIOENCODING"] = "utf-8"
@@ -228,6 +225,10 @@ class ClaudeCliAdapter:
 
 def _string_value(value: Any) -> str | None:
     return value if isinstance(value, str) else None
+
+
+def _claude_auth_token(auth_token: str) -> str:
+    return auth_token.strip() or _NO_AUTH_SENTINEL
 
 
 CLAUDE_CLI_ADAPTER = ClaudeCliAdapter()

@@ -538,7 +538,7 @@ class TestCLISession:
             assert "ANTHROPIC_API_KEY" not in env
 
     @pytest.mark.asyncio
-    async def test_start_task_removes_stale_auth_token_when_proxy_auth_blank(self):
+    async def test_start_task_uses_sentinel_when_proxy_auth_blank(self):
         """Test start_task does not leak inherited Claude auth into proxy calls."""
         from cli.session import CLISession
 
@@ -560,7 +560,7 @@ class TestCLISession:
                 pass
 
             env = mock_exec.call_args.kwargs["env"]
-            assert "ANTHROPIC_AUTH_TOKEN" not in env
+            assert env["ANTHROPIC_AUTH_TOKEN"] == "fcc-no-auth"
 
     @pytest.mark.asyncio
     async def test_start_task_allowed_dirs(self):
