@@ -20,16 +20,24 @@ Free Claude Code routes Anthropic Messages API traffic from Claude Code (CLI and
 
 <div align="center">
   <img src="assets/pic.png" alt="Free Claude Code in action" width="700">
+  <p><em>Claude Code running through the Free Claude Code proxy.</em></p>
 </div>
 
 <div align="center">
   <img src="assets/codex.png" alt="Codex CLI in action through Free Claude Code" width="700">
+  <p><em>Codex CLI using the local FCC Responses provider.</em></p>
 </div>
 
 <a id="model-picker"></a>
 
 <div align="center">
   <img src="assets/cc-model-picker.png" alt="Claude Code model picker showing gateway models" width="700">
+  <p><em>Claude Code native <code>/model</code> picker with FCC gateway models.</em></p>
+</div>
+
+<div align="center">
+  <img src="assets/codex-model-picker.png" alt="Codex model picker showing generated FCC model catalog" width="700">
+  <p><em>Codex native <code>/model</code> picker with the generated FCC catalog.</em></p>
 </div>
 
 ## Star History
