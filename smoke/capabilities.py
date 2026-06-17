@@ -60,6 +60,20 @@ CAPABILITY_CONTRACTS: tuple[CapabilityContract, ...] = (
     ),
     CapabilityContract(
         "api_compatibility",
+        "responses_api",
+        "drop_in_codex_replacement",
+        "api.services.ClaudeProxyService.create_response",
+        "OpenAI Responses requests from Codex",
+        "Responses SSE or JSON response",
+        "OpenAI-shaped error or conversion error",
+        ("tests/api/test_openai_responses.py",),
+        (
+            "test_probe_and_models_routes",
+            "test_provider_codex_responses_text_e2e",
+        ),
+    ),
+    CapabilityContract(
+        "api_compatibility",
         "client_extensions",
         "vscode_extension",
         "api.services.ClaudeProxyService",
@@ -416,6 +430,20 @@ CAPABILITY_CONTRACTS: tuple[CapabilityContract, ...] = (
             "test_nvidia_nim_cli_matrix_e2e",
             "test_openrouter_free_cli_matrix_e2e",
         ),
+    ),
+    CapabilityContract(
+        "cli",
+        "codex_cli_drop_in",
+        "drop_in_codex_replacement",
+        "cli.adapters.codex.CodexCliAdapter",
+        "Codex CLI binary and fcc provider env",
+        "Responses config and JSONL event mapping",
+        "stderr/error event and process cleanup",
+        (
+            "tests/cli/test_adapters.py",
+            "tests/cli/test_entrypoints.py",
+        ),
+        (),
     ),
     CapabilityContract(
         "extensibility",
