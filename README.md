@@ -2,7 +2,7 @@
 
 # 🤖 Free Claude Code
 
-Use Claude Code CLI, Codex CLI, VS Code, JetBrains ACP, or chat bots through your own provider-backed proxy.
+Use Claude Code CLI, Codex CLI, their VS Code extensions, JetBrains ACP, or chat bots through your own provider-backed proxy.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Python 3.14](https://img.shields.io/badge/python-3.14-3776ab.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
@@ -12,7 +12,7 @@ Use Claude Code CLI, Codex CLI, VS Code, JetBrains ACP, or chat bots through you
 [![Code style: Ruff](https://img.shields.io/badge/code%20formatting-ruff-f5a623.svg?style=for-the-badge)](https://github.com/astral-sh/ruff)
 [![Logging: Loguru](https://img.shields.io/badge/logging-loguru-4ecdc4.svg?style=for-the-badge)](https://github.com/Delgan/loguru)
 
-Free Claude Code routes Anthropic Messages API traffic from Claude Code and OpenAI Responses API traffic from Codex to any provider. It keeps each client's protocol stable while letting you choose free, paid, or local models through the same proxy and Admin UI.
+Free Claude Code routes Anthropic Messages API traffic from Claude Code (CLI and VS Code extension) and OpenAI Responses API traffic from Codex (CLI and VS Code extension) to any provider. It keeps each client's protocol stable while letting you choose free, paid, or local models through the same proxy and Admin UI.
 
 [Quick Start](#quick-start) · [Providers](#choose-a-provider) · [Clients](#connect-your-client) · [Integrations](#optional-integrations) · [Development](#development)
 
@@ -50,7 +50,8 @@ Free Claude Code routes Anthropic Messages API traffic from Claude Code and Open
 - Native Claude Code `/model` picker support through the proxy's `/v1/models` endpoint (see [Model Picker](#model-picker)).
 - Streaming, tool use, reasoning/thinking block handling, and local request optimizations.
 - Optional Discord or Telegram bot wrapper for remote Claude Code sessions.
-- Optional Usage through the VSCode extension.
+- Optional Usage through the Claude Code VS Code extension.
+- Codex CLI and VS Code extension support through the shared `~/.codex/config.toml` provider config.
 - Optional voice-note transcription through local Whisper or NVIDIA NIM.
 - Local **Admin UI** at `/admin` to edit supported proxy settings, validate changes, and check providers (loopback access only).
 
@@ -373,7 +374,7 @@ Set `FCC_CODEX_API_KEY` to the same value as `ANTHROPIC_AUTH_TOKEN` in the Admin
 
 ### 3. Claude Code in VS Code
 
-Open Settings, search for `claude-code.environmentVariables`, choose **Edit in settings.json**, and add:
+Install the [Claude Code extension](https://marketplace.visualstudio.com/items?itemName=anthropic.claude-code). Open Settings, search for `claude-code.environmentVariables`, choose **Edit in settings.json**, and add:
 
 ```json
 "claudeCode.environmentVariables": [
@@ -386,7 +387,36 @@ Open Settings, search for `claude-code.environmentVariables`, choose **Edit in s
 
 Reload the extension. If the extension shows a login screen, choose the Anthropic Console path once; the local proxy still handles model traffic after the environment variables are active.
 
-### 4. Claude Code in JetBrains ACP
+### 4. Codex in VS Code
+
+Install the [Codex extension](https://marketplace.visualstudio.com/items?itemName=openai.chatgpt). The extension shares the same user-level Codex config as the CLI (`~/.codex/config.toml` on macOS/Linux, `%USERPROFILE%\.codex\config.toml` on Windows).
+
+Create or edit that file with the `fcc` provider pointing at your local proxy:
+
+```toml
+model_provider = "fcc"
+model = "nvidia_nim/nvidia/nemotron-3-super-120b-a12b"
+
+[model_providers.fcc]
+name = "Free Claude Code"
+base_url = "http://127.0.0.1:8082/v1"
+env_key = "FCC_CODEX_API_KEY"
+wire_api = "responses"
+```
+
+Set `model` to your Admin UI `MODEL` value. Replace `8082` if your proxy uses a different `PORT`.
+
+Store the proxy auth token in `~/.codex/auth.json` (or the Windows equivalent):
+
+```json
+{
+  "FCC_CODEX_API_KEY": "freecc"
+}
+```
+
+Use the same value as `ANTHROPIC_AUTH_TOKEN` in the Admin UI. Restart VS Code after changing these files. On Windows with WSL-backed Codex, edit the WSL `~/.codex/` files instead and enable `chatgpt.runCodexInWindowsSubsystemForLinux` in VS Code settings when needed.
+
+### 5. Claude Code in JetBrains ACP
 
 Edit the installed Claude ACP config:
 
@@ -412,7 +442,7 @@ For every integration below, change **managed proxy settings** only in the **Adm
 
 ### 1. Discord And Telegram Bots
 
-The bot wrapper runs Claude Code sessions remotely, streams progress, supports reply-based conversation branches, and can stop or clear tasks. Discord and Telegram bots use Claude Code today; use `fcc-codex` directly for Codex CLI sessions.
+The bot wrapper runs Claude Code sessions remotely, streams progress, supports reply-based conversation branches, and can stop or clear tasks. Discord and Telegram bots use Claude Code today; use `fcc-codex` or the Codex VS Code extension for Codex sessions.
 
 **Discord**
 
