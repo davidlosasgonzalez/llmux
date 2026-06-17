@@ -86,6 +86,22 @@ irm "https://github.com/Alishahryar1/free-claude-code/blob/main/scripts/install.
 
 Review the installers at [scripts/install.sh](https://github.com/Alishahryar1/free-claude-code/blob/main/scripts/install.sh) and [scripts/install.ps1](https://github.com/Alishahryar1/free-claude-code/blob/main/scripts/install.ps1). They install Claude Code and Codex when missing, then install or update the proxy. Re-run these commands to update to the latest version.
 
+To remove only Free Claude Code (not uv, Claude Code, Codex, or the uv-managed Python runtime):
+
+macOS/Linux:
+
+```bash
+curl -fsSL "https://raw.githubusercontent.com/Alishahryar1/free-claude-code/main/scripts/uninstall.sh" | sh
+```
+
+Windows PowerShell:
+
+```powershell
+irm "https://raw.githubusercontent.com/Alishahryar1/free-claude-code/main/scripts/uninstall.ps1" | iex
+```
+
+Review [scripts/uninstall.sh](https://github.com/Alishahryar1/free-claude-code/blob/main/scripts/uninstall.sh) and [scripts/uninstall.ps1](https://github.com/Alishahryar1/free-claude-code/blob/main/scripts/uninstall.ps1). They remove the FCC uv tool and always delete `~/.fcc/`. Stop any running `fcc-server`, `fcc-claude`, `fcc-codex`, `fcc-init`, or `free-claude-code` process before uninstalling.
+
 ### 2. Start The Proxy
 
 ```bash
@@ -580,14 +596,28 @@ uv run uvicorn server:app --host 0.0.0.0 --port 8082
 
 ### 3. Commands
 
+Run all GitHub CI checks locally (requires `uv` on PATH):
+
 ```bash
-uv run ruff format
-uv run ruff check
-uv run ty check
-uv run pytest
+./scripts/ci.sh
 ```
 
-Run them in that order before pushing. CI enforces the same checks.
+```powershell
+.\scripts\ci.ps1
+```
+
+Useful flags: `--only pytest`, `--skip pytest`, `--dry-run` (PowerShell: `-Only pytest`, `-Skip pytest`, `-DryRun`).
+
+Or run individual checks manually:
+
+```bash
+uv run ruff format --check
+uv run ruff check
+uv run ty check
+uv run pytest -v --tb=short
+```
+
+CI also enforces a ban on `# type: ignore` / `# ty: ignore` suppressions; `scripts/ci.sh` and `scripts/ci.ps1` run that grep too.
 
 ### 4. Package Scripts
 
