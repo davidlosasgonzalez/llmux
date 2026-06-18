@@ -70,15 +70,34 @@ than importing behavior from another provider-specific module.
 ## Customer-Facing Contract
 
 FCC optimizes for installed user workflows, not internal compatibility. The
-behavior that must be preserved is that `fcc-server`, `fcc-cloud`, `fcc-claude`,
-`fcc-codex`, Claude Code, Codex, and configured messaging bridges run correctly
-for real prompts against supported providers.
+behavior that must be preserved is that these user-facing surfaces run correctly
+for real prompts against supported providers:
+
+- `fcc-server` and the local Admin UI for configuring supported providers,
+  model routing, auth, server tools, messaging, and diagnostics.
+- `fcc-claude`, Claude Code, and the Anthropic-compatible proxy behavior Claude
+  Code relies on, including streaming text, native/interleaved thinking, tool
+  use/results, model discovery, token counting, retries/recovery, and supported
+  local server-tool behavior.
+- `fcc-codex`, Codex CLI/extensions, and the streaming OpenAI Responses behavior
+  Codex relies on, including native/interleaved reasoning, function and custom
+  tool calls, generated `/model` catalog support, Responses stream lifecycle
+  events, and Responses-to-Anthropic conversion at the adapter boundary.
+- Configured Discord and Telegram messaging bridges, including command handling,
+  reply-based conversation branches, status updates, transcript rendering,
+  managed Claude/Codex task execution where configured, task stop/clear flows,
+  persistence, and optional voice-note transcription.
+- Installation, update, init, and uninstall scripts insofar as they make the
+  above workflows available on a user's machine.
 
 Internal modules, class designs, helper APIs, route implementations, and tests
 are not stable contracts. Refactors may replace or remove them when doing so
 simplifies the system, improves correctness, or better matches these
 architecture boundaries. When tests primarily encode an obsolete internal shape,
-update the tests to assert the customer-facing behavior instead.
+update the tests to assert the customer-facing behavior instead. Features,
+compatibility shims, endpoints, or helper paths that do not serve one of the
+surfaces above are not product requirements and should be removed rather than
+preserved.
 
 ## Design Pressure And Refactor Targets
 
