@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterable, Mapping
-from typing import Any
+from typing import Any, cast
 
 from loguru import logger
 
@@ -101,9 +101,11 @@ class CodexCliAdapter:
                 logger.info("Extracted Codex session ID: {}", extracted_id)
                 yield {"type": "session_info", "session_id": extracted_id}
 
-        mapped = list(_codex_event_to_parser_events(event))
+        mapped = list(_codex_event_to_parser_events(event, state))
         if mapped:
             yield from mapped
+            return
+        if event.get("type") in {"response.output_item.done", "response.completed"}:
             return
 
         yield {"type": "raw", "content": line}
@@ -240,12 +242,19 @@ class CodexCliAdapter:
         return args
 
 
-def _codex_event_to_parser_events(event: dict[str, Any]) -> Iterable[dict[str, Any]]:
+def _codex_event_to_parser_events(
+    event: dict[str, Any], state: CliParseState
+) -> Iterable[dict[str, Any]]:
     event_type = event.get("type")
     if event_type in {"error", "turn.failed"}:
         yield {"type": "error", "error": {"message": _event_message(event)}}
         return
+    if event_type == "response.failed":
+        _finish_response_scope(state)
+        yield {"type": "error", "error": {"message": _event_message(event)}}
+        return
     if event_type == "response.output_text.delta":
+        _mark_streamed_message_item_seen(event, state)
         yield {
             "type": "content_block_delta",
             "index": 0,
@@ -272,16 +281,31 @@ def _codex_event_to_parser_events(event: dict[str, Any]) -> Iterable[dict[str, A
         return
     if event_type == "response.output_item.done":
         item = event.get("item")
-        if isinstance(item, dict):
+        if isinstance(item, dict) and _mark_response_item_unseen(
+            item,
+            state,
+            response_scope=_response_scope(event, state),
+            output_index=_optional_event_output_index(event),
+        ):
             yield from _responses_item_to_parser_events(item)
         return
     if event_type == "response.completed":
         response = event.get("response")
         output = response.get("output") if isinstance(response, dict) else None
+        response_scope = _response_scope(event, state)
         if isinstance(output, list):
-            for item in output:
-                if isinstance(item, dict):
-                    yield from _responses_item_to_parser_events(item)
+            for output_index, item in enumerate(output):
+                if not isinstance(item, dict):
+                    continue
+                item_mapping = cast(Mapping[str, Any], item)
+                if _mark_response_item_unseen(
+                    item_mapping,
+                    state,
+                    response_scope=response_scope,
+                    output_index=output_index,
+                ):
+                    yield from _responses_item_to_parser_events(item_mapping)
+        _finish_response_scope(state)
         return
 
 
@@ -319,6 +343,21 @@ def _responses_item_to_parser_events(
                 ]
             },
         }
+        return
+    if item_type == "custom_tool_call":
+        yield {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": str(item.get("call_id", item.get("id", ""))),
+                        "name": str(item.get("name", "")),
+                        "input": {"input": _custom_tool_input_text(item.get("input"))},
+                    }
+                ]
+            },
+        }
 
 
 def _event_message(event: Mapping[str, Any]) -> str:
@@ -328,12 +367,115 @@ def _event_message(event: Mapping[str, Any]) -> str:
             return value
         if isinstance(value, dict) and isinstance(value.get("message"), str):
             return str(value["message"])
+    response = event.get("response")
+    if isinstance(response, dict):
+        error = response.get("error")
+        if isinstance(error, dict) and isinstance(error.get("message"), str):
+            return str(error["message"])
     return ""
 
 
 def _event_output_index(event: Mapping[str, Any]) -> int:
     value = event.get("output_index")
     return value if isinstance(value, int) else 0
+
+
+def _optional_event_output_index(event: Mapping[str, Any]) -> int | None:
+    value = event.get("output_index")
+    return value if isinstance(value, int) else None
+
+
+def _mark_response_item_unseen(
+    item: Mapping[str, Any],
+    state: CliParseState,
+    *,
+    response_scope: str | None = None,
+    output_index: int | None = None,
+) -> bool:
+    item_key = _response_item_key(
+        item,
+        response_scope=response_scope,
+        output_index=output_index,
+    )
+    if item_key is None:
+        return True
+    if item_key in state.responses_seen_output_keys:
+        return False
+    state.responses_seen_output_keys.add(item_key)
+    return True
+
+
+def _mark_streamed_message_item_seen(
+    event: Mapping[str, Any], state: CliParseState
+) -> None:
+    item_id = event.get("item_id")
+    if isinstance(item_id, str) and item_id:
+        state.responses_seen_output_keys.add(f"message:{item_id}")
+    output_index = _optional_event_output_index(event)
+    if output_index is not None:
+        state.responses_seen_output_keys.add(
+            _response_output_index_key(
+                "message",
+                _response_scope(event, state),
+                output_index,
+            )
+        )
+
+
+def _response_item_key(
+    item: Mapping[str, Any],
+    *,
+    response_scope: str | None = None,
+    output_index: int | None = None,
+) -> str | None:
+    item_type = item.get("type")
+    if (
+        item_type == "message"
+        and response_scope is not None
+        and output_index is not None
+    ):
+        return _response_output_index_key(item_type, response_scope, output_index)
+    for key in ("id", "call_id"):
+        value = item.get(key)
+        if isinstance(value, str) and value:
+            return f"{item_type}:{value}"
+    return None
+
+
+def _response_scope(event: Mapping[str, Any], state: CliParseState) -> str:
+    if state.responses_current_output_scope is not None:
+        return state.responses_current_output_scope
+    response_id = _event_response_id(event)
+    if response_id is not None:
+        scope = f"response:{response_id}"
+    else:
+        scope = f"implicit:{state.responses_next_implicit_output_scope}"
+        state.responses_next_implicit_output_scope += 1
+    state.responses_current_output_scope = scope
+    return scope
+
+
+def _finish_response_scope(state: CliParseState) -> None:
+    state.responses_current_output_scope = None
+
+
+def _event_response_id(event: Mapping[str, Any]) -> str | None:
+    for key in ("response_id", "responseId"):
+        value = event.get(key)
+        if isinstance(value, str) and value:
+            return value
+    response = event.get("response")
+    if isinstance(response, dict):
+        value = response.get("id")
+        if isinstance(value, str) and value:
+            return value
+    return None
+
+
+def _response_output_index_key(
+    item_type: object, response_scope: str, output_index: int
+) -> str:
+    return f"{item_type}_output_index:{response_scope}:{output_index}"
 
 
 def _safe_json_object(value: Any) -> dict[str, Any]:
@@ -346,6 +488,17 @@ def _safe_json_object(value: Any) -> dict[str, Any]:
     except json.JSONDecodeError:
         return {}
     return parsed if isinstance(parsed, dict) else {}
+
+
+def _custom_tool_input_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    try:
+        return json.dumps(value)
+    except TypeError:
+        return str(value)
 
 
 def _base_codex_env(base_env: Mapping[str, str]) -> dict[str, str]:

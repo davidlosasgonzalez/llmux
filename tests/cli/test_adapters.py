@@ -346,6 +346,306 @@ def test_codex_adapter_parses_response_text_delta() -> None:
     ]
 
 
+def test_codex_adapter_marks_streamed_message_items_seen() -> None:
+    state = CliParseState()
+    item = {
+        "type": "message",
+        "id": "msg1",
+        "content": [{"type": "output_text", "text": "hi"}],
+    }
+
+    delta_events = list(
+        CODEX_CLI_ADAPTER.parse_stdout_line(
+            json.dumps(
+                {
+                    "type": "response.output_text.delta",
+                    "item_id": "msg1",
+                    "output_index": 0,
+                    "delta": "hi",
+                }
+            ),
+            state,
+        )
+    )
+    item_done_events = list(
+        CODEX_CLI_ADAPTER.parse_stdout_line(
+            json.dumps({"type": "response.output_item.done", "item": item}),
+            state,
+        )
+    )
+    completed_events = list(
+        CODEX_CLI_ADAPTER.parse_stdout_line(
+            json.dumps(
+                {
+                    "type": "response.completed",
+                    "response": {"output": [item]},
+                }
+            ),
+            state,
+        )
+    )
+
+    assert delta_events == [
+        {
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {"type": "text_delta", "text": "hi"},
+        }
+    ]
+    assert item_done_events == []
+    assert completed_events == []
+
+
+def test_codex_adapter_dedupes_output_index_only_message_done() -> None:
+    state = CliParseState()
+    item = {
+        "type": "message",
+        "content": [{"type": "output_text", "text": "hi"}],
+    }
+
+    delta_events = list(
+        CODEX_CLI_ADAPTER.parse_stdout_line(
+            json.dumps(
+                {
+                    "type": "response.output_text.delta",
+                    "output_index": 0,
+                    "delta": "hi",
+                }
+            ),
+            state,
+        )
+    )
+    item_done_events = list(
+        CODEX_CLI_ADAPTER.parse_stdout_line(
+            json.dumps(
+                {
+                    "type": "response.output_item.done",
+                    "output_index": 0,
+                    "item": item,
+                }
+            ),
+            state,
+        )
+    )
+
+    assert delta_events == [
+        {
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {"type": "text_delta", "text": "hi"},
+        }
+    ]
+    assert item_done_events == []
+
+
+def test_codex_adapter_prefers_streamed_output_index_for_final_message_id() -> None:
+    state = CliParseState()
+    item = {
+        "type": "message",
+        "id": "msg_1",
+        "content": [{"type": "output_text", "text": "hi"}],
+    }
+
+    delta_events = list(
+        CODEX_CLI_ADAPTER.parse_stdout_line(
+            json.dumps(
+                {
+                    "type": "response.output_text.delta",
+                    "output_index": 0,
+                    "delta": "hi",
+                }
+            ),
+            state,
+        )
+    )
+    item_done_events = list(
+        CODEX_CLI_ADAPTER.parse_stdout_line(
+            json.dumps(
+                {
+                    "type": "response.output_item.done",
+                    "output_index": 0,
+                    "item": item,
+                }
+            ),
+            state,
+        )
+    )
+    completed_events = list(
+        CODEX_CLI_ADAPTER.parse_stdout_line(
+            json.dumps(
+                {
+                    "type": "response.completed",
+                    "response": {"output": [item]},
+                }
+            ),
+            state,
+        )
+    )
+
+    assert delta_events == [
+        {
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {"type": "text_delta", "text": "hi"},
+        }
+    ]
+    assert item_done_events == []
+    assert completed_events == []
+
+
+def test_codex_adapter_dedupes_output_index_only_completed_message() -> None:
+    state = CliParseState()
+    item = {
+        "type": "message",
+        "content": [{"type": "output_text", "text": "hi"}],
+    }
+
+    delta_events = list(
+        CODEX_CLI_ADAPTER.parse_stdout_line(
+            json.dumps(
+                {
+                    "type": "response.output_text.delta",
+                    "output_index": 0,
+                    "delta": "hi",
+                }
+            ),
+            state,
+        )
+    )
+    completed_events = list(
+        CODEX_CLI_ADAPTER.parse_stdout_line(
+            json.dumps(
+                {
+                    "type": "response.completed",
+                    "response": {"output": [item]},
+                }
+            ),
+            state,
+        )
+    )
+
+    assert delta_events == [
+        {
+            "type": "content_block_delta",
+            "index": 0,
+            "delta": {"type": "text_delta", "text": "hi"},
+        }
+    ]
+    assert completed_events == []
+
+
+def test_codex_adapter_output_index_dedupe_scope_advances_after_terminal() -> None:
+    state = CliParseState()
+    streamed_item = {
+        "type": "message",
+        "content": [{"type": "output_text", "text": "first"}],
+    }
+    fallback_item = {
+        "type": "message",
+        "content": [{"type": "output_text", "text": "second"}],
+    }
+
+    list(
+        CODEX_CLI_ADAPTER.parse_stdout_line(
+            json.dumps(
+                {
+                    "type": "response.output_text.delta",
+                    "output_index": 0,
+                    "delta": "first",
+                }
+            ),
+            state,
+        )
+    )
+    first_completed_events = list(
+        CODEX_CLI_ADAPTER.parse_stdout_line(
+            json.dumps(
+                {
+                    "type": "response.completed",
+                    "response": {"output": [streamed_item]},
+                }
+            ),
+            state,
+        )
+    )
+    second_completed_events = list(
+        CODEX_CLI_ADAPTER.parse_stdout_line(
+            json.dumps(
+                {
+                    "type": "response.completed",
+                    "response": {"output": [fallback_item]},
+                }
+            ),
+            state,
+        )
+    )
+
+    assert first_completed_events == []
+    assert second_completed_events == [
+        {
+            "type": "assistant",
+            "message": {"content": [{"type": "text", "text": "second"}]},
+        }
+    ]
+
+
+def test_codex_adapter_output_index_dedupe_scope_advances_after_failed_response() -> (
+    None
+):
+    state = CliParseState()
+    fallback_item = {
+        "type": "message",
+        "content": [{"type": "output_text", "text": "second"}],
+    }
+
+    list(
+        CODEX_CLI_ADAPTER.parse_stdout_line(
+            json.dumps(
+                {
+                    "type": "response.output_text.delta",
+                    "output_index": 0,
+                    "delta": "first",
+                }
+            ),
+            state,
+        )
+    )
+    failed_events = list(
+        CODEX_CLI_ADAPTER.parse_stdout_line(
+            json.dumps(
+                {
+                    "type": "response.failed",
+                    "response": {
+                        "error": {
+                            "message": "upstream failed",
+                        },
+                    },
+                }
+            ),
+            state,
+        )
+    )
+    completed_events = list(
+        CODEX_CLI_ADAPTER.parse_stdout_line(
+            json.dumps(
+                {
+                    "type": "response.completed",
+                    "response": {"output": [fallback_item]},
+                }
+            ),
+            state,
+        )
+    )
+
+    assert failed_events == [{"type": "error", "error": {"message": "upstream failed"}}]
+    assert completed_events == [
+        {
+            "type": "assistant",
+            "message": {"content": [{"type": "text", "text": "second"}]},
+        }
+    ]
+
+
 def test_codex_adapter_parses_response_reasoning_text_delta() -> None:
     events = list(
         CODEX_CLI_ADAPTER.parse_stdout_line(
@@ -381,6 +681,149 @@ def test_codex_adapter_parses_completed_function_call_item() -> None:
     )
 
     events = list(CODEX_CLI_ADAPTER.parse_stdout_line(line, CliParseState()))
+
+    assert events == [
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "call_1",
+                        "name": "echo",
+                        "input": {"value": "FCC"},
+                    }
+                ]
+            },
+        }
+    ]
+
+
+def test_codex_adapter_parses_completed_custom_tool_call_item() -> None:
+    line = json.dumps(
+        {
+            "type": "response.output_item.done",
+            "item": {
+                "type": "custom_tool_call",
+                "call_id": "call_1",
+                "name": "apply_patch",
+                "input": "*** Begin Patch",
+            },
+        }
+    )
+
+    events = list(CODEX_CLI_ADAPTER.parse_stdout_line(line, CliParseState()))
+
+    assert events == [
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "call_1",
+                        "name": "apply_patch",
+                        "input": {"input": "*** Begin Patch"},
+                    }
+                ]
+            },
+        }
+    ]
+
+
+def test_codex_adapter_dedupes_output_item_done_against_completed_output() -> None:
+    state = CliParseState()
+    item = {
+        "type": "custom_tool_call",
+        "id": "ctc_1",
+        "call_id": "call_1",
+        "name": "apply_patch",
+        "input": "*** Begin Patch",
+    }
+
+    item_done_events = list(
+        CODEX_CLI_ADAPTER.parse_stdout_line(
+            json.dumps({"type": "response.output_item.done", "item": item}),
+            state,
+        )
+    )
+    completed_events = list(
+        CODEX_CLI_ADAPTER.parse_stdout_line(
+            json.dumps(
+                {
+                    "type": "response.completed",
+                    "response": {"output": [item]},
+                }
+            ),
+            state,
+        )
+    )
+
+    assert item_done_events == [
+        {
+            "type": "assistant",
+            "message": {
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "call_1",
+                        "name": "apply_patch",
+                        "input": {"input": "*** Begin Patch"},
+                    }
+                ]
+            },
+        }
+    ]
+    assert completed_events == []
+
+
+def test_codex_adapter_completed_output_is_fallback_for_unseen_message_item() -> None:
+    item = {
+        "type": "message",
+        "id": "msg1",
+        "content": [{"type": "output_text", "text": "hi"}],
+    }
+
+    events = list(
+        CODEX_CLI_ADAPTER.parse_stdout_line(
+            json.dumps(
+                {
+                    "type": "response.completed",
+                    "response": {"output": [item]},
+                }
+            ),
+            CliParseState(),
+        )
+    )
+
+    assert events == [
+        {
+            "type": "assistant",
+            "message": {"content": [{"type": "text", "text": "hi"}]},
+        }
+    ]
+
+
+def test_codex_adapter_completed_output_is_fallback_for_unseen_tool_item() -> None:
+    item = {
+        "type": "function_call",
+        "id": "fc_1",
+        "call_id": "call_1",
+        "name": "echo",
+        "arguments": '{"value":"FCC"}',
+    }
+
+    events = list(
+        CODEX_CLI_ADAPTER.parse_stdout_line(
+            json.dumps(
+                {
+                    "type": "response.completed",
+                    "response": {"output": [item]},
+                }
+            ),
+            CliParseState(),
+        )
+    )
 
     assert events == [
         {

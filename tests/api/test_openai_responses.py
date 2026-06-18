@@ -55,7 +55,6 @@ def test_create_response_stream_routes_through_provider(
         json={
             "model": "nvidia_nim/test-model",
             "input": "Hello",
-            "stream": True,
             "max_output_tokens": 32,
         },
     )
@@ -76,10 +75,35 @@ def test_create_response_stream_routes_through_provider(
     assert routed.max_tokens == 32
 
 
-def test_create_response_non_stream_collects_response(
+def test_create_response_stream_bypasses_local_message_optimizations() -> None:
+    provider = FakeProvider(_anthropic_text_stream("Provider response"))
+    app = create_app(lifespan_enabled=False)
+    with (
+        patch("api.dependencies.resolve_provider", return_value=provider),
+        patch(
+            "api.services.try_optimizations",
+            side_effect=AssertionError("Responses must not use message optimizations"),
+        ),
+        TestClient(app) as client,
+    ):
+        response = client.post(
+            "/v1/responses",
+            json={
+                "model": "nvidia_nim/test-model",
+                "input": "quota check",
+            },
+        )
+
+    assert response.status_code == 200
+    completed = parse_sse_text(response.text)[-1].data["response"]
+    assert completed["output"][0]["content"][0]["text"] == "Provider response"
+    assert provider.requests[0].messages[0].content == "quota check"
+
+
+def test_create_response_stream_false_returns_openai_error(
     responses_client: tuple[TestClient, FakeProvider],
 ) -> None:
-    client, _provider = responses_client
+    client, provider = responses_client
 
     response = client.post(
         "/v1/responses",
@@ -90,11 +114,11 @@ def test_create_response_non_stream_collects_response(
         },
     )
 
-    assert response.status_code == 200
+    assert response.status_code == 400
     payload = response.json()
-    assert payload["object"] == "response"
-    assert payload["status"] == "completed"
-    assert payload["output"][0]["content"][0]["text"] == "Hello from provider"
+    assert payload["error"]["type"] == "invalid_request_error"
+    assert "streaming only" in payload["error"]["message"]
+    assert provider.requests == []
 
 
 def test_create_response_stream_preserves_interleaved_reasoning_order() -> None:
@@ -136,31 +160,6 @@ def test_create_response_stream_preserves_interleaved_reasoning_order() -> None:
     assert completed["output"][2]["arguments"] == '{"value":"FCC"}'
     assert completed["output"][3]["content"][0]["text"] == "second thought"
     assert completed["output"][4]["content"][0]["text"] == "final answer"
-
-
-def test_create_response_non_stream_preserves_reasoning_items() -> None:
-    provider = FakeProvider(_anthropic_reasoning_text_stream())
-    app = create_app(lifespan_enabled=False)
-    with (
-        patch("api.dependencies.resolve_provider", return_value=provider),
-        TestClient(app) as client,
-    ):
-        response = client.post(
-            "/v1/responses",
-            json={
-                "model": "nvidia_nim/test-model",
-                "input": "Think then answer",
-                "stream": False,
-            },
-        )
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert [item["type"] for item in payload["output"]] == ["reasoning", "message"]
-    assert payload["output"][0]["content"] == [
-        {"type": "reasoning_text", "text": "provider reasoning"}
-    ]
-    assert payload["output"][1]["content"][0]["text"] == "provider answer"
 
 
 def test_create_response_tool_stream_emits_function_call() -> None:
@@ -236,6 +235,92 @@ def test_create_response_accepts_codex_namespace_tool_request() -> None:
     call = completed["output"][0]
     assert call["namespace"] == "mcp__node_repl"
     assert call["name"] == "js"
+
+
+def test_create_response_accepts_codex_custom_tool_request() -> None:
+    provider = FakeProvider(
+        _anthropic_tool_stream(
+            tool_name="apply_patch",
+            partial_json='{"input":"*** Begin Patch"}',
+        )
+    )
+    app = create_app(lifespan_enabled=False)
+    with (
+        patch("api.dependencies.resolve_provider", return_value=provider),
+        TestClient(app) as client,
+    ):
+        response = client.post(
+            "/v1/responses",
+            json={
+                "model": "nvidia_nim/test-model",
+                "input": "Use apply_patch",
+                "stream": True,
+                "tools": [
+                    {
+                        "type": "custom",
+                        "name": "apply_patch",
+                        "description": "Apply repo patches",
+                        "format": {"type": "text"},
+                    }
+                ],
+                "tool_choice": {"type": "custom", "name": "apply_patch"},
+            },
+        )
+
+    assert response.status_code == 200
+    routed = provider.requests[0]
+    assert [tool.name for tool in routed.tools] == ["apply_patch"]
+    assert routed.tool_choice == {"type": "tool", "name": "apply_patch"}
+    events = parse_sse_text(response.text)
+    assert "response.custom_tool_call_input.delta" in [event.event for event in events]
+    completed = events[-1].data["response"]
+    call = completed["output"][0]
+    assert call["type"] == "custom_tool_call"
+    assert call["name"] == "apply_patch"
+    assert call["input"] == "*** Begin Patch"
+
+
+def test_create_response_stream_provider_error_returns_response_failed() -> None:
+    provider = FakeProvider(
+        [
+            format_sse_event(
+                "error",
+                {
+                    "type": "error",
+                    "error": {
+                        "type": "api_error",
+                        "message": "provider failed",
+                    },
+                },
+            )
+        ]
+    )
+    app = create_app(lifespan_enabled=False)
+    with (
+        patch("api.dependencies.resolve_provider", return_value=provider),
+        TestClient(app) as client,
+    ):
+        response = client.post(
+            "/v1/responses",
+            json={
+                "model": "nvidia_nim/test-model",
+                "input": "Hello",
+                "stream": True,
+            },
+        )
+
+    assert response.status_code == 200
+    events = parse_sse_text(response.text)
+    assert [event.event for event in events] == ["response.created", "response.failed"]
+    failed = events[-1].data["response"]
+    assert failed["id"] == events[0].data["response"]["id"]
+    assert failed["status"] == "failed"
+    assert failed["error"] == {
+        "message": "provider failed",
+        "type": "api_error",
+        "param": None,
+        "code": None,
+    }
 
 
 def test_create_response_replays_prior_reasoning_as_reasoning_content() -> None:
@@ -415,7 +500,9 @@ def _anthropic_text_stream(text: str) -> list[str]:
     ]
 
 
-def _anthropic_tool_stream(tool_name: str = "echo") -> list[str]:
+def _anthropic_tool_stream(
+    tool_name: str = "echo", partial_json: str = '{"value":"FCC"}'
+) -> list[str]:
     return [
         format_sse_event("message_start", {"type": "message_start", "message": {}}),
         format_sse_event(
@@ -438,7 +525,7 @@ def _anthropic_tool_stream(tool_name: str = "echo") -> list[str]:
                 "index": 0,
                 "delta": {
                     "type": "input_json_delta",
-                    "partial_json": '{"value":"FCC"}',
+                    "partial_json": partial_json,
                 },
             },
         ),
