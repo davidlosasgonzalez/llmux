@@ -293,6 +293,7 @@ def test_responses_passive_codex_built_in_tools_are_ignored() -> None:
             "tools": [
                 {"type": "web_search", "external_web_access": True},
                 {"type": "image_generation", "output_format": "png"},
+                {"type": "tool_search"},
                 {
                     "type": "function",
                     "name": "echo",

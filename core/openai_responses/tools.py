@@ -14,7 +14,9 @@ from .ids import new_call_id
 
 _MAX_ANTHROPIC_TOOL_NAME_LEN = 64
 _NAMESPACE_TOOL_SEPARATOR = "__"
-_UNSUPPORTED_PASSIVE_TOOL_TYPES = frozenset({"web_search", "image_generation"})
+_UNSUPPORTED_PASSIVE_TOOL_TYPES = frozenset(
+    {"web_search", "image_generation", "tool_search"}
+)
 _INVALID_TOOL_NAME_CHARS = re.compile(r"[^A-Za-z0-9_-]+")
 
 
