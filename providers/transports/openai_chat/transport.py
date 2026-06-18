@@ -7,7 +7,6 @@ from collections.abc import AsyncIterator, Iterator
 from typing import Any
 
 import httpx
-from loguru import logger
 from openai import AsyncOpenAI
 
 from core.anthropic import SSEBuilder
@@ -146,13 +145,12 @@ class OpenAIChatTransport(BaseProvider):
         thinking_enabled: bool | None = None,
     ) -> AsyncIterator[str]:
         """Stream response in Anthropic SSE format."""
-        with logger.contextualize(request_id=request_id):
-            runner = OpenAIChatStreamRunner(
-                self,
-                request=request,
-                input_tokens=input_tokens,
-                request_id=request_id,
-                thinking_enabled=thinking_enabled,
-            )
-            async for event in runner.run():
-                yield event
+        runner = OpenAIChatStreamRunner(
+            self,
+            request=request,
+            input_tokens=input_tokens,
+            request_id=request_id,
+            thinking_enabled=thinking_enabled,
+        )
+        async for event in runner.run():
+            yield event

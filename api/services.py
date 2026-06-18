@@ -187,45 +187,45 @@ class ClaudeProxyService:
             )
 
             request_id = f"req_{uuid.uuid4().hex[:12]}"
-            with logger.contextualize(request_id=request_id):
-                trace_event(
-                    stage="ingress",
-                    event="api.request.received",
-                    source="api",
-                    message_count=len(routed.request.messages),
-                    snapshot=api_messages_request_snapshot(routed.request),
+            trace_event(
+                stage="ingress",
+                event="api.request.received",
+                source="api",
+                message_count=len(routed.request.messages),
+                snapshot=api_messages_request_snapshot(routed.request),
+                request_id=request_id,
+            )
+
+            if self._settings.log_raw_api_payloads:
+                logger.debug(
+                    "FULL_PAYLOAD [{}]: {}", request_id, routed.request.model_dump()
                 )
 
-                if self._settings.log_raw_api_payloads:
-                    logger.debug(
-                        "FULL_PAYLOAD [{}]: {}", request_id, routed.request.model_dump()
-                    )
+            input_tokens = self._token_counter(
+                routed.request.messages,
+                routed.request.system,
+                routed.request.tools,
+            )
 
-                input_tokens = self._token_counter(
-                    routed.request.messages,
-                    routed.request.system,
-                    routed.request.tools,
-                )
-
-                streamed = traced_async_stream(
-                    provider.stream_response(
-                        routed.request,
-                        input_tokens=input_tokens,
-                        request_id=request_id,
-                        thinking_enabled=routed.resolved.thinking_enabled,
-                    ),
-                    stage="egress",
-                    source="api",
-                    complete_event="api.response.stream_completed",
-                    interrupted_event="api.response.stream_interrupted",
-                    chunk_event=None,
-                    extra={
-                        "request_id": request_id,
-                        "provider_id": routed.resolved.provider_id,
-                        "gateway_model": routed.request.model,
-                    },
-                )
-                return anthropic_sse_streaming_response(streamed)
+            streamed = traced_async_stream(
+                provider.stream_response(
+                    routed.request,
+                    input_tokens=input_tokens,
+                    request_id=request_id,
+                    thinking_enabled=routed.resolved.thinking_enabled,
+                ),
+                stage="egress",
+                source="api",
+                complete_event="api.response.stream_completed",
+                interrupted_event="api.response.stream_interrupted",
+                chunk_event=None,
+                extra={
+                    "request_id": request_id,
+                    "provider_id": routed.resolved.provider_id,
+                    "gateway_model": routed.request.model,
+                },
+            )
+            return anthropic_sse_streaming_response(streamed)
 
         except ProviderError:
             raise
@@ -289,52 +289,52 @@ class ClaudeProxyService:
             )
 
             request_id = f"req_{uuid.uuid4().hex[:12]}"
-            with logger.contextualize(request_id=request_id):
-                trace_event(
-                    stage="ingress",
-                    event="api.responses.request.received",
-                    source="api",
-                    message_count=len(routed.request.messages),
-                    snapshot=api_messages_request_snapshot(routed.request),
+            trace_event(
+                stage="ingress",
+                event="api.responses.request.received",
+                source="api",
+                message_count=len(routed.request.messages),
+                snapshot=api_messages_request_snapshot(routed.request),
+                request_id=request_id,
+            )
+
+            if self._settings.log_raw_api_payloads:
+                logger.debug(
+                    "FULL_RESPONSES_PAYLOAD [{}]: {}",
+                    request_id,
+                    request_payload,
                 )
 
-                if self._settings.log_raw_api_payloads:
-                    logger.debug(
-                        "FULL_RESPONSES_PAYLOAD [{}]: {}",
-                        request_id,
-                        request_payload,
-                    )
+            input_tokens = self._token_counter(
+                routed.request.messages,
+                routed.request.system,
+                routed.request.tools,
+            )
 
-                input_tokens = self._token_counter(
-                    routed.request.messages,
-                    routed.request.system,
-                    routed.request.tools,
+            streamed = traced_async_stream(
+                provider.stream_response(
+                    routed.request,
+                    input_tokens=input_tokens,
+                    request_id=request_id,
+                    thinking_enabled=routed.resolved.thinking_enabled,
+                ),
+                stage="egress",
+                source="api",
+                complete_event="api.responses.stream_completed",
+                interrupted_event="api.responses.stream_interrupted",
+                chunk_event=None,
+                extra={
+                    "request_id": request_id,
+                    "provider_id": routed.resolved.provider_id,
+                    "gateway_model": routed.request.model,
+                },
+            )
+            return openai_responses_sse_streaming_response(
+                self._responses_adapter.iter_sse_from_anthropic(
+                    streamed,
+                    request_payload,
                 )
-
-                streamed = traced_async_stream(
-                    provider.stream_response(
-                        routed.request,
-                        input_tokens=input_tokens,
-                        request_id=request_id,
-                        thinking_enabled=routed.resolved.thinking_enabled,
-                    ),
-                    stage="egress",
-                    source="api",
-                    complete_event="api.responses.stream_completed",
-                    interrupted_event="api.responses.stream_interrupted",
-                    chunk_event=None,
-                    extra={
-                        "request_id": request_id,
-                        "provider_id": routed.resolved.provider_id,
-                        "gateway_model": routed.request.model,
-                    },
-                )
-                return openai_responses_sse_streaming_response(
-                    self._responses_adapter.iter_sse_from_anthropic(
-                        streamed,
-                        request_payload,
-                    )
-                )
+            )
         except OpenAIResponsesAdapter.ConversionError as exc:
             invalid_request = InvalidRequestError(str(exc))
             return JSONResponse(
