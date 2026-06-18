@@ -14,7 +14,7 @@ from .platforms.base import SessionManagerInterface
 from .safe_diagnostics import text_len_hint
 from .session import SessionStore
 from .transcript import TranscriptBuffer
-from .trees.queue_manager import MessageState, MessageTree
+from .trees import MessageState, MessageTree
 
 
 async def handle_session_info_event(

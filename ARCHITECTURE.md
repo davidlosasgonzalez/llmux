@@ -114,10 +114,10 @@ new places to add unrelated behavior:
   transport bases from per-request stream runners, recovery event construction,
   and transport-specific parsing. Shared protocol rules should continue moving
   toward [core/](core/) when they are not provider-specific.
-- [messaging/handler.py](messaging/handler.py) owns command dispatch, tree
-  queueing, CLI session execution, transcript updates, and persistence
-  coordination. New platform-specific behavior should stay in platform or
-  rendering modules.
+- [messaging/workflow.py](messaging/workflow.py) coordinates messaging runtime
+  dependencies. Inbound turn intake, queued node execution, slash command
+  dependencies, and tree queue internals live in separate modules so new
+  behavior has one owner instead of growing the workflow object.
 - [api/admin_config.py](api/admin_config.py) owns the admin config manifest,
   validation, env rendering, and status metadata. Keep it data-driven, and split
   only around cohesive admin responsibilities.
@@ -488,16 +488,31 @@ Messaging is optional. [api/runtime.py](api/runtime.py) calls
 If `MESSAGING_PLATFORM` is `none`, or if the selected platform token is missing,
 the messaging bridge is skipped.
 
-[messaging/handler.py](messaging/handler.py) contains `ClaudeMessageHandler`, the
-platform-agnostic orchestration layer. It receives `IncomingMessage` objects,
-dispatches commands, filters its own status messages, creates or extends a
-message tree, queues work, runs a managed client CLI session, parses CLI events,
-updates transcripts, and persists conversation state.
+[messaging/workflow.py](messaging/workflow.py) contains `MessagingWorkflow`, the
+platform-agnostic coordinator. It owns dependencies, callback wiring, stop/clear
+side effects, render settings, and shutdown-visible state.
 
-[messaging/trees/queue_manager.py](messaging/trees/queue_manager.py) preserves
+[messaging/turn_intake.py](messaging/turn_intake.py) owns inbound message
+recording, slash command dispatch, status-echo filtering, reply resolution, tree
+creation/extension, initial status messages, persistence, and enqueueing.
+
+[messaging/node_runner.py](messaging/node_runner.py) owns managed CLI session
+lifecycle for queued nodes: parent-session fork/resume, session registration,
+CLI event parsing, transcript/status updates, cancellation, error propagation,
+and session cleanup.
+
+[messaging/command_context.py](messaging/command_context.py) defines the typed
+dependency surface for `/stop`, `/clear`, and `/stats`; commands should not
+depend on the concrete workflow object.
+
+[messaging/trees/manager.py](messaging/trees/manager.py) preserves
 per-conversation ordering with tree-aware queues. Replies become child nodes, and
 each tree processes one node at a time while separate trees can progress
-independently.
+independently. [messaging/trees/repository.py](messaging/trees/repository.py)
+owns the in-memory tree/node index, and
+[messaging/trees/processor.py](messaging/trees/processor.py) owns async queue
+processing. [messaging/trees/data.py](messaging/trees/data.py) owns the persisted
+`MessageNode` and `MessageTree` JSON shape.
 
 [messaging/session.py](messaging/session.py) persists trees, node-to-tree
 mappings, and message IDs to a JSON file under the managed agent workspace. It
@@ -506,20 +521,23 @@ uses debounced atomic writes and flushes pending saves on shutdown.
 ```mermaid
 sequenceDiagram
     participant Platform as DiscordOrTelegram
-    participant Handler as ClaudeMessageHandler
+    participant Workflow as MessagingWorkflow
+    participant Intake as MessagingTurnIntake
     participant Queue as TreeQueueManager
+    participant Runner as MessagingNodeRunner
     participant Manager as CLISessionManager
     participant CLI as ClientCLI
     participant Proxy as LocalProxy
 
-    Platform->>Handler: IncomingMessage
-    Handler->>Queue: create or extend message tree
-    Queue->>Handler: process node in order
-    Handler->>Manager: get_or_create_session
+    Platform->>Workflow: IncomingMessage
+    Workflow->>Intake: handle inbound turn
+    Intake->>Queue: create or extend message tree
+    Queue->>Runner: process node in order
+    Runner->>Manager: get_or_create_session
     Manager->>CLI: launch JSON stream task
     CLI->>Proxy: provider-backed API calls
-    CLI-->>Handler: parsed stdout events
-    Handler-->>Platform: status and transcript updates
+    CLI-->>Runner: parsed stdout events
+    Runner-->>Platform: status and transcript updates
 ```
 
 ## Observability, Diagnostics, And Safety
@@ -645,3 +663,4 @@ Update this file when a change adds or meaningfully changes:
 Docs-only changes to this file do not require a semver bump. Production code
 changes still follow the versioning rules in [AGENTS.md](AGENTS.md) and
 [CLAUDE.md](CLAUDE.md).
+

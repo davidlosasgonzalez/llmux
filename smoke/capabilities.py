@@ -336,7 +336,7 @@ CAPABILITY_CONTRACTS: tuple[CapabilityContract, ...] = (
         "messaging",
         "discord_telegram_platforms",
         "discord_telegram_bot",
-        "messaging.handler.ClaudeMessageHandler",
+        "messaging.workflow.MessagingWorkflow",
         "Discord/Telegram incoming messages and API callbacks",
         "live progress edits and final transcript",
         "platform retry/fallback or user-facing error",

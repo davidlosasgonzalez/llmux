@@ -315,7 +315,7 @@ def test_app_lifespan_sets_state_and_cleans_up(tmp_path, messaging_enabled):
         patch("messaging.session.SessionStore", return_value=session_store),
         patch("cli.manager.CLISessionManager", return_value=cli_manager),
         patch(
-            "messaging.trees.queue_manager.TreeQueueManager.from_dict",
+            "messaging.trees.TreeQueueManager.from_dict",
             return_value=fake_queue,
         ),
         TestClient(app),
@@ -328,7 +328,7 @@ def test_app_lifespan_sets_state_and_cleans_up(tmp_path, messaging_enabled):
         fake_platform.start.assert_awaited_once()
         fake_platform.stop.assert_awaited_once()
         cli_manager.stop_all.assert_awaited_once()
-        assert getattr(app.state, "message_handler", None) is not None
+        assert getattr(app.state, "messaging_workflow", None) is not None
         session_store.sync_from_tree_data.assert_called_once_with(
             [{"t": 1}],
             {"n": "t"},

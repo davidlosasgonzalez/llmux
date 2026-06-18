@@ -211,6 +211,35 @@ def test_openai_responses_uses_adapter_boundary() -> None:
         assert deleted_api not in adapter_text
 
 
+def test_messaging_workflow_uses_split_runtime_owners() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    messaging_root = repo_root / "messaging"
+    trees_root = messaging_root / "trees"
+
+    assert not (messaging_root / "handler.py").exists()
+    assert not (trees_root / "queue_manager.py").exists()
+
+    for path in {
+        messaging_root / "workflow.py",
+        messaging_root / "turn_intake.py",
+        messaging_root / "node_runner.py",
+        messaging_root / "command_context.py",
+        trees_root / "manager.py",
+        trees_root / "processor.py",
+        trees_root / "repository.py",
+    }:
+        assert path.exists()
+
+    offenders = _imports_matching(
+        [messaging_root, repo_root / "api", repo_root / "smoke", repo_root / "tests"],
+        forbidden_prefixes=(
+            "messaging.handler",
+            "messaging.trees.queue_manager",
+        ),
+    )
+    assert offenders == []
+
+
 def _imports_matching(
     roots: list[Path], *, forbidden_prefixes: tuple[str, ...]
 ) -> list[str]:
