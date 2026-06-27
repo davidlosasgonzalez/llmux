@@ -32,9 +32,10 @@ flowchart LR
     Bots[Discord or Telegram Bots] --> Messaging[Messaging Bridge]
     Messaging --> ClientCLI[Managed Client CLI Sessions]
     ClientCLI --> ProxyAPI
-    ProxyAPI --> Pipeline[ApiRequestPipeline]
-    Pipeline --> Router[ModelRouter]
-    Pipeline --> Providers[ProviderRegistry]
+    ProxyAPI --> Handlers[API Product Handlers]
+    Handlers --> Router[ModelRouter]
+    Handlers --> Executor[ProviderExecutionService]
+    Executor --> Providers[ProviderRegistry]
     Providers --> OpenAIChat[OpenAI Chat Providers]
     Providers --> NativeAnthropic[Anthropic Messages Providers]
 ```
@@ -43,8 +44,9 @@ flowchart LR
 
 The installable wheel packages are declared in [pyproject.toml](pyproject.toml):
 
-- [api/](api/) owns the FastAPI app, route handlers, request pipeline, model
-  catalog, admin APIs, local optimizations, and server-tool handling.
+- [api/](api/) owns the FastAPI app, route handlers, API product handlers, shared
+  provider execution, model catalog, admin APIs, local optimizations, and
+  server-tool handling.
 - [cli/](cli/) owns console entrypoints, client CLI launchers, process/session
   management, and client adapter contracts.
 - [config/](config/) owns settings, provider metadata, filesystem paths,
@@ -105,10 +107,11 @@ The current package boundaries are intentional, but several modules still carry
 large orchestration responsibilities. Treat these as refactor targets, not as
 new places to add unrelated behavior:
 
-- [api/request_pipeline.py](api/request_pipeline.py) coordinates routing,
-  message-only intercepts, provider execution, token counting, and Responses
-  adaptation. Keep route handlers thin and keep new pre-provider behavior as
-  explicit pipeline intercepts.
+- [api/handlers/](api/handlers/) owns customer-facing API product flows:
+  Claude Messages, OpenAI Responses, and token counting. Keep route handlers
+  thin, keep Claude-only behavior in the Messages handler, and use
+  [api/provider_execution.py](api/provider_execution.py) only for shared
+  provider resolution, preflight, tracing, token counting, and streaming.
 - [providers/transports/](providers/transports/) owns provider transport
   families. The OpenAI-chat and native Anthropic transport packages split thin
   transport bases from per-request stream runners, recovery event construction,
@@ -221,36 +224,42 @@ proxy auth is disabled. Otherwise the token may be supplied through `x-api-key`,
 `Authorization: Bearer ...`, or `anthropic-auth-token`. Comparisons use
 constant-time matching.
 
-`ApiRequestPipeline` in
-[api/request_pipeline.py](api/request_pipeline.py) coordinates request handling.
-It validates non-empty messages, resolves models, runs explicit message-only
-intercepts for local server tools and optimizations, resolves a provider,
-preflights the upstream request, then streams Anthropic SSE back to the caller.
+[api/handlers/](api/handlers/) owns the public API product flows.
+`MessagesHandler` validates non-empty messages, resolves models, applies
+Claude-only safety-classifier and local optimization policy, handles local web
+server tools, then streams Anthropic SSE. `ResponsesHandler` owns streaming-only
+OpenAI Responses validation and conversion for Codex clients. `TokenCountHandler`
+owns Anthropic token counting. Shared provider execution lives in
+[api/provider_execution.py](api/provider_execution.py), which resolves a
+provider, preflights the upstream request, emits trace events, counts input
+tokens, and returns an Anthropic SSE iterator.
 
 ```mermaid
 sequenceDiagram
     participant Client
     participant Route as FastAPIRoute
-    participant Pipeline as ApiRequestPipeline
+    participant Handler as ProductHandler
     participant Router as ModelRouter
+    participant Exec as ProviderExecution
     participant Registry as ProviderRegistry
     participant Provider
 
     Client->>Route: POST /v1/messages
     Route->>Route: require_api_key
-    Route->>Pipeline: create_message
-    Pipeline->>Router: resolve model and thinking
-    Pipeline->>Pipeline: server tools or optimizations
-    Pipeline->>Registry: resolve provider
+    Route->>Handler: create message
+    Handler->>Router: resolve model and thinking
+    Handler->>Handler: server tools or optimizations
+    Handler->>Exec: stream routed request
+    Exec->>Registry: resolve provider
     Registry->>Provider: cached or new provider
-    Pipeline->>Provider: preflight_stream
-    Pipeline->>Provider: stream_response
+    Exec->>Provider: preflight_stream
+    Exec->>Provider: stream_response
     Provider-->>Client: Anthropic SSE events
 ```
 
-OpenAI Responses uses the same provider execution path without message-only
-intercepts. `create_response()` delegates Responses protocol work to the
-`OpenAIResponsesAdapter` in
+OpenAI Responses uses the same provider execution primitive without importing
+Claude-only message intercepts. `ResponsesHandler` delegates protocol work to
+the `OpenAIResponsesAdapter` in
 [core/openai_responses/adapter.py](core/openai_responses/adapter.py). The adapter
 converts the Responses payload into an Anthropic Messages payload before
 provider execution, then converts Anthropic SSE back to Responses SSE.
@@ -423,25 +432,25 @@ common low-value client requests before they reach a provider:
 - suggestion mode;
 - filepath extraction.
 
-The service runs these only after model routing and after local server-tool
+The Messages handler runs these only after model routing and after local server-tool
 handling. Each optimization is controlled by settings flags.
 
 Claude Code auto-mode safety-classifier requests are a message-only routing
-policy, not a short-circuit response. After routing, the pipeline detects the
+policy, not a short-circuit response. After routing, the Messages handler detects the
 narrow classifier prompt shape and forces thinking off before provider execution
 so Claude Code receives a parser-readable `<block>yes</block>` or
 `<block>no</block>` verdict.
 
 Local `web_search` and `web_fetch` handling lives under
 [api/web_tools/](api/web_tools/). When `ENABLE_WEB_SERVER_TOOLS` is true, the
-service can stream local Anthropic server-tool responses without sending the
+Messages handler can stream local Anthropic server-tool responses without sending the
 request upstream. [api/web_tools/egress.py](api/web_tools/egress.py) enforces URL
 scheme and private-network restrictions for `web_fetch`.
 
 OpenAI-chat upstream providers are identified by
 `ProviderDescriptor.transport_type == "openai_chat"` in
 [config/provider_catalog.py](config/provider_catalog.py). They cannot safely
-represent Anthropic server-tool blocks, so the service rejects unsupported
+represent Anthropic server-tool blocks, so the Messages handler rejects unsupported
 server-tool requests before provider execution instead of performing a lossy
 conversion. Forced `web_search` or `web_fetch` requests are handled locally when
 `ENABLE_WEB_SERVER_TOOLS` is true; otherwise OpenAI-chat upstreams reject them

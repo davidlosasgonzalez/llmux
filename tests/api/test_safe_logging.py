@@ -7,9 +7,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi import HTTPException
 
-from api import request_pipeline as pipeline_mod
+from api import provider_execution, request_errors
+from api.handlers import MessagesHandler, TokenCountHandler
 from api.models.anthropic import Message, MessagesRequest
-from api.request_pipeline import ApiRequestPipeline
 from config.settings import Settings
 from core.anthropic import AnthropicStreamLedger
 
@@ -23,7 +23,7 @@ def test_create_message_skips_full_payload_debug_log_by_default():
         yield "event: ping\ndata: {}\n\n"
 
     mock_provider.stream_response = fake_stream
-    service = ApiRequestPipeline(settings, provider_getter=lambda _: mock_provider)
+    service = MessagesHandler(settings, provider_getter=lambda _: mock_provider)
 
     request = MessagesRequest(
         model="claude-3-haiku-20240307",
@@ -31,8 +31,8 @@ def test_create_message_skips_full_payload_debug_log_by_default():
         messages=[Message(role="user", content="secret-user-text")],
     )
 
-    with patch.object(pipeline_mod.logger, "debug") as mock_debug:
-        service.create_message(request)
+    with patch.object(provider_execution.logger, "debug") as mock_debug:
+        service.create(request)
 
     full_payload_calls = [
         c
@@ -51,15 +51,15 @@ def test_create_message_logs_full_payload_when_opt_in():
         yield "event: ping\ndata: {}\n\n"
 
     mock_provider.stream_response = fake_stream
-    service = ApiRequestPipeline(settings, provider_getter=lambda _: mock_provider)
+    service = MessagesHandler(settings, provider_getter=lambda _: mock_provider)
     request = MessagesRequest(
         model="claude-3-haiku-20240307",
         max_tokens=10,
         messages=[Message(role="user", content="visible")],
     )
 
-    with patch.object(pipeline_mod.logger, "debug") as mock_debug:
-        service.create_message(request)
+    with patch.object(provider_execution.logger, "debug") as mock_debug:
+        service.create(request)
 
     keys = [c.args[0] for c in mock_debug.call_args_list if c.args]
     assert any(k == "FULL_PAYLOAD [{}]: {}" for k in keys)
@@ -103,7 +103,7 @@ def test_create_message_unexpected_error_default_logs_exclude_exception_text():
         raise RuntimeError(secret)
 
     mock_provider.stream_response = stream_boom
-    service = ApiRequestPipeline(settings, provider_getter=lambda _: mock_provider)
+    service = MessagesHandler(settings, provider_getter=lambda _: mock_provider)
     request = MessagesRequest(
         model="claude-3-haiku-20240307",
         max_tokens=10,
@@ -111,10 +111,10 @@ def test_create_message_unexpected_error_default_logs_exclude_exception_text():
     )
 
     with (
-        patch.object(pipeline_mod.logger, "error") as log_err,
+        patch.object(request_errors.logger, "error") as log_err,
         pytest.raises(HTTPException),
     ):
-        service.create_message(request)
+        service.create(request)
 
     blob = _flatten_log_calls(log_err)
     assert secret not in blob
@@ -134,7 +134,7 @@ def test_create_message_unexpected_error_always_returns_500():
         raise WeirdError("no")
 
     mock_provider.stream_response = stream_boom
-    service = ApiRequestPipeline(settings, provider_getter=lambda _: mock_provider)
+    service = MessagesHandler(settings, provider_getter=lambda _: mock_provider)
     request = MessagesRequest(
         model="claude-3-haiku-20240307",
         max_tokens=10,
@@ -142,7 +142,7 @@ def test_create_message_unexpected_error_always_returns_500():
     )
 
     with pytest.raises(HTTPException) as excinfo:
-        service.create_message(request)
+        service.create(request)
 
     assert excinfo.value.status_code == 500
 
@@ -181,9 +181,8 @@ def test_count_tokens_unexpected_error_default_logs_exclude_exception_text():
     def boom(*_a, **_kw):
         raise ValueError(secret)
 
-    service = ApiRequestPipeline(
+    service = TokenCountHandler(
         settings,
-        provider_getter=lambda _: MagicMock(),
         token_counter=boom,
     )
     from api.models.anthropic import TokenCountRequest
@@ -194,10 +193,10 @@ def test_count_tokens_unexpected_error_default_logs_exclude_exception_text():
     )
 
     with (
-        patch.object(pipeline_mod.logger, "error") as log_err,
+        patch.object(request_errors.logger, "error") as log_err,
         pytest.raises(HTTPException),
     ):
-        service.count_tokens(req)
+        service.count(req)
 
     blob = _flatten_log_calls(log_err)
     assert secret not in blob

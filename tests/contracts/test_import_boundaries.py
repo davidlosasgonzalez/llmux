@@ -203,8 +203,11 @@ def test_anthropic_stream_engine_owns_provider_stream_state() -> None:
 def test_openai_responses_uses_adapter_boundary() -> None:
     repo_root = Path(__file__).resolve().parents[2]
     responses_root = repo_root / "core" / "openai_responses"
+    api_root = repo_root / "api"
+    handlers_root = api_root / "handlers"
 
     assert not (repo_root / "api" / "services.py").exists()
+    assert not (api_root / "request_pipeline.py").exists()
     assert not (responses_root / "conversion.py").exists()
     assert not (responses_root / "sse.py").exists()
     assert not (responses_root / "output.py").exists()
@@ -223,12 +226,16 @@ def test_openai_responses_uses_adapter_boundary() -> None:
     }:
         assert (responses_root / filename).exists()
 
-    pipeline_text = (repo_root / "api" / "request_pipeline.py").read_text(
-        encoding="utf-8"
+    responses_handler = handlers_root / "responses.py"
+    responses_handler_text = responses_handler.read_text(encoding="utf-8")
+    assert (
+        "from core.openai_responses import OpenAIResponsesAdapter"
+        in responses_handler_text
     )
-    assert "from core.openai_responses import OpenAIResponsesAdapter" in pipeline_text
     routes_text = (repo_root / "api" / "routes.py").read_text(encoding="utf-8")
-    assert "ApiRequestPipeline" in routes_text
+    assert "ApiRequestPipeline" not in routes_text
+    assert "request_pipeline" not in routes_text
+    assert "from .handlers import" in routes_text
     assert "api.services" not in routes_text
     for old_helper in {
         "responses_request_to_anthropic_payload",
@@ -237,7 +244,7 @@ def test_openai_responses_uses_adapter_boundary() -> None:
         "collect_openai_response_from_anthropic_sse",
         "iter_message_response_as_openai_responses",
     }:
-        assert old_helper not in pipeline_text
+        assert old_helper not in responses_handler_text
 
     offenders: list[str] = []
     for path in (repo_root / "api").rglob("*.py"):
@@ -246,6 +253,27 @@ def test_openai_responses_uses_adapter_boundary() -> None:
                 rel = path.relative_to(repo_root)
                 offenders.append(f"{rel}: {imported}")
     assert sorted(offenders) == []
+
+    adapter_importers: list[str] = []
+    for path in (repo_root / "api").rglob("*.py"):
+        imports = set(_imports_from(path, repo_root))
+        if "core.openai_responses" in imports:
+            adapter_importers.append(path.relative_to(repo_root).as_posix())
+    assert sorted(adapter_importers) == ["api/handlers/responses.py"]
+
+    response_handler_imports = set(_imports_from(responses_handler, repo_root))
+    for forbidden in {
+        "api.optimization_handlers",
+        "api.detection",
+        "api.web_tools",
+    }:
+        assert forbidden not in response_handler_imports
+
+    provider_execution_text = (api_root / "provider_execution.py").read_text(
+        encoding="utf-8"
+    )
+    assert "StreamingResponse" not in provider_execution_text
+    assert "OpenAIResponsesAdapter" not in provider_execution_text
 
     adapter_text = (responses_root / "adapter.py").read_text(encoding="utf-8")
     for deleted_api in {

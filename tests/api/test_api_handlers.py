@@ -7,9 +7,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.responses import StreamingResponse
 
-from api.models.anthropic import Message, MessagesRequest
+from api.handlers import MessagesHandler, ResponsesHandler, TokenCountHandler
+from api.models.anthropic import Message, MessagesRequest, TokenCountRequest
 from api.models.openai_responses import OpenAIResponsesRequest
-from api.request_pipeline import ApiRequestPipeline
 from config.settings import Settings
 from providers.base import BaseProvider, ProviderConfig
 
@@ -79,16 +79,16 @@ def _trace_events(trace_mock: MagicMock, event: str) -> list[dict[str, Any]]:
 
 
 @pytest.mark.asyncio
-async def test_pipeline_provider_execution_passes_routed_request_and_stream_metadata():
+async def test_messages_handler_passes_routed_request_and_stream_metadata() -> None:
     provider = FakeProvider()
-    pipeline = ApiRequestPipeline(Settings(), provider_getter=lambda _: provider)
+    handler = MessagesHandler(Settings(), provider_getter=lambda _: provider)
     request = MessagesRequest(
         model="nvidia_nim/test-model",
         max_tokens=100,
         messages=[Message(role="user", content="hi")],
     )
 
-    response = pipeline.create_message(request)
+    response = handler.create(request)
     assert isinstance(response, StreamingResponse)
 
     body = await _streaming_body_text(response)
@@ -101,9 +101,9 @@ async def test_pipeline_provider_execution_passes_routed_request_and_stream_meta
 
 
 @pytest.mark.asyncio
-async def test_pipeline_forces_no_thinking_for_safety_classifier_messages():
+async def test_messages_handler_forces_no_thinking_for_safety_classifier() -> None:
     provider = FakeProvider()
-    pipeline = ApiRequestPipeline(Settings(), provider_getter=lambda _: provider)
+    handler = MessagesHandler(Settings(), provider_getter=lambda _: provider)
     request = MessagesRequest(
         model="nvidia_nim/test-model",
         max_tokens=100,
@@ -111,8 +111,8 @@ async def test_pipeline_forces_no_thinking_for_safety_classifier_messages():
         messages=[Message(role="user", content=_CLASSIFIER_USER)],
     )
 
-    with patch("api.request_pipeline.trace_event") as trace_mock:
-        response = pipeline.create_message(request)
+    with patch("api.handlers.messages.trace_event") as trace_mock:
+        response = handler.create(request)
         assert isinstance(response, StreamingResponse)
         await _streaming_body_text(response)
 
@@ -134,9 +134,9 @@ async def test_pipeline_forces_no_thinking_for_safety_classifier_messages():
 
 
 @pytest.mark.asyncio
-async def test_pipeline_preserves_thinking_for_non_classifier_messages():
+async def test_messages_handler_preserves_thinking_for_non_classifier() -> None:
     provider = FakeProvider()
-    pipeline = ApiRequestPipeline(Settings(), provider_getter=lambda _: provider)
+    handler = MessagesHandler(Settings(), provider_getter=lambda _: provider)
     request = MessagesRequest(
         model="nvidia_nim/test-model",
         max_tokens=100,
@@ -152,8 +152,8 @@ async def test_pipeline_preserves_thinking_for_non_classifier_messages():
         ],
     )
 
-    with patch("api.request_pipeline.trace_event") as trace_mock:
-        response = pipeline.create_message(request)
+    with patch("api.handlers.messages.trace_event") as trace_mock:
+        response = handler.create(request)
         assert isinstance(response, StreamingResponse)
         await _streaming_body_text(response)
 
@@ -166,9 +166,9 @@ async def test_pipeline_preserves_thinking_for_non_classifier_messages():
 
 
 @pytest.mark.asyncio
-async def test_pipeline_keeps_existing_no_thinking_for_classifier_messages():
+async def test_messages_handler_keeps_existing_no_thinking_for_classifier() -> None:
     provider = FakeProvider()
-    pipeline = ApiRequestPipeline(Settings(), provider_getter=lambda _: provider)
+    handler = MessagesHandler(Settings(), provider_getter=lambda _: provider)
     request = MessagesRequest(
         model="claude-3-freecc-no-thinking/nvidia_nim/test-model",
         max_tokens=100,
@@ -176,8 +176,8 @@ async def test_pipeline_keeps_existing_no_thinking_for_classifier_messages():
         messages=[Message(role="user", content=_CLASSIFIER_USER)],
     )
 
-    with patch("api.request_pipeline.trace_event") as trace_mock:
-        response = pipeline.create_message(request)
+    with patch("api.handlers.messages.trace_event") as trace_mock:
+        response = handler.create(request)
         assert isinstance(response, StreamingResponse)
         await _streaming_body_text(response)
 
@@ -196,9 +196,9 @@ async def test_pipeline_keeps_existing_no_thinking_for_classifier_messages():
     ]
 
 
-def test_pipeline_message_optimization_intercepts_before_provider_execution():
+def test_messages_handler_optimization_intercepts_before_provider_execution() -> None:
     provider_getter = MagicMock()
-    pipeline = ApiRequestPipeline(Settings(), provider_getter=provider_getter)
+    handler = MessagesHandler(Settings(), provider_getter=provider_getter)
     request = MessagesRequest(
         model="nvidia_nim/test-model",
         max_tokens=100,
@@ -206,23 +206,23 @@ def test_pipeline_message_optimization_intercepts_before_provider_execution():
     )
     optimized = object()
 
-    with patch("api.request_pipeline.try_optimizations", return_value=optimized):
-        assert pipeline.create_message(request) is optimized
+    with patch("api.handlers.messages.try_optimizations", return_value=optimized):
+        assert handler.create(request) is optimized
 
     provider_getter.assert_not_called()
 
 
 @pytest.mark.asyncio
-async def test_pipeline_responses_bypass_message_only_optimizations():
+async def test_responses_handler_bypasses_message_only_optimizations() -> None:
     provider = FakeProvider()
-    pipeline = ApiRequestPipeline(Settings(), provider_getter=lambda _: provider)
+    handler = ResponsesHandler(Settings(), provider_getter=lambda _: provider)
 
     with patch(
-        "api.request_pipeline.try_optimizations",
+        "api.handlers.messages.try_optimizations",
         side_effect=AssertionError("Responses must not use message optimizations"),
     ):
-        response = await pipeline.create_response(
-            request_data=OpenAIResponsesRequest(
+        response = await handler.create(
+            OpenAIResponsesRequest(
                 model="nvidia_nim/test-model",
                 input="quota check",
             )
@@ -235,13 +235,13 @@ async def test_pipeline_responses_bypass_message_only_optimizations():
 
 
 @pytest.mark.asyncio
-async def test_pipeline_responses_do_not_apply_safety_classifier_policy():
+async def test_responses_handler_does_not_apply_safety_classifier_policy() -> None:
     provider = FakeProvider()
-    pipeline = ApiRequestPipeline(Settings(), provider_getter=lambda _: provider)
+    handler = ResponsesHandler(Settings(), provider_getter=lambda _: provider)
 
-    with patch("api.request_pipeline.trace_event") as trace_mock:
-        response = await pipeline.create_response(
-            request_data=OpenAIResponsesRequest(
+    with patch("api.handlers.messages.trace_event") as trace_mock:
+        response = await handler.create(
+            OpenAIResponsesRequest(
                 model="nvidia_nim/test-model",
                 input=_CLASSIFIER_USER,
                 instructions=_CLASSIFIER_SYSTEM,
@@ -257,3 +257,19 @@ async def test_pipeline_responses_do_not_apply_safety_classifier_policy():
         _trace_events(trace_mock, "api.optimization.safety_classifier_no_thinking")
         == []
     )
+
+
+def test_token_count_handler_routes_and_counts_tokens() -> None:
+    handler = TokenCountHandler(
+        Settings(),
+        token_counter=lambda messages, system, tools: len(messages) + 41,
+    )
+
+    response = handler.count(
+        TokenCountRequest(
+            model="nvidia_nim/test-model",
+            messages=[Message(role="user", content="hi")],
+        )
+    )
+
+    assert response.input_tokens == 42
