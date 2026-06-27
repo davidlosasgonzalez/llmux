@@ -9,7 +9,10 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
+from core.trace import trace_event
+
 from .anthropic_sse import AnthropicSseEvent
+from .errors import ResponsesConversionError
 from .events import format_response_sse_event
 from .ids import (
     new_call_id,
@@ -24,6 +27,7 @@ from .items import (
 )
 from .tools import (
     custom_tool_input_text_from_arguments,
+    normalized_function_call_arguments,
     responses_tool_identity_from_anthropic_name,
 )
 from .usage import estimate_text_tokens
@@ -125,6 +129,8 @@ class ResponsesStreamAssembler:
 
     def complete_response(self) -> list[str]:
         chunks = self._flush_active_blocks()
+        if self.terminal:
+            return chunks
         self.final_response = self.response_payload(status="completed")
         chunks.append(
             format_response_sse_event(
@@ -137,6 +143,8 @@ class ResponsesStreamAssembler:
 
     def fail_response(self, data: Mapping[str, Any]) -> list[str]:
         chunks = self._flush_active_blocks()
+        if self.terminal:
+            return chunks
         error = _openai_error_from_anthropic_error(data)
         self.final_response = self.response_payload(status="failed", error=error)
         chunks.append(
@@ -171,6 +179,8 @@ class ResponsesStreamAssembler:
         if block_type == "text":
             index = self._safe_index(index)
             chunks, state = self._start_text_block(index)
+            if state is None:
+                return chunks
             if text := _string_value(block.get("text")):
                 chunks.extend(self._emit_text_delta(state, text))
             return chunks
@@ -178,6 +188,8 @@ class ResponsesStreamAssembler:
             if index is None:
                 return []
             chunks, state = self._start_reasoning_block(index)
+            if state is None:
+                return chunks
             if text := _string_value(block.get("thinking")):
                 chunks.extend(self._emit_reasoning_delta(state, text))
             return chunks
@@ -206,6 +218,8 @@ class ResponsesStreamAssembler:
             chunks: list[str] = []
             if not isinstance(state, _TextBlockState):
                 chunks, state = self._start_text_block(index)
+                if state is None:
+                    return chunks
             chunks.extend(
                 self._emit_text_delta(state, _string_value(delta.get("text")))
             )
@@ -217,6 +231,8 @@ class ResponsesStreamAssembler:
             chunks = []
             if not isinstance(state, _ReasoningBlockState):
                 chunks, state = self._start_reasoning_block(index)
+                if state is None:
+                    return chunks
             chunks.extend(
                 self._emit_reasoning_delta(state, _string_value(delta.get("thinking")))
             )
@@ -245,8 +261,10 @@ class ResponsesStreamAssembler:
         if isinstance(usage.get("output_tokens"), int):
             self._output_tokens = usage["output_tokens"]
 
-    def _start_text_block(self, index: int) -> tuple[list[str], _TextBlockState]:
+    def _start_text_block(self, index: int) -> tuple[list[str], _TextBlockState | None]:
         chunks = self._complete_existing_block(index)
+        if self.terminal:
+            return chunks, None
         output_index = self._reserve_output_slot()
         state = _TextBlockState(
             index=index,
@@ -291,8 +309,10 @@ class ResponsesStreamAssembler:
 
     def _start_reasoning_block(
         self, index: int, *, encrypted_content: str | None = None
-    ) -> tuple[list[str], _ReasoningBlockState]:
+    ) -> tuple[list[str], _ReasoningBlockState | None]:
         chunks = self._complete_existing_block(index)
+        if self.terminal:
+            return chunks, None
         output_index = self._reserve_output_slot()
         state = _ReasoningBlockState(
             index=index,
@@ -315,6 +335,8 @@ class ResponsesStreamAssembler:
 
     def _start_tool_block(self, index: int, block: Mapping[str, Any]) -> list[str]:
         chunks = self._complete_existing_block(index)
+        if self.terminal:
+            return chunks
         identity = responses_tool_identity_from_anthropic_name(
             self._request, _string_value(block.get("name"))
         )
@@ -464,7 +486,11 @@ class ResponsesStreamAssembler:
     def _complete_tool_block(self, state: _ToolBlockState) -> list[str]:
         if state.kind == "custom":
             return self._complete_custom_tool_block(state)
-        arguments = "".join(state.argument_parts) or "{}"
+        raw_arguments = "".join(state.argument_parts) or "{}"
+        try:
+            arguments = normalized_function_call_arguments(raw_arguments)
+        except ResponsesConversionError as exc:
+            return self._fail_invalid_function_call(state, exc)
         item = self._tool_item(state, status="completed", arguments=arguments)
         self._commit_output(state.output_index, item)
         chunks: list[str] = []
@@ -502,6 +528,35 @@ class ResponsesStreamAssembler:
             ]
         )
         return chunks
+
+    def _fail_invalid_function_call(
+        self, state: _ToolBlockState, exc: ResponsesConversionError
+    ) -> list[str]:
+        trace_event(
+            stage="responses",
+            event="responses.output.function_call_invalid_arguments",
+            source="openai_responses",
+            call_id=state.call_id,
+            tool_name=state.name,
+            error_type=type(exc).__name__,
+        )
+        error = {
+            "message": (
+                "Upstream function_call arguments were not a valid JSON object; "
+                "refusing to emit replay-unsafe Responses output."
+            ),
+            "type": "api_error",
+            "param": None,
+            "code": None,
+        }
+        self.final_response = self.response_payload(status="failed", error=error)
+        self.terminal = True
+        return [
+            format_response_sse_event(
+                "response.failed",
+                {"type": "response.failed", "response": self.final_response},
+            )
+        ]
 
     def _complete_custom_tool_block(self, state: _ToolBlockState) -> list[str]:
         input_text = custom_tool_input_text_from_arguments(
@@ -582,6 +637,8 @@ class ResponsesStreamAssembler:
         )
         self._active_blocks.clear()
         for state in states:
+            if self.terminal:
+                break
             chunks.extend(self._complete_block(state))
         return chunks
 
