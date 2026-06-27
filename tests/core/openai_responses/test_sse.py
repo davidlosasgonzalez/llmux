@@ -5,8 +5,8 @@ from typing import Any
 
 import pytest
 
-from core.anthropic.sse import format_sse_event
 from core.anthropic.stream_contracts import parse_sse_text
+from core.anthropic.streaming import format_sse_event
 from core.openai_responses import OpenAIResponsesAdapter
 
 _ADAPTER = OpenAIResponsesAdapter()

@@ -15,7 +15,7 @@ from loguru import logger
 from config.provider_catalog import PROVIDER_CATALOG
 from config.settings import Settings
 from core.anthropic import get_token_count, get_user_facing_error_message
-from core.anthropic.sse import ANTHROPIC_SSE_RESPONSE_HEADERS
+from core.anthropic.streaming import ANTHROPIC_SSE_RESPONSE_HEADERS
 from core.openai_responses import OpenAIResponsesAdapter
 from core.trace import api_messages_request_snapshot, trace_event, traced_async_stream
 from providers.base import BaseProvider

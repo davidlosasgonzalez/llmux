@@ -11,7 +11,7 @@ from api import request_pipeline as pipeline_mod
 from api.models.anthropic import Message, MessagesRequest
 from api.request_pipeline import ApiRequestPipeline
 from config.settings import Settings
-from core.anthropic.sse import SSEBuilder
+from core.anthropic import AnthropicStreamLedger
 
 
 def test_create_message_skips_full_payload_debug_log_by_default():
@@ -65,18 +65,18 @@ def test_create_message_logs_full_payload_when_opt_in():
     assert any(k == "FULL_PAYLOAD [{}]: {}" for k in keys)
 
 
-def test_sse_builder_default_debug_has_no_serialized_json_content():
-    with patch("core.anthropic.sse.logger.debug") as mock_debug:
-        sse = SSEBuilder("msg_x", "m", 1, log_raw_events=False)
-        sse.message_start()
+def test_stream_ledger_default_debug_has_no_serialized_json_content():
+    with patch("core.anthropic.streaming.emitter.logger.debug") as mock_debug:
+        ledger = AnthropicStreamLedger("msg_x", "m", 1, log_raw_events=False)
+        ledger.message_start()
 
     assert mock_debug.call_count == 0
 
 
-def test_sse_builder_raw_logging_includes_event_body_when_enabled():
-    with patch("core.anthropic.sse.logger.debug") as mock_debug:
-        sse = SSEBuilder("msg_x", "m", 1, log_raw_events=True)
-        sse.message_start()
+def test_stream_ledger_raw_logging_includes_event_body_when_enabled():
+    with patch("core.anthropic.streaming.emitter.logger.debug") as mock_debug:
+        ledger = AnthropicStreamLedger("msg_x", "m", 1, log_raw_events=True)
+        ledger.message_start()
 
     assert mock_debug.call_count == 1
     message = str(mock_debug.call_args)

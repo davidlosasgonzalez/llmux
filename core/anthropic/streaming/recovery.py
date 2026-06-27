@@ -1,4 +1,4 @@
-"""Always-on recovery helpers for truncated provider streams."""
+"""Shared retry and recovery policy for Anthropic streams."""
 
 from __future__ import annotations
 
@@ -7,12 +7,15 @@ import time
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass
+from enum import StrEnum
 from typing import Any
 
 import httpx
 import jsonschema
 import openai
 from loguru import logger
+
+from core.trace import trace_event
 
 EARLY_TRANSPARENT_TOTAL_ATTEMPTS = 5
 EARLY_TRANSPARENT_MAX_RETRIES = EARLY_TRANSPARENT_TOTAL_ATTEMPTS - 1
@@ -24,10 +27,33 @@ _RECOVERY_USER_PREFIX = (
     "The previous provider stream was interrupted. Continue the assistant response "
     "exactly where it stopped. Do not repeat text already written."
 )
+_RECOVERY_THINKING_PREFIX = (
+    "The assistant had already emitted this hidden thinking before the interruption:\n"
+)
 
 
 class TruncatedProviderStreamError(RuntimeError):
     """Raised internally when an upstream stream ends without a terminal marker."""
+
+
+class RecoveryFailureAction(StrEnum):
+    """How the stream lifecycle should respond to an upstream failure."""
+
+    EARLY_RETRY = "early_retry"
+    MIDSTREAM_RECOVERY = "midstream_recovery"
+    FINAL_ERROR = "final_error"
+
+
+@dataclass(frozen=True, slots=True)
+class RecoveryDecision:
+    """Failure classification result for one stream exception."""
+
+    action: RecoveryFailureAction
+    retryable: bool
+    committed: bool
+    has_buffered: bool
+    early_retry_attempt: int | None = None
+    midstream_recovery_attempt: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -65,7 +91,6 @@ class RecoveryHoldbackBuffer:
         self.committed = False
 
     def push(self, event: str) -> list[str]:
-        """Buffer ``event`` until holdback expires or cap is reached."""
         if self.committed:
             return [event]
         if self._started_at is None:
@@ -80,7 +105,6 @@ class RecoveryHoldbackBuffer:
         return []
 
     def flush(self) -> list[str]:
-        """Commit and return all held events."""
         if self.committed:
             return []
         self.committed = True
@@ -91,7 +115,6 @@ class RecoveryHoldbackBuffer:
         return events
 
     def discard(self) -> None:
-        """Drop held events without committing them downstream."""
         self._events = []
         self._bytes = 0
         self._started_at = None
@@ -99,6 +122,107 @@ class RecoveryHoldbackBuffer:
     @property
     def has_buffered(self) -> bool:
         return bool(self._events)
+
+
+class RecoveryController:
+    """Own holdback and failure classification for one provider stream lifecycle."""
+
+    def __init__(self, *, provider_name: str, request_id: str | None) -> None:
+        self._provider_name = provider_name
+        self._request_id = request_id
+        self._holdback = RecoveryHoldbackBuffer()
+        self._early_retry_count = 0
+        self._midstream_recovery_count = 0
+
+    @property
+    def committed(self) -> bool:
+        return self._holdback.committed
+
+    @property
+    def has_buffered(self) -> bool:
+        return self._holdback.has_buffered
+
+    @property
+    def early_retries(self) -> int:
+        return self._early_retry_count
+
+    @property
+    def midstream_recoveries(self) -> int:
+        return self._midstream_recovery_count
+
+    def push(self, event: str) -> list[str]:
+        return self._holdback.push(event)
+
+    def flush(self) -> list[str]:
+        return self._holdback.flush()
+
+    def discard(self) -> None:
+        self._holdback.discard()
+
+    def flush_uncommitted(self, decision: RecoveryDecision) -> list[str]:
+        if not decision.committed and decision.has_buffered:
+            return self.flush()
+        return []
+
+    def advance_failure(
+        self,
+        error: BaseException,
+        *,
+        stream_opened: bool,
+        generated_output: bool,
+        complete_tool_salvageable: bool,
+    ) -> RecoveryDecision:
+        retryable = is_retryable_stream_error(error)
+        committed = self._holdback.committed
+        has_buffered = self._holdback.has_buffered
+
+        if (
+            retryable
+            and stream_opened
+            and not committed
+            and not complete_tool_salvageable
+            and self._early_retry_count < EARLY_TRANSPARENT_MAX_RETRIES
+        ):
+            self._early_retry_count += 1
+            self._holdback.discard()
+            self._holdback = RecoveryHoldbackBuffer()
+            trace_event(
+                stage="provider",
+                event="provider.recovery.early_retry",
+                source="provider",
+                provider=self._provider_name,
+                request_id=self._request_id,
+                retry_attempt=self._early_retry_count,
+                retryable=True,
+            )
+            return RecoveryDecision(
+                action=RecoveryFailureAction.EARLY_RETRY,
+                retryable=True,
+                committed=False,
+                has_buffered=has_buffered,
+                early_retry_attempt=self._early_retry_count,
+            )
+
+        if (
+            retryable
+            and generated_output
+            and self._midstream_recovery_count < MIDSTREAM_RECOVERY_ATTEMPTS
+        ):
+            self._midstream_recovery_count += 1
+            return RecoveryDecision(
+                action=RecoveryFailureAction.MIDSTREAM_RECOVERY,
+                retryable=True,
+                committed=committed,
+                has_buffered=has_buffered,
+                midstream_recovery_attempt=self._midstream_recovery_count,
+            )
+
+        return RecoveryDecision(
+            action=RecoveryFailureAction.FINAL_ERROR,
+            retryable=retryable,
+            committed=committed,
+            has_buffered=has_buffered,
+        )
 
 
 def is_retryable_stream_error(exc: BaseException) -> bool:
@@ -151,7 +275,6 @@ def tool_schemas_by_name(request: Any) -> dict[str, ToolSchema]:
 def validate_tool_input(
     tool_name: str, parsed_input: dict[str, Any], schemas: dict[str, ToolSchema]
 ) -> bool:
-    """Validate tool input against its JSON schema; unknown tools accept any object."""
     tool_schema = schemas.get(tool_name)
     if tool_schema is None:
         return True
@@ -170,7 +293,6 @@ def validate_tool_input(
 def parse_complete_tool_input(
     raw_json: str, tool_name: str, schemas: dict[str, ToolSchema]
 ) -> dict[str, Any] | None:
-    """Return parsed input when raw JSON is complete and schema-valid."""
     try:
         parsed = json.loads(raw_json)
     except json.JSONDecodeError:
@@ -189,9 +311,7 @@ def accept_tool_json_repair(
     tool_name: str,
     schemas: dict[str, ToolSchema],
 ) -> ToolRepair | None:
-    """Accept only append-only JSON repairs that make ``prefix`` valid."""
-    suffix_candidates = _repair_suffix_candidates(prefix, candidate)
-    for suffix in suffix_candidates:
+    for suffix in _repair_suffix_candidates(prefix, candidate):
         combined = prefix + suffix
         parsed = parse_complete_tool_input(combined, tool_name, schemas)
         if parsed is not None:
@@ -200,7 +320,6 @@ def accept_tool_json_repair(
 
 
 def continuation_suffix(existing: str, candidate: str) -> str | None:
-    """Return only the new suffix from a text/thinking continuation candidate."""
     existing = existing or ""
     candidate = candidate or ""
     if not candidate:
@@ -215,77 +334,40 @@ def continuation_suffix(existing: str, candidate: str) -> str | None:
         if existing.endswith(candidate[:size]):
             return candidate[size:]
 
-    # Accept short standalone continuations, but reject full unrelated rewrites.
     if len(candidate) < max(200, len(existing) // 2):
         return candidate
     return None
 
 
-def make_openai_text_recovery_body(
-    body: dict[str, Any], partial: str
+def make_text_recovery_body(
+    body: dict[str, Any],
+    partial_text: str,
+    partial_thinking: str = "",
 ) -> dict[str, Any]:
-    """Build a text-only OpenAI-chat continuation request."""
+    """Build a text-only continuation request for either transport family."""
     recovery = deepcopy(body)
     recovery.pop("tools", None)
     recovery.pop("tool_choice", None)
     recovery["stream"] = True
     messages = _copied_messages(recovery)
-    if partial:
-        messages.append({"role": "assistant", "content": partial})
-    messages.append({"role": "user", "content": _RECOVERY_USER_PREFIX})
+    if partial_text:
+        messages.append({"role": "assistant", "content": partial_text})
+    prompt = _RECOVERY_USER_PREFIX
+    if partial_thinking:
+        prompt = f"{_RECOVERY_THINKING_PREFIX}{partial_thinking}\n\n{prompt}"
+    messages.append({"role": "user", "content": prompt})
     recovery["messages"] = messages
     return recovery
 
 
-def make_openai_tool_repair_body(
+def make_tool_repair_body(
     body: dict[str, Any],
     *,
     tool_name: str,
     prefix: str,
     input_schema: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    """Build a text-only OpenAI-chat request asking for a JSON suffix."""
-    recovery = deepcopy(body)
-    recovery.pop("tools", None)
-    recovery.pop("tool_choice", None)
-    recovery["stream"] = True
-    messages = _copied_messages(recovery)
-    messages.append(
-        {
-            "role": "user",
-            "content": _tool_repair_prompt(
-                tool_name=tool_name, prefix=prefix, input_schema=input_schema
-            ),
-        }
-    )
-    recovery["messages"] = messages
-    return recovery
-
-
-def make_native_text_recovery_body(
-    body: dict[str, Any], partial: str
-) -> dict[str, Any]:
-    """Build a text-only native Anthropic continuation request."""
-    recovery = deepcopy(body)
-    recovery.pop("tools", None)
-    recovery.pop("tool_choice", None)
-    recovery["stream"] = True
-    messages = _copied_messages(recovery)
-    if partial:
-        messages.append({"role": "assistant", "content": partial})
-    messages.append({"role": "user", "content": _RECOVERY_USER_PREFIX})
-    recovery["messages"] = messages
-    return recovery
-
-
-def make_native_tool_repair_body(
-    body: dict[str, Any],
-    *,
-    tool_name: str,
-    prefix: str,
-    input_schema: dict[str, Any] | None,
-) -> dict[str, Any]:
-    """Build a text-only native Anthropic request asking for a JSON suffix."""
+    """Build a text-only request asking for a JSON suffix."""
     recovery = deepcopy(body)
     recovery.pop("tools", None)
     recovery.pop("tool_choice", None)

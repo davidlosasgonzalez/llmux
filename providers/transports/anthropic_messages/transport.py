@@ -28,9 +28,10 @@ from providers.model_listing import (
     model_infos_from_ids,
 )
 from providers.rate_limit import GlobalRateLimiter
+from providers.transports.http import maybe_await_aclose
 
-from .http import maybe_await_aclose, model_list_json, raise_for_status_with_body
-from .stream import AnthropicMessagesStreamRunner
+from .http import model_list_json, raise_for_status_with_body
+from .stream import AnthropicMessagesStreamAdapter
 
 StreamChunkMode = Literal["line", "event"]
 
@@ -225,12 +226,12 @@ class AnthropicMessagesTransport(BaseProvider):
         thinking_enabled: bool | None = None,
     ) -> AsyncIterator[str]:
         """Stream response via a native Anthropic-compatible messages endpoint."""
-        runner = AnthropicMessagesStreamRunner(
+        adapter = AnthropicMessagesStreamAdapter(
             self,
             request=request,
             input_tokens=input_tokens,
             request_id=request_id,
             thinking_enabled=thinking_enabled,
         )
-        async for event in runner.run():
+        async for event in adapter.run():
             yield event

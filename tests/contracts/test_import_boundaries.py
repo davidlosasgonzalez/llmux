@@ -155,6 +155,51 @@ def test_provider_transports_live_under_transport_family_packages() -> None:
     assert offenders == []
 
 
+def test_anthropic_stream_engine_owns_provider_stream_state() -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    anthropic_root = repo_root / "core" / "anthropic"
+    streaming_root = anthropic_root / "streaming"
+
+    for removed in {
+        "sse.py",
+        "emitted_sse_tracker.py",
+        "stream_recovery.py",
+        "stream_recovery_session.py",
+    }:
+        assert not (anthropic_root / removed).exists()
+
+    for filename in {
+        "__init__.py",
+        "emitter.py",
+        "ledger.py",
+        "lifecycle.py",
+        "recovery.py",
+    }:
+        assert (streaming_root / filename).exists()
+
+    forbidden = (
+        "SSEBuilder",
+        "ContentBlockManager",
+        "ToolCallState",
+        "EmittedNativeSseTracker",
+        "StreamRecoverySession",
+        "OpenAIChatStreamRunner",
+        "AnthropicMessagesStreamRunner",
+    )
+    offenders: list[str] = []
+    for path in [
+        *anthropic_root.rglob("*.py"),
+        *(repo_root / "providers" / "transports").rglob("*.py"),
+    ]:
+        text = path.read_text(encoding="utf-8")
+        offenders.extend(
+            f"{path.relative_to(repo_root)}: {name}"
+            for name in forbidden
+            if name in text
+        )
+    assert sorted(offenders) == []
+
+
 def test_openai_responses_uses_adapter_boundary() -> None:
     repo_root = Path(__file__).resolve().parents[2]
     responses_root = repo_root / "core" / "openai_responses"

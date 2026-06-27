@@ -348,23 +348,22 @@ where supported, and returning Anthropic SSE strings to the service layer.
 - content and message conversion for OpenAI-compatible upstreams;
 - tool schema and tool-result handling;
 - thinking block handling;
-- SSE event formatting through `SSEBuilder`;
+- stream lifecycle through `core/anthropic/streaming`, including the neutral
+  stream ledger, Anthropic SSE emitter, native event normalization, retry
+  holdback, continuation, and tool repair;
 - native Anthropic stream policy;
-- stream recovery policy, holdback, continuation, and repair helpers;
 - token counting and user-facing error formatting.
 
-Shared stream recovery policy lives in
-[core/anthropic/stream_recovery_session.py](core/anthropic/stream_recovery_session.py)
-and [core/anthropic/stream_recovery.py](core/anthropic/stream_recovery.py). The
-shared layer owns early retry classification, holdback buffering, retry attempt
-counting, and common flush/discard behavior. Provider transports still own
-upstream request construction, stream semantic parsing, transport-specific state
-tracking, and the actual recovery SSE events emitted for OpenAI-chat or native
-Anthropic streams. Per-request stream runners in
-[providers/transports/openai_chat/](providers/transports/openai_chat/) and
-[providers/transports/anthropic_messages/](providers/transports/anthropic_messages/)
-own mutable stream state so transport base classes stay focused on provider
-hooks, client setup, and model listing.
+Shared stream behavior lives under
+[core/anthropic/streaming/](core/anthropic/streaming/). The shared layer owns the
+Anthropic content-block ledger, SSE serialization, early retry classification,
+holdback buffering, retry attempt counting, common flush/discard behavior,
+midstream continuation, tool JSON repair, and final success/error tails. Provider
+transport packages are upstream adapters: OpenAI-chat providers convert chat
+chunks into ledger operations, and native Anthropic providers parse upstream SSE,
+apply native block policy, and re-emit normalized Anthropic SSE from the shared
+ledger. Transport bases stay focused on provider hooks, client setup, request
+construction, rate limiting, and model listing.
 
 [core/openai_responses/](core/openai_responses/) owns OpenAI Responses support:
 
