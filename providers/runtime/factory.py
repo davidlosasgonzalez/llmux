@@ -101,6 +101,12 @@ def _create_vercel(config: ProviderConfig, _settings: Settings) -> BaseProvider:
     return VercelProvider(config)
 
 
+def _create_huggingface(config: ProviderConfig, _settings: Settings) -> BaseProvider:
+    from providers.huggingface import HuggingFaceProvider
+
+    return HuggingFaceProvider(config)
+
+
 def _create_zai(config: ProviderConfig, _settings: Settings) -> BaseProvider:
     from providers.zai import ZaiProvider
 
@@ -147,6 +153,7 @@ PROVIDER_FACTORIES: dict[str, ProviderFactory] = {
     "opencode": _create_opencode,
     "opencode_go": _create_opencode_go,
     "vercel": _create_vercel,
+    "huggingface": _create_huggingface,
     "wafer": _create_wafer,
     "kimi": _create_kimi,
     "minimax": _create_minimax,

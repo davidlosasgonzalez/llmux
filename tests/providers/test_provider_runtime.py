@@ -19,6 +19,7 @@ from providers.exceptions import UnknownProviderTypeError
 from providers.fireworks import FireworksProvider
 from providers.gemini import GeminiProvider
 from providers.groq import GroqProvider
+from providers.huggingface import HUGGINGFACE_DEFAULT_BASE, HuggingFaceProvider
 from providers.kimi import KimiProvider
 from providers.llamacpp import LlamaCppProvider
 from providers.lmstudio import LMStudioProvider
@@ -49,6 +50,7 @@ def _make_settings(**overrides):
     mock.minimax_api_key = "test_minimax_key"
     mock.opencode_api_key = "test_opencode_key"
     mock.vercel_ai_gateway_api_key = "test_vercel_key"
+    mock.huggingface_api_key = "test_huggingface_key"
     mock.zai_api_key = "test_zai_key"
     mock.lm_studio_base_url = "http://localhost:1234/v1"
     mock.llamacpp_base_url = "http://localhost:8080/v1"
@@ -66,6 +68,7 @@ def _make_settings(**overrides):
     mock.opencode_proxy = ""
     mock.opencode_go_proxy = ""
     mock.vercel_ai_gateway_proxy = ""
+    mock.huggingface_proxy = ""
     mock.zai_proxy = ""
     mock.fireworks_proxy = ""
     mock.fireworks_api_key = "test_fireworks_key"
@@ -213,6 +216,16 @@ def test_vercel_descriptor_uses_openai_chat_gateway() -> None:
     assert "thinking" in descriptor.capabilities
 
 
+def test_huggingface_descriptor_uses_openai_chat_router() -> None:
+    descriptor = PROVIDER_CATALOG["huggingface"]
+
+    assert descriptor.transport_type == "openai_chat"
+    assert descriptor.default_base_url == HUGGINGFACE_DEFAULT_BASE
+    assert descriptor.credential_env == "HUGGINGFACE_API_KEY"
+    assert descriptor.proxy_attr == "huggingface_proxy"
+    assert "thinking" in descriptor.capabilities
+
+
 def test_build_provider_config_vercel_uses_gateway_key_and_proxy() -> None:
     descriptor = PROVIDER_CATALOG["vercel"]
     settings = _make_settings(
@@ -223,6 +236,19 @@ def test_build_provider_config_vercel_uses_gateway_key_and_proxy() -> None:
     config = build_provider_config(descriptor, settings)
 
     assert config.api_key == "vercel-token"
+    assert config.proxy == "http://proxy.test:8080"
+
+
+def test_build_provider_config_huggingface_uses_api_key_and_proxy() -> None:
+    descriptor = PROVIDER_CATALOG["huggingface"]
+    settings = _make_settings(
+        huggingface_api_key="hf-token",
+        huggingface_proxy="http://proxy.test:8080",
+    )
+
+    config = build_provider_config(descriptor, settings)
+
+    assert config.api_key == "hf-token"
     assert config.proxy == "http://proxy.test:8080"
 
 
@@ -242,6 +268,7 @@ def test_create_provider_instantiates_each_builtin():
         cloudflare_api_token="test_cloudflare_token",
         cloudflare_account_id="test_cloudflare_account",
         vercel_ai_gateway_api_key="test_vercel_key",
+        huggingface_api_key="test_huggingface_key",
         kimi_api_key="test_kimi_key",
     )
     cases = {
@@ -260,6 +287,7 @@ def test_create_provider_instantiates_each_builtin():
         "opencode": OpenCodeProvider,
         "opencode_go": OpenCodeProvider,
         "vercel": VercelProvider,
+        "huggingface": HuggingFaceProvider,
         "zai": ZaiProvider,
         "gemini": GeminiProvider,
         "groq": GroqProvider,
