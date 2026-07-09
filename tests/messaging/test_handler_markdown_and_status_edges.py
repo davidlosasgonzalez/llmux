@@ -6,7 +6,12 @@ import pytest
 from messaging.models import IncomingMessage
 from messaging.node_event_pipeline import process_parsed_cli_event
 from messaging.rendering.telegram_markdown import render_markdown_to_mdv2
-from messaging.trees import MessageNode, MessageState
+from messaging.trees import (
+    CancellationUiOwner,
+    CancelledNode,
+    MessageNode,
+    MessageState,
+)
 from messaging.workflow import MessagingWorkflow
 
 
@@ -249,7 +254,11 @@ async def test_stop_all_tasks_saves_tree_for_cancelled_nodes():
     tree.root_id = "root"
     tree.snapshot = MagicMock(return_value={"root": "ok"})
     with (
-        patch.object(handler.tree_queue, "cancel_all", AsyncMock(return_value=[node])),
+        patch.object(
+            handler.tree_queue,
+            "cancel_all",
+            AsyncMock(return_value=[CancelledNode(node, CancellationUiOwner.RUNNER)]),
+        ),
         patch.object(
             handler.tree_queue, "get_tree_for_node", MagicMock(return_value=tree)
         ),
@@ -418,6 +427,41 @@ async def test_process_parsed_event_malformed_content_continues():
     )
     assert last_status is None
     assert had is False
+
+
+@pytest.mark.asyncio
+async def test_process_parsed_event_failed_complete_does_not_mark_success():
+    """Failed terminal events are not rendered as successful completion."""
+    platform = MagicMock()
+    platform.queue_edit_message = AsyncMock()
+
+    cli_manager = MagicMock()
+    session_store = MagicMock()
+    handler = MessagingWorkflow(platform, cli_manager, session_store)
+
+    transcript = MagicMock()
+    update_ui = AsyncMock()
+    tree = MagicMock()
+    tree.update_state = AsyncMock()
+
+    last_status, had = await process_parsed_cli_event(
+        parsed={"type": "complete", "status": "failed"},
+        transcript=transcript,
+        update_ui=update_ui,
+        last_status="❌ Error",
+        had_transcript_events=True,
+        tree=tree,
+        node_id="n1",
+        captured_session_id="session_1",
+        session_store=session_store,
+        format_status=handler.format_status,
+        propagate_error_to_children=AsyncMock(),
+    )
+
+    assert last_status == "❌ Error"
+    assert had is True
+    update_ui.assert_not_awaited()
+    tree.update_state.assert_not_awaited()
 
 
 @pytest.mark.asyncio

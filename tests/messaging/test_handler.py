@@ -4,7 +4,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from messaging.models import IncomingMessage
-from messaging.trees import MessageNode, MessageState, MessageTree, TreeQueueManager
+from messaging.trees import (
+    CancellationReason,
+    CancellationUiOwner,
+    CancelledNode,
+    MessageNode,
+    MessageState,
+    MessageTree,
+    TreeQueueManager,
+)
 from messaging.workflow import MessagingWorkflow
 
 
@@ -357,13 +365,85 @@ async def test_stop_all_tasks(handler, mock_cli_manager, mock_platform):
     mock_node.status_message_id = "status_1"
 
     with patch.object(
-        handler.tree_queue, "cancel_all", AsyncMock(return_value=[mock_node])
-    ):
+        handler.tree_queue,
+        "cancel_all",
+        AsyncMock(
+            return_value=[CancelledNode(mock_node, CancellationUiOwner.WORKFLOW)]
+        ),
+    ) as cancel_all:
         count = await handler.stop_all_tasks()
 
         assert count == 1
+        cancel_all.assert_awaited_once_with(reason=CancellationReason.STOP)
         mock_cli_manager.stop_all.assert_called_once()
         mock_platform.fire_and_forget.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_stop_all_tasks_skips_direct_edit_for_active_runner_owned_node(
+    handler, mock_cli_manager, mock_platform
+):
+    """Active node cleanup owns transcript-preserving stopped rendering."""
+    incoming = IncomingMessage(
+        text="work",
+        chat_id="chat_1",
+        user_id="user_1",
+        message_id="node_1",
+        platform="telegram",
+    )
+    node = MessageNode(
+        node_id="node_1", incoming=incoming, status_message_id="status_1"
+    )
+    tree = MagicMock()
+    tree.root_id = "root_1"
+    tree.snapshot.return_value = {"root": "snapshot"}
+
+    with (
+        patch.object(
+            handler.tree_queue,
+            "cancel_all",
+            AsyncMock(return_value=[CancelledNode(node, CancellationUiOwner.RUNNER)]),
+        ),
+        patch.object(
+            handler.tree_queue, "get_tree_for_node", MagicMock(return_value=tree)
+        ),
+    ):
+        count = await handler.stop_all_tasks()
+
+    assert count == 1
+    mock_cli_manager.stop_all.assert_called_once()
+    mock_platform.fire_and_forget.assert_not_called()
+    mock_platform.queue_edit_message.assert_not_called()
+    handler.session_store.save_tree_snapshot.assert_called_once_with(
+        {"root": "snapshot"}
+    )
+
+
+@pytest.mark.asyncio
+async def test_stop_all_tasks_edits_queued_workflow_owned_node(
+    handler, mock_cli_manager, mock_platform
+):
+    """Queued nodes have no transcript owner, so workflow renders simple stop."""
+    incoming = IncomingMessage(
+        text="queued",
+        chat_id="chat_1",
+        user_id="user_1",
+        message_id="node_1",
+        platform="telegram",
+    )
+    node = MessageNode(
+        node_id="node_1", incoming=incoming, status_message_id="status_1"
+    )
+
+    with patch.object(
+        handler.tree_queue,
+        "cancel_all",
+        AsyncMock(return_value=[CancelledNode(node, CancellationUiOwner.WORKFLOW)]),
+    ):
+        count = await handler.stop_all_tasks()
+
+    assert count == 1
+    mock_platform.fire_and_forget.assert_called_once()
 
 
 async def mock_async_gen(events):
@@ -520,6 +600,174 @@ async def test_node_runner_process_node_error_flow(
         last_call = mock_platform.queue_edit_message.call_args_list[-1]
         assert "❌ *Error*" in last_call[0][2]
         assert "CLI crashed" in last_call[0][2]
+
+
+@pytest.mark.asyncio
+async def test_node_runner_process_node_provider_error_exit_does_not_complete(
+    handler, mock_cli_manager, mock_platform
+):
+    node_id = "node_1"
+    mock_node = MagicMock()
+    mock_node.incoming.chat_id = "chat_1"
+    mock_node.incoming.text = "hello"
+    mock_node.status_message_id = "status_1"
+    mock_node.parent_id = None
+
+    mock_session = MagicMock()
+    events = [
+        {
+            "type": "error",
+            "error": {
+                "message": "API Error: Request rejected (429)\nProvider rate limit reached."
+            },
+        },
+        {"type": "exit", "code": 1},
+    ]
+    mock_session.start_task.return_value = mock_async_gen(events)
+    mock_cli_manager.get_or_create_session.return_value = (
+        mock_session,
+        "session_1",
+        False,
+    )
+
+    mock_tree = MagicMock()
+    mock_tree.root_id = "root_1"
+    mock_tree.snapshot.return_value = {"data": "tree"}
+    mock_tree.update_state = AsyncMock()
+
+    with (
+        patch.object(
+            handler.tree_queue, "get_tree_for_node", MagicMock(return_value=mock_tree)
+        ),
+        patch.object(
+            handler.tree_queue, "mark_node_error", AsyncMock(return_value=[mock_node])
+        ) as mark_node_error,
+    ):
+        await handler.node_runner.process_node(node_id, mock_node)
+
+    mark_node_error.assert_called_once_with(
+        node_id,
+        "API Error: Request rejected (429)\nProvider rate limit reached.",
+        propagate_to_children=True,
+    )
+    mock_tree.update_state.assert_any_call(node_id, MessageState.IN_PROGRESS)
+    assert not any(
+        call.args == (node_id, MessageState.COMPLETED)
+        or (
+            len(call.args) >= 2
+            and call.args[0] == node_id
+            and call.args[1] is MessageState.COMPLETED
+        )
+        for call in mock_tree.update_state.call_args_list
+    )
+
+    rendered = mock_platform.queue_edit_message.call_args_list[-1].args[2]
+    assert "❌ *Error*" in rendered
+    assert "API Error: Request rejected" in rendered
+    assert "Process exited with code" not in rendered
+    assert "✅ *Complete*" not in rendered
+
+
+@pytest.mark.asyncio
+async def test_node_runner_process_node_success_complete_wins_after_non_exit_error(
+    handler, mock_cli_manager, mock_platform
+):
+    node_id = "node_1"
+    mock_node = MagicMock()
+    mock_node.incoming.chat_id = "chat_1"
+    mock_node.incoming.text = "hello"
+    mock_node.status_message_id = "status_1"
+    mock_node.parent_id = None
+
+    mock_session = MagicMock()
+    events = [
+        {"type": "error", "error": {"message": "recoverable warning"}},
+        {"type": "exit", "code": 0},
+    ]
+    mock_session.start_task.return_value = mock_async_gen(events)
+    mock_cli_manager.get_or_create_session.return_value = (
+        mock_session,
+        "session_1",
+        False,
+    )
+
+    mock_tree = MagicMock()
+    mock_tree.root_id = "root_1"
+    mock_tree.snapshot.return_value = {"data": "tree"}
+    mock_tree.update_state = AsyncMock()
+
+    with (
+        patch.object(
+            handler.tree_queue, "get_tree_for_node", MagicMock(return_value=mock_tree)
+        ),
+        patch.object(
+            handler.tree_queue, "mark_node_error", AsyncMock(return_value=[mock_node])
+        ) as mark_node_error,
+    ):
+        await handler.node_runner.process_node(node_id, mock_node)
+
+    mark_node_error.assert_called_once_with(
+        node_id,
+        "recoverable warning",
+        propagate_to_children=True,
+    )
+    mock_tree.update_state.assert_any_call(
+        node_id, MessageState.COMPLETED, session_id="session_1"
+    )
+    rendered = mock_platform.queue_edit_message.call_args_list[-1].args[2]
+    assert "✅ *Complete*" in rendered
+
+
+@pytest.mark.asyncio
+async def test_node_runner_stop_cancellation_preserves_transcript(
+    handler, mock_cli_manager, mock_platform
+):
+    started = asyncio.Event()
+
+    async def start_task(*args, **kwargs):
+        yield {
+            "type": "assistant",
+            "message": {"content": [{"type": "text", "text": "partial answer"}]},
+        }
+        started.set()
+        try:
+            await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            raise
+
+    mock_session = MagicMock()
+    mock_session.start_task = start_task
+    mock_cli_manager.get_or_create_session.return_value = (
+        mock_session,
+        "session_1",
+        False,
+    )
+
+    incoming = IncomingMessage(
+        text="work",
+        chat_id="chat_1",
+        user_id="user_1",
+        message_id="node_1",
+        platform="telegram",
+    )
+    node = MessageNode(
+        node_id="node_1", incoming=incoming, status_message_id="status_1"
+    )
+    node.set_context({"cancel_reason": "stop"})
+
+    tree = await handler.tree_queue.create_tree("node_1", incoming, "status_1")
+    task = asyncio.create_task(handler.node_runner.process_node("node_1", node))
+    await started.wait()
+
+    task.cancel()
+    await task
+
+    last_call = mock_platform.queue_edit_message.call_args_list[-1]
+    rendered = last_call.args[2]
+    assert "partial answer" in rendered
+    assert "⏹ *Stopped\\.*" in rendered
+    assert rendered.index("partial answer") < rendered.index("⏹ *Stopped\\.*")
+    assert tree.get_node("node_1").state == MessageState.ERROR
 
 
 @pytest.mark.asyncio

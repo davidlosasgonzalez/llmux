@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from api.response_streams import (
     EGRESS_STREAM_INTERRUPTED_MESSAGE,
+    anthropic_sse_error_response,
     anthropic_sse_streaming_response,
 )
 from core.anthropic.stream_contracts import parse_sse_text
@@ -92,6 +93,24 @@ async def test_anthropic_pre_start_provider_error_returns_non_200_json() -> None
     body = json.loads(bytes(response.body))
     assert body["error"]["type"] == "rate_limit_error"
     assert body["error"]["message"] == "provider says slow down"
+
+
+@pytest.mark.asyncio
+async def test_anthropic_sse_error_response_preserves_error_type() -> None:
+    response = anthropic_sse_error_response(
+        error_type="rate_limit_error",
+        message="provider says slow down",
+    )
+
+    assert isinstance(response, StreamingResponse)
+    assert response.status_code == 200
+    text = await _drain(response)
+    events = parse_sse_text(text)
+    assert [event.event for event in events] == ["error"]
+    assert events[0].data["error"] == {
+        "type": "rate_limit_error",
+        "message": "provider says slow down",
+    }
 
 
 @pytest.mark.asyncio

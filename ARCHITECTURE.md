@@ -249,10 +249,14 @@ provider, preflights the upstream request, emits trace events, counts input
 tokens, and returns an Anthropic SSE iterator.
 [api/response_streams.py](api/response_streams.py) owns public streaming egress
 commit timing. It waits for the first protocol chunk before returning a
-successful `StreamingResponse`, so provider setup failures can still become real
-non-200 JSON errors that Claude Code and Codex can retry. After the first chunk
-has escaped, HTTP status is committed; any unexpected failure must be represented
-as a protocol terminal frame where feasible.
+successful `StreamingResponse`. For streaming `/v1/messages`, once FCC has
+accepted the turn and provider execution owns the request, final provider
+failures are returned as terminal Anthropic SSE error events rather than
+retryable HTTP 429/5xx responses. HTTP error responses remain for ingress,
+auth, request validation, and preflight request-shape failures before provider
+execution. After the first chunk has escaped, HTTP status is committed; any
+unexpected failure must be represented as a protocol terminal frame where
+feasible.
 
 ```mermaid
 sequenceDiagram
@@ -448,6 +452,9 @@ Provider transports raise typed provider errors for final stream failures before
 any downstream-visible SSE chunk has escaped the recovery holdback. Once output
 has committed, transports keep ownership of midstream recovery, continuation,
 tool salvage, and protocol-specific success/error tails.
+The public streaming API boundary owns the final downstream error shape: provider
+errors may be visible to clients, but after FCC exhausts provider retry/recovery
+they must not leak as retryable HTTP statuses for accepted streaming turns.
 
 [core/openai_responses/](core/openai_responses/) owns OpenAI Responses support:
 

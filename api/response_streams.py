@@ -24,6 +24,21 @@ class EmptyStreamError(RuntimeError):
     """Raised when a public stream ends before emitting any protocol chunk."""
 
 
+async def _single_chunk_body(chunk: str) -> AsyncGenerator[str]:
+    yield chunk
+
+
+def anthropic_sse_error_response(*, error_type: str, message: str) -> StreamingResponse:
+    """Return a committed Anthropic SSE stream containing one terminal error."""
+    return StreamingResponse(
+        _single_chunk_body(
+            anthropic_terminal_error_frame(message, error_type=error_type)
+        ),
+        media_type="text/event-stream",
+        headers=dict(ANTHROPIC_SSE_RESPONSE_HEADERS),
+    )
+
+
 def _trace_egress_failure(exc: BaseException) -> None:
     trace_event(
         stage="egress",

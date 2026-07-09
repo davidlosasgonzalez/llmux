@@ -81,13 +81,18 @@ class ProviderExecutionService:
             routed.request.system,
             routed.request.tools,
         )
-        return traced_async_stream(
-            provider.stream_response(
+
+        async def provider_body() -> AsyncIterator[str]:
+            async for chunk in provider.stream_response(
                 routed.request,
                 input_tokens=input_tokens,
                 request_id=request_id,
                 thinking_enabled=routed.resolved.thinking_enabled,
-            ),
+            ):
+                yield chunk
+
+        return traced_async_stream(
+            provider_body(),
             stage="egress",
             source="api",
             complete_event=(

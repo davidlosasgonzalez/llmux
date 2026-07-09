@@ -3,7 +3,7 @@
 from collections.abc import AsyncIterator, Callable
 from dataclasses import dataclass, replace
 
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from loguru import logger
 
 from api.detection import is_safety_classifier_request
@@ -19,6 +19,7 @@ from api.request_errors import (
 )
 from api.response_streams import (
     EmptyStreamError,
+    anthropic_sse_error_response,
     anthropic_sse_streaming_response,
 )
 from api.web_tools.egress import WebFetchEgressPolicy, web_fetch_allowed_scheme_set
@@ -139,11 +140,18 @@ class MessagesHandler:
             pre_start_error_response=self._pre_start_error_response,
         )
 
-    def _pre_start_error_response(self, exc: BaseException) -> JSONResponse:
+    def _pre_start_error_response(self, exc: BaseException) -> Response:
         if isinstance(exc, ProviderError):
-            return JSONResponse(
+            trace_event(
+                stage="egress",
+                event="api.response.provider_error_terminalized",
+                source="api",
                 status_code=exc.status_code,
-                content=exc.to_anthropic_format(),
+                error_type=exc.error_type,
+            )
+            return anthropic_sse_error_response(
+                error_type=exc.error_type,
+                message=exc.message,
             )
         log_unexpected_api_exception(
             self._settings,
@@ -154,15 +162,16 @@ class MessagesHandler:
                 else "CREATE_MESSAGE_STREAM_START_ERROR"
             ),
         )
-        return JSONResponse(
+        trace_event(
+            stage="egress",
+            event="api.response.stream_start_error_terminalized",
+            source="api",
+            exc_type=type(exc).__name__,
             status_code=http_status_for_unexpected_api_exception(exc),
-            content={
-                "type": "error",
-                "error": {
-                    "type": "api_error",
-                    "message": _unexpected_stream_error_message(exc),
-                },
-            },
+        )
+        return anthropic_sse_error_response(
+            error_type="api_error",
+            message=_unexpected_stream_error_message(exc),
         )
 
     def _reject_unsupported_server_tools(self, routed: RoutedMessagesRequest) -> None:

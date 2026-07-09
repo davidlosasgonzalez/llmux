@@ -12,7 +12,13 @@ from .rendering.profiles import build_rendering_profile
 from .safe_diagnostics import format_exception_for_log
 from .session import SessionStore
 from .transcript import RenderCtx
-from .trees import MessageNode, MessageState, MessageTree, TreeQueueManager
+from .trees import (
+    CancellationReason,
+    CancellationUiOwner,
+    CancelledNode,
+    MessageTree,
+    TreeQueueManager,
+)
 from .turn_intake import MessagingTurnIntake
 
 
@@ -139,7 +145,9 @@ class MessagingWorkflow:
         Stop all pending and in-progress messaging tasks.
         """
         logger.info("Cancelling tree queue tasks...")
-        cancelled_nodes = await self.tree_queue.cancel_all()
+        cancelled_nodes = await self.tree_queue.cancel_all(
+            reason=CancellationReason.STOP
+        )
         logger.info(f"Cancelled {len(cancelled_nodes)} nodes")
 
         logger.info("Stopping all CLI sessions...")
@@ -150,13 +158,10 @@ class MessagingWorkflow:
 
     async def stop_task(self, node_id: str) -> int:
         """Stop a single queued or in-progress task node."""
-        tree = self.tree_queue.get_tree_for_node(node_id)
-        if tree:
-            node = tree.get_node(node_id)
-            if node and node.state not in (MessageState.COMPLETED, MessageState.ERROR):
-                node.set_context({"cancel_reason": "stop"})
-
-        cancelled_nodes = await self.tree_queue.cancel_node(node_id)
+        cancelled_nodes = await self.tree_queue.cancel_node(
+            node_id,
+            reason=CancellationReason.STOP,
+        )
         self.update_cancelled_nodes_ui(cancelled_nodes)
         return len(cancelled_nodes)
 
@@ -182,18 +187,20 @@ class MessagingWorkflow:
                 ),
             )
 
-    def update_cancelled_nodes_ui(self, nodes: list[MessageNode]) -> None:
+    def update_cancelled_nodes_ui(self, nodes: list[CancelledNode]) -> None:
         """Update status messages and persist tree state for cancelled nodes."""
         trees_to_save: dict[str, MessageTree] = {}
-        for node in nodes:
-            self.outbound.fire_and_forget(
-                self.outbound.queue_edit_message(
-                    node.incoming.chat_id,
-                    node.status_message_id,
-                    self.format_status("⏹", "Stopped."),
-                    parse_mode=self._parse_mode(),
+        for cancelled in nodes:
+            node = cancelled.node
+            if cancelled.ui_owner is CancellationUiOwner.WORKFLOW:
+                self.outbound.fire_and_forget(
+                    self.outbound.queue_edit_message(
+                        node.incoming.chat_id,
+                        node.status_message_id,
+                        self.format_status("⏹", "Stopped."),
+                        parse_mode=self._parse_mode(),
+                    )
                 )
-            )
             tree = self.tree_queue.get_tree_for_node(node.node_id)
             if tree:
                 trees_to_save[tree.root_id] = tree

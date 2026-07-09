@@ -4,6 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from api.app import create_app
+from core.anthropic.stream_contracts import parse_sse_text
 from providers.exceptions import RateLimitError
 from providers.nvidia_nim import NvidiaNimProvider
 
@@ -28,6 +29,14 @@ async def _mock_pre_start_rate_limit(*args, **kwargs):
     _stream_response_calls.append((args, kwargs))
     raise RateLimitError("upstream is busy")
     yield "unreachable"
+
+
+def _stream_error(response):
+    assert response.status_code == 200
+    assert "text/event-stream" in response.headers.get("content-type", "")
+    events = parse_sse_text(response.text)
+    assert [event.event for event in events] == ["error"]
+    return events[0].data["error"]
 
 
 mock_provider.stream_response = _mock_stream_response
@@ -103,10 +112,10 @@ def test_create_message_stream(client: TestClient):
     assert b"message_start" in content or b"event:" in content
 
 
-def test_create_message_pre_start_provider_error_returns_non_200_json(
+def test_create_message_pre_start_provider_error_returns_terminal_sse(
     client: TestClient,
 ):
-    """Pre-first-chunk provider errors should not commit HTTP 200."""
+    """Provider execution failures should not leak retryable HTTP status."""
     mock_provider.stream_response = _mock_pre_start_rate_limit
     payload = {
         "model": "claude-3-sonnet",
@@ -117,12 +126,8 @@ def test_create_message_pre_start_provider_error_returns_non_200_json(
 
     response = client.post("/v1/messages", json=payload)
 
-    assert response.status_code == 429
-    assert response.headers["content-type"].startswith("application/json")
-    assert response.json() == {
-        "type": "error",
-        "error": {"type": "rate_limit_error", "message": "upstream is busy"},
-    }
+    error = _stream_error(response)
+    assert error == {"type": "rate_limit_error", "message": "upstream is busy"}
     mock_provider.stream_response = _mock_stream_response
 
 
@@ -189,30 +194,27 @@ def test_error_fallbacks(client: TestClient):
     def _raise_overloaded(*args, **kwargs):
         raise OverloadedError("Server Overloaded")
 
-    # 1. Authentication Error (401)
+    # 1. Provider authentication during execution is terminal SSE, not retryable HTTP.
     mock_provider.stream_response = _raise_auth
     response = client.post("/v1/messages", json=base_payload)
-    assert response.status_code == 401
-    assert response.json()["error"]["type"] == "authentication_error"
+    assert _stream_error(response)["type"] == "authentication_error"
 
-    # 2. Rate Limit (429)
+    # 2. Provider rate limit during execution is terminal SSE, not retryable HTTP.
     mock_provider.stream_response = _raise_rate_limit
     response = client.post("/v1/messages", json=base_payload)
-    assert response.status_code == 429
-    assert response.json()["error"]["type"] == "rate_limit_error"
+    assert _stream_error(response)["type"] == "rate_limit_error"
 
-    # 3. Overloaded (529)
+    # 3. Provider overload during execution is terminal SSE, not retryable HTTP.
     mock_provider.stream_response = _raise_overloaded
     response = client.post("/v1/messages", json=base_payload)
-    assert response.status_code == 529
-    assert response.json()["error"]["type"] == "overloaded_error"
+    assert _stream_error(response)["type"] == "overloaded_error"
 
     # Reset for subsequent tests
     mock_provider.stream_response = _mock_stream_response
 
 
-def test_generic_exception_returns_500(client: TestClient):
-    """Non-ProviderError exceptions are caught and returned as HTTPException(500)."""
+def test_generic_stream_exception_returns_terminal_sse(client: TestClient):
+    """Unexpected provider execution failures also terminalize the accepted stream."""
 
     def _raise_runtime(*args, **kwargs):
         raise RuntimeError("unexpected crash")
@@ -227,12 +229,16 @@ def test_generic_exception_returns_500(client: TestClient):
             "stream": True,
         },
     )
-    assert response.status_code == 500
+    error = _stream_error(response)
+    assert error["type"] == "api_error"
+    assert error["message"] == "unexpected crash"
     mock_provider.stream_response = _mock_stream_response
 
 
-def test_generic_exception_with_status_code(client: TestClient):
-    """Unexpected errors always map to HTTP 500 (ignore ad-hoc status_code attrs)."""
+def test_generic_stream_exception_with_status_code_returns_terminal_sse(
+    client: TestClient,
+):
+    """Ad-hoc status_code attrs do not become retryable HTTP responses."""
 
     class ExceptionWithStatus(RuntimeError):
         def __init__(self, msg: str, status_code: int = 500):
@@ -252,11 +258,15 @@ def test_generic_exception_with_status_code(client: TestClient):
             "stream": True,
         },
     )
-    assert response.status_code == 500
+    error = _stream_error(response)
+    assert error["type"] == "api_error"
+    assert error["message"] == "bad gateway"
     mock_provider.stream_response = _mock_stream_response
 
 
-def test_generic_exception_empty_message_returns_non_empty_detail(client: TestClient):
+def test_generic_stream_exception_empty_message_returns_non_empty_error(
+    client: TestClient,
+):
     """Exceptions with empty __str__ still return a readable HTTP detail."""
 
     class SilentError(RuntimeError):
@@ -276,8 +286,9 @@ def test_generic_exception_empty_message_returns_non_empty_detail(client: TestCl
             "stream": True,
         },
     )
-    assert response.status_code == 500
-    assert response.json()["detail"] != ""
+    error = _stream_error(response)
+    assert error["type"] == "api_error"
+    assert error["message"] != ""
     mock_provider.stream_response = _mock_stream_response
 
 

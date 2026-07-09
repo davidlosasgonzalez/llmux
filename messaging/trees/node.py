@@ -46,8 +46,10 @@ class MessageNode:
         self.state = state
         if session_id:
             self.session_id = session_id
-        if error_message:
+        if error_message is not None:
             self.error_message = error_message
+        elif state == MessageState.COMPLETED:
+            self.error_message = None
         if state in (MessageState.COMPLETED, MessageState.ERROR):
             self.completed_at = datetime.now(UTC)
 

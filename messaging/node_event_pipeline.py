@@ -88,6 +88,8 @@ async def process_parsed_cli_event(
     elif ptype == "block_stop":
         await update_ui(last_status, force=True)
     elif ptype == "complete":
+        if parsed.get("status") != "success":
+            return last_status, had_transcript_events
         if not had_transcript_events:
             transcript.apply({"type": "text_chunk", "text": "Done."})
         trace_event(

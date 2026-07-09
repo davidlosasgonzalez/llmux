@@ -12,6 +12,7 @@ from api.models.openai_responses import OpenAIResponsesRequest
 from config.settings import Settings
 from core.anthropic.streaming import format_sse_event
 from providers.base import BaseProvider, ProviderConfig
+from providers.exceptions import InvalidRequestError
 
 _CLASSIFIER_SYSTEM = (
     "You are a security monitor. Respond with <block>yes</block> or <block>no</block>."
@@ -108,6 +109,26 @@ async def test_messages_handler_passes_routed_request_and_stream_metadata() -> N
     assert provider.stream_kwargs[0]["request_id"].startswith("req_")
     assert provider.stream_kwargs[0]["thinking_enabled"] is True
     assert len(provider.preflight_calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_messages_handler_preflight_invalid_request_stays_http_error() -> None:
+    class RejectPreflightProvider(FakeProvider):
+        def preflight_stream(
+            self, request: Any, *, thinking_enabled: bool | None = None
+        ) -> None:
+            raise InvalidRequestError("bad tool shape")
+
+    provider = RejectPreflightProvider()
+    handler = MessagesHandler(Settings(), provider_getter=lambda _: provider)
+    request = MessagesRequest(
+        model="nvidia_nim/test-model",
+        max_tokens=100,
+        messages=[Message(role="user", content="hi")],
+    )
+
+    with pytest.raises(InvalidRequestError):
+        await handler.create(request)
 
 
 @pytest.mark.asyncio

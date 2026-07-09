@@ -4,12 +4,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi import HTTPException
+from fastapi.responses import StreamingResponse
 
 from api import provider_execution, request_errors
 from api.handlers import MessagesHandler, TokenCountHandler
 from api.models.anthropic import Message, MessagesRequest
 from config.settings import Settings
 from core.anthropic import AnthropicStreamLedger
+from core.anthropic.stream_contracts import parse_sse_text
 
 
 @pytest.mark.asyncio
@@ -92,6 +94,16 @@ def _flatten_log_calls(mock_log) -> str:
     return " ".join(parts)
 
 
+async def _streaming_body_text(response: StreamingResponse) -> str:
+    parts: list[str] = []
+    async for chunk in response.body_iterator:
+        if isinstance(chunk, bytes):
+            parts.append(chunk.decode("utf-8"))
+        else:
+            parts.append(str(chunk))
+    return "".join(parts)
+
+
 @pytest.mark.asyncio
 async def test_create_message_unexpected_error_default_logs_exclude_exception_text():
     settings = Settings()
@@ -111,20 +123,21 @@ async def test_create_message_unexpected_error_default_logs_exclude_exception_te
         messages=[Message(role="user", content="hi")],
     )
 
-    with (
-        patch.object(request_errors.logger, "error") as log_err,
-        pytest.raises(HTTPException),
-    ):
-        await service.create(request)
+    with patch.object(request_errors.logger, "error") as log_err:
+        response = await service.create(request)
 
     blob = _flatten_log_calls(log_err)
     assert secret not in blob
     assert "RuntimeError" in blob
+    assert isinstance(response, StreamingResponse)
+    events = parse_sse_text(await _streaming_body_text(response))
+    assert [event.event for event in events] == ["error"]
+    assert events[0].data["error"]["type"] == "api_error"
 
 
 @pytest.mark.asyncio
-async def test_create_message_unexpected_error_always_returns_500():
-    """Non-provider failures must not leak arbitrary status_code attributes."""
+async def test_create_message_unexpected_error_terminal_sse_ignores_status_code():
+    """Non-provider stream failures must not leak arbitrary HTTP status attributes."""
 
     class WeirdError(Exception):
         status_code = 418
@@ -143,10 +156,13 @@ async def test_create_message_unexpected_error_always_returns_500():
         messages=[Message(role="user", content="hi")],
     )
 
-    with pytest.raises(HTTPException) as excinfo:
-        await service.create(request)
+    response = await service.create(request)
 
-    assert excinfo.value.status_code == 500
+    assert isinstance(response, StreamingResponse)
+    assert response.status_code == 200
+    events = parse_sse_text(await _streaming_body_text(response))
+    assert [event.event for event in events] == ["error"]
+    assert events[0].data["error"] == {"type": "api_error", "message": "no"}
 
 
 def test_parse_cli_event_error_logs_metadata_by_default():

@@ -6,7 +6,7 @@ from .managed_protocols import ManagedClaudeSessionManagerProtocol
 from .platforms.ports import OutboundMessenger, VoiceCancellation
 from .session import SessionStore
 from .transcript import RenderCtx
-from .trees import MessageNode, MessageTree, TreeQueueManager
+from .trees import CancelledNode, MessageTree, TreeQueueManager
 
 
 class MessagingCommandContext(Protocol):
@@ -58,7 +58,7 @@ class MessagingCommandContext(Protocol):
         """Persist an outgoing platform message ID."""
         ...
 
-    def update_cancelled_nodes_ui(self, nodes: list[MessageNode]) -> None:
+    def update_cancelled_nodes_ui(self, nodes: list[CancelledNode]) -> None:
         """Render cancellation status and persist affected trees."""
         ...
 

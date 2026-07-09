@@ -8,11 +8,15 @@ import pytest
 
 from messaging.models import IncomingMessage
 from messaging.trees import (
+    CancellationReason,
+    CancellationUiOwner,
     MessageNode,
     MessageState,
     MessageTree,
     TreeQueueManager,
     TreeSnapshot,
+    get_cancel_reason,
+    set_cancel_reason,
 )
 from messaging.trees import manager as tree_manager_module
 from messaging.trees.graph import MessageTreeGraph
@@ -100,6 +104,46 @@ class TestMessageNode:
         assert node.state == MessageState.IN_PROGRESS
         assert node.parent_id == "parent_1"
         assert "child_1" in node.children_ids
+
+    def test_completed_state_clears_stale_error_message(self):
+        """Successful completion is terminal and should clear prior node errors."""
+        incoming = IncomingMessage(
+            text="Test",
+            chat_id="1",
+            user_id="2",
+            message_id="3",
+            platform="test",
+        )
+        node = MessageNode(node_id="3", incoming=incoming, status_message_id="s1")
+        node.mark_error("temporary failure")
+
+        node.update_state(MessageState.COMPLETED, session_id="session_1")
+
+        assert node.state is MessageState.COMPLETED
+        assert node.session_id == "session_1"
+        assert node.error_message is None
+
+    def test_cancel_reason_helpers_preserve_existing_context(self):
+        """Cancellation reason is typed and does not clobber other context."""
+        incoming = IncomingMessage(
+            text="Test",
+            chat_id="1",
+            user_id="2",
+            message_id="3",
+            platform="test",
+        )
+        node = MessageNode(node_id="3", incoming=incoming, status_message_id="s1")
+        node.set_context({"other": "value"})
+
+        set_cancel_reason(node, CancellationReason.STOP)
+
+        assert get_cancel_reason(node) is CancellationReason.STOP
+        assert node.context == {"other": "value", "cancel_reason": "stop"}
+
+        set_cancel_reason(node, None)
+
+        assert get_cancel_reason(node) is None
+        assert node.context == {"other": "value"}
 
 
 class TestMessageTree:
@@ -581,9 +625,11 @@ class TestTreeQueueManager:
         await manager.enqueue("m1", slow_processor)
         await started.wait()
 
-        cancelled = await manager.cancel_tree("m1")
+        cancelled = await manager.cancel_tree("m1", reason=CancellationReason.STOP)
 
-        assert [node.node_id for node in cancelled] == ["m1"]
+        assert [entry.node.node_id for entry in cancelled] == ["m1"]
+        assert [entry.ui_owner for entry in cancelled] == [CancellationUiOwner.RUNNER]
+        assert get_cancel_reason(cancelled[0].node) is CancellationReason.STOP
         assert cleanup_done.is_set()
 
     @pytest.mark.asyncio
@@ -612,9 +658,11 @@ class TestTreeQueueManager:
         await manager.enqueue("m1", slow_processor)
         await started.wait()
 
-        cancelled = await manager.cancel_node("m1")
+        cancelled = await manager.cancel_node("m1", reason=CancellationReason.STOP)
 
-        assert [node.node_id for node in cancelled] == ["m1"]
+        assert [entry.node.node_id for entry in cancelled] == ["m1"]
+        assert [entry.ui_owner for entry in cancelled] == [CancellationUiOwner.RUNNER]
+        assert get_cancel_reason(cancelled[0].node) is CancellationReason.STOP
         assert cleanup_done.is_set()
 
     @pytest.mark.asyncio
@@ -649,7 +697,8 @@ class TestTreeQueueManager:
 
         cancelled = await manager.cancel_branch("child")
         assert len(cancelled) == 1
-        assert cancelled[0].node_id == "child"
+        assert cancelled[0].node.node_id == "child"
+        assert cancelled[0].ui_owner is CancellationUiOwner.WORKFLOW
 
         child_node = tree.get_node("child")
         assert child_node is not None
@@ -692,7 +741,8 @@ class TestTreeQueueManager:
 
         cancelled = await manager.cancel_branch("child")
 
-        assert [node.node_id for node in cancelled] == ["child"]
+        assert [entry.node.node_id for entry in cancelled] == ["child"]
+        assert [entry.ui_owner for entry in cancelled] == [CancellationUiOwner.RUNNER]
         assert cleanup_done.is_set()
 
     @pytest.mark.asyncio
@@ -725,9 +775,13 @@ class TestTreeQueueManager:
             await manager.enqueue(node_id, slow_processor)
         await all_started.wait()
 
-        cancelled = await manager.cancel_all()
+        cancelled = await manager.cancel_all(reason=CancellationReason.STOP)
 
-        assert {node.node_id for node in cancelled} == {"a", "b"}
+        assert {entry.node.node_id for entry in cancelled} == {"a", "b"}
+        assert {entry.ui_owner for entry in cancelled} == {CancellationUiOwner.RUNNER}
+        assert {get_cancel_reason(entry.node) for entry in cancelled} == {
+            CancellationReason.STOP
+        }
         assert cleanup_done == {"a", "b"}
 
     @pytest.mark.asyncio
@@ -803,7 +857,8 @@ class TestTreeQueueManager:
 
         cancelled = await manager.cancel_node("queued_first")
 
-        assert [node.node_id for node in cancelled] == ["queued_first"]
+        assert [entry.node.node_id for entry in cancelled] == ["queued_first"]
+        assert [entry.ui_owner for entry in cancelled] == [CancellationUiOwner.WORKFLOW]
         assert await tree.get_queue_snapshot() == ["queued_second"]
         queue_updated.assert_awaited_once_with(tree)
 
@@ -845,7 +900,8 @@ class TestTreeQueueManager:
 
         cancelled = await manager.cancel_branch("queued_first")
 
-        assert [node.node_id for node in cancelled] == ["queued_first"]
+        assert [entry.node.node_id for entry in cancelled] == ["queued_first"]
+        assert [entry.ui_owner for entry in cancelled] == [CancellationUiOwner.WORKFLOW]
         assert await tree.get_queue_snapshot() == ["queued_second"]
         queue_updated.assert_awaited_once_with(tree)
 

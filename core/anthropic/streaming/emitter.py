@@ -31,11 +31,13 @@ def format_sse_event(event_type: str, data: dict[str, Any]) -> str:
     return f"event: {event_type}\ndata: {json.dumps(data)}\n\n"
 
 
-def anthropic_terminal_error_frame(message: str) -> str:
+def anthropic_terminal_error_frame(
+    message: str, *, error_type: str = "api_error"
+) -> str:
     """Serialize a terminal Anthropic SSE error event for egress failures."""
     return format_sse_event(
         "error",
-        {"type": "error", "error": {"type": "api_error", "message": message}},
+        {"type": "error", "error": {"type": error_type, "message": message}},
     )
 
 

@@ -15,7 +15,14 @@ from .platforms.ports import OutboundMessenger
 from .safe_diagnostics import format_exception_for_log
 from .session import SessionStore
 from .transcript import RenderCtx, TranscriptBuffer
-from .trees import MessageNode, MessageState, MessageTree, TreeQueueManager
+from .trees import (
+    CancellationReason,
+    MessageNode,
+    MessageState,
+    MessageTree,
+    TreeQueueManager,
+    get_cancel_reason,
+)
 from .ui_updates import ThrottledTranscriptEditor
 
 
@@ -107,6 +114,7 @@ class MessagingNodeRunner:
         transcript, render_ctx = self._create_transcript_and_render_ctx()
 
         had_transcript_events = False
+        had_non_exit_error = False
         captured_session_id = None
         temp_session_id = None
         last_status: str | None = None
@@ -238,6 +246,14 @@ class MessagingNodeRunner:
                 )
 
                 for parsed in parsed_list:
+                    ptype = parsed.get("type")
+                    if (
+                        ptype == "error"
+                        and parsed.get("source") == "exit"
+                        and had_non_exit_error
+                    ):
+                        continue
+
                     (
                         last_status,
                         had_transcript_events,
@@ -258,6 +274,8 @@ class MessagingNodeRunner:
                         propagate_error_to_children=self.propagate_error_to_children,
                         log_messaging_error_details=self._log_messaging_error_details,
                     )
+                    if ptype == "error" and parsed.get("source") != "exit":
+                        had_non_exit_error = True
 
         except asyncio.CancelledError:
             trace_event(
@@ -268,11 +286,7 @@ class MessagingNodeRunner:
                 node_id=node_id,
             )
             logger.warning(f"HANDLER: Task cancelled for node {node_id}")
-            cancel_reason = None
-            if isinstance(node.context, dict):
-                cancel_reason = node.context.get("cancel_reason")
-
-            if cancel_reason == "stop":
+            if get_cancel_reason(node) is CancellationReason.STOP:
                 await update_ui(self._format_status("⏹", "Stopped.", None), force=True)
             else:
                 transcript.apply({"type": "error", "message": "Task was cancelled"})
