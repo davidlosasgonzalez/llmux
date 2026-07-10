@@ -255,6 +255,49 @@ async def test_stream_uses_retry_builds_request_and_closes_response(
 
 
 @pytest.mark.asyncio
+async def test_late_error_after_native_message_stop_keeps_successful_lifecycle(
+    provider_config,
+    mock_rate_limiter,
+):
+    provider = NativeProvider(provider_config)
+    req = MockRequest()
+    lines = [
+        "event: message_start",
+        'data: {"type":"message_start"}',
+        "",
+        "event: message_stop",
+        'data: {"type":"message_stop"}',
+        "",
+    ]
+    response = FakeResponse(
+        lines=lines,
+        raise_after_line_index=len(lines) - 1,
+        raise_error=httpx.ReadError(
+            "late cleanup failure",
+            request=httpx.Request("POST", "https://example.test/v1/messages"),
+        ),
+    )
+
+    with (
+        patch.object(provider._client, "build_request", return_value=MagicMock()),
+        patch.object(
+            provider._client,
+            "send",
+            new_callable=AsyncMock,
+            return_value=response,
+        ),
+    ):
+        events = [event async for event in provider.stream_response(req)]
+
+    assert [event.event for event in parse_sse_text("".join(events))] == [
+        "message_start",
+        "message_stop",
+    ]
+    assert response.is_closed
+    mock_rate_limiter.execute_with_retry.assert_awaited_once()
+
+
+@pytest.mark.asyncio
 async def test_stream_maps_pre_start_non_200_to_provider_error_and_closes_response(
     provider_config,
 ):
@@ -409,7 +452,7 @@ async def test_midstream_error_after_native_message_delta_does_not_duplicate_ter
     parsed = parse_sse_text("".join(events))
     assert mock_collect.await_count == 0
     assert sum(event.event == "message_delta" for event in parsed) == 1
-    assert sum(event.event == "message_stop" for event in parsed) == 1
+    assert sum(event.event == "message_stop" for event in parsed) == 0
     assert sum(event.event == "error" for event in parsed) == 1
     message_delta_index = next(
         index for index, event in enumerate(parsed) if event.event == "message_delta"
@@ -815,6 +858,9 @@ async def test_truncated_native_recovery_stream_falls_back_to_error_tail(
     assert original_text in event_text
     assert "world" not in event_text
     assert "Provider stream ended without message_stop." in event_text
+    parsed = parse_sse_text(event_text)
+    assert parsed[-1].event == "error"
+    assert not any(event.event == "message_stop" for event in parsed)
     assert not any(
         event.event == "content_block_delta"
         and event.data.get("delta", {}).get("text") == "ld"
