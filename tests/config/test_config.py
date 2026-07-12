@@ -203,7 +203,7 @@ class TestSettings:
         assert settings.lm_studio_base_url == "http://custom:5678/v1"
 
     def test_ollama_base_url_defaults_to_root(self, monkeypatch):
-        """OLLAMA_BASE_URL defaults to the Anthropic-compatible Ollama root URL."""
+        """OLLAMA_BASE_URL keeps the customer-facing Ollama root default."""
         from free_claude_code.config.settings import Settings
 
         monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
@@ -211,13 +211,12 @@ class TestSettings:
         settings = Settings()
         assert settings.ollama_base_url == "http://localhost:11434"
 
-    def test_ollama_base_url_rejects_v1_suffix(self, monkeypatch):
-        """OLLAMA_BASE_URL must not include /v1 for native Anthropic messages."""
+    def test_ollama_base_url_accepts_v1_suffix(self, monkeypatch):
+        """The adapter accepts either the root URL or the explicit OpenAI path."""
         from free_claude_code.config.settings import Settings
 
         monkeypatch.setenv("OLLAMA_BASE_URL", "http://localhost:11434/v1")
-        with pytest.raises(ValidationError, match="without /v1"):
-            Settings()
+        assert Settings().ollama_base_url == "http://localhost:11434/v1"
 
     def test_provider_rate_limit_from_env(self, monkeypatch):
         """PROVIDER_RATE_LIMIT env var is loaded into settings."""

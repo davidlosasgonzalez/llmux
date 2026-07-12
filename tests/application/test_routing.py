@@ -3,7 +3,7 @@ from unittest.mock import patch
 import pytest
 
 from free_claude_code.application.errors import UnknownProviderError
-from free_claude_code.application.routing import ModelRouter, ResolvedModel
+from free_claude_code.application.routing import ModelRouter
 from free_claude_code.config.provider_catalog import PROVIDER_CATALOG
 from free_claude_code.config.settings import Settings
 from free_claude_code.core.anthropic.models import (
@@ -27,10 +27,6 @@ def settings():
     return settings
 
 
-def assert_exact_catalog_capabilities(resolved: ResolvedModel) -> None:
-    assert resolved.capabilities is PROVIDER_CATALOG[resolved.provider_id].capabilities
-
-
 def test_model_router_resolves_default_model(settings):
     resolved = ModelRouter(settings).resolve("claude-3-opus")
 
@@ -39,7 +35,6 @@ def test_model_router_resolves_default_model(settings):
     assert resolved.provider_model == "fallback-model"
     assert resolved.provider_model_ref == "nvidia_nim/fallback-model"
     assert resolved.thinking_enabled is True
-    assert_exact_catalog_capabilities(resolved)
 
 
 def test_model_router_applies_opus_override(settings):
@@ -85,7 +80,6 @@ def test_model_router_applies_haiku_override(settings):
 
     assert routed.request.model == "qwen2.5-7b"
     assert routed.resolved.provider_model_ref == "lmstudio/qwen2.5-7b"
-    assert_exact_catalog_capabilities(routed.resolved)
 
 
 def test_model_router_applies_sonnet_override(settings):
@@ -119,7 +113,6 @@ def test_model_router_routes_prefixed_provider_model_directly(settings):
     assert routed.resolved.provider_id == "deepseek"
     assert routed.resolved.provider_model == "deepseek-chat"
     assert routed.resolved.provider_model_ref == "deepseek/deepseek-chat"
-    assert_exact_catalog_capabilities(routed.resolved)
 
 
 def test_model_router_routes_wafer_provider_model_directly(settings):
@@ -172,7 +165,6 @@ def test_model_router_routes_gateway_encoded_provider_model_directly(settings):
         routed.resolved.provider_model_ref
         == "anthropic/nvidia_nim/deepseek-ai/deepseek-v4-pro"
     )
-    assert_exact_catalog_capabilities(routed.resolved)
 
 
 def test_model_router_routes_no_thinking_gateway_model_directly(settings):
@@ -194,7 +186,6 @@ def test_model_router_routes_no_thinking_gateway_model_directly(settings):
     assert routed.resolved.provider_id == "nvidia_nim"
     assert routed.resolved.provider_model == "deepseek-ai/deepseek-v4-pro"
     assert routed.resolved.thinking_enabled is False
-    assert_exact_catalog_capabilities(routed.resolved)
 
 
 def test_model_router_direct_prefixed_model_uses_provider_model_for_thinking(settings):
@@ -206,7 +197,6 @@ def test_model_router_direct_prefixed_model_uses_provider_model_for_thinking(set
     assert resolved.provider_id == "open_router"
     assert resolved.provider_model == "anthropic/claude-opus-4"
     assert resolved.thinking_enabled is True
-    assert_exact_catalog_capabilities(resolved)
 
 
 def test_model_router_routes_token_count_request(settings):
@@ -220,7 +210,6 @@ def test_model_router_routes_token_count_request(settings):
 
     assert routed.request.model == "qwen2.5-7b"
     assert request.model == "claude-3-haiku-20240307"
-    assert_exact_catalog_capabilities(routed.resolved)
 
 
 def test_model_router_logs_mapping(settings):

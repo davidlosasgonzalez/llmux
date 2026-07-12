@@ -38,12 +38,8 @@ def _openai_reject_native_only_top_level_fields(
         return
     raise OpenAIConversionError(
         "OpenAI chat conversion does not support these top-level request fields: "
-        f"{sorted(str(k) for k in extra)}. Use a native Anthropic transport provider."
+        f"{sorted(str(k) for k in extra)}. Remove the unsupported fields."
     )
-
-
-def _tool_name(tool: Any) -> str:
-    return str(getattr(tool, "name", "") or "")
 
 
 def _tool_input_schema(tool: Any) -> dict[str, Any]:
@@ -146,7 +142,7 @@ def _assert_no_forbidden_assistant_block(block: Any) -> None:
     ):
         raise OpenAIConversionError(
             "OpenAI chat conversion does not support Anthropic server tool blocks "
-            f"({block_type!r} in an assistant message). Use a native Anthropic transport provider."
+            f"({block_type!r} in an assistant message). Remove the unsupported block."
         )
 
 
@@ -501,8 +497,7 @@ class AnthropicToOpenAIConverter:
             elif block_type == "image":
                 raise OpenAIConversionError(
                     "User message image blocks are not supported for OpenAI chat "
-                    "conversion; use a vision-capable native Anthropic provider or "
-                    "extend the converter."
+                    "conversion; remove the image blocks or extend the converter."
                 )
             elif block_type == "tool_result":
                 flush_text()

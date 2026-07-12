@@ -259,8 +259,6 @@ class MessagesHandler:
         )
 
     def _reject_unsupported_server_tools(self, routed: RoutedMessagesRequest) -> None:
-        if routed.resolved.capabilities.server_tool_passthrough:
-            return
         tool_err = unsupported_server_tool_error(
             routed.request,
             web_tools_enabled=self._settings.enable_web_server_tools,

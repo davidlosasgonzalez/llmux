@@ -1,4 +1,4 @@
-"""Provider transport preflight is explicit at every implementation boundary."""
+"""The shared provider transport owns explicit request preflight."""
 
 from collections.abc import AsyncIterator
 
@@ -6,24 +6,10 @@ import pytest
 
 from free_claude_code.core.anthropic.models import Message, MessagesRequest
 from free_claude_code.providers.base import BaseProvider, ProviderConfig
-from free_claude_code.providers.transports.anthropic_messages import (
-    AnthropicMessagesTransport,
-)
 from free_claude_code.providers.transports.openai_chat import OpenAIChatTransport
 
 
 class RecordingOpenAITransport(OpenAIChatTransport):
-    def __init__(self) -> None:
-        self.build_calls: list[tuple[MessagesRequest, bool | None]] = []
-
-    def _build_request_body(
-        self, request: MessagesRequest, thinking_enabled: bool | None = None
-    ) -> dict:
-        self.build_calls.append((request, thinking_enabled))
-        return {}
-
-
-class RecordingAnthropicTransport(AnthropicMessagesTransport):
     def __init__(self) -> None:
         self.build_calls: list[tuple[MessagesRequest, bool | None]] = []
 
@@ -58,20 +44,12 @@ def test_provider_base_requires_an_explicit_preflight_implementation() -> None:
         ProviderWithoutPreflight(ProviderConfig(api_key="test"))
 
 
-def test_each_transport_family_owns_preflight() -> None:
+def test_openai_transport_owns_preflight() -> None:
     assert OpenAIChatTransport.preflight_stream is not BaseProvider.preflight_stream
-    assert (
-        AnthropicMessagesTransport.preflight_stream is not BaseProvider.preflight_stream
-    )
 
 
-@pytest.mark.parametrize(
-    "transport",
-    [RecordingOpenAITransport(), RecordingAnthropicTransport()],
-)
-def test_transport_preflight_calls_its_builder_and_preserves_false(
-    transport: RecordingOpenAITransport | RecordingAnthropicTransport,
-) -> None:
+def test_transport_preflight_calls_builder_and_preserves_false() -> None:
+    transport = RecordingOpenAITransport()
     request = MessagesRequest(
         model="test-model",
         messages=[Message(role="user", content="hello")],

@@ -1,1 +1,1 @@
-"""Provider transport families."""
+"""Shared provider transport."""

@@ -10,13 +10,9 @@ from typing import Any
 
 from loguru import logger
 
-from free_claude_code.core.anthropic.stream_contracts import SSEEvent
-
 from .emitter import AnthropicSseEmitter
 from .recovery import (
     ToolSchema,
-    accept_tool_json_repair,
-    continuation_suffix,
     parse_complete_tool_input,
 )
 
@@ -388,57 +384,6 @@ class AnthropicStreamLedger:
             if state.started:
                 yield self.stop_tool_block(tool_index)
 
-    def ingest_native_event(self, event: SSEEvent) -> str | None:
-        """Record a native Anthropic SSE event and re-emit its normalized shape."""
-        if event.event == "message_start":
-            message = event.data.get("message")
-            if isinstance(message, dict):
-                mid = message.get("id")
-                if isinstance(mid, str) and mid:
-                    self.message_id = mid
-                model = message.get("model")
-                if isinstance(model, str) and model:
-                    self.model = model
-            self.message_started = True
-            return self._emitter.event(event.event, event.data)
-
-        if event.event == "content_block_start":
-            raw_index = event.data.get("index")
-            block = event.data.get("content_block")
-            if isinstance(raw_index, int) and isinstance(block, dict):
-                self._record_block_start(raw_index, block)
-            return self._emitter.event(event.event, event.data)
-
-        if event.event == "content_block_delta":
-            raw_index = event.data.get("index")
-            delta = event.data.get("delta")
-            if isinstance(raw_index, int) and isinstance(delta, dict):
-                self._record_block_delta(raw_index, delta)
-            return self._emitter.event(event.event, event.data)
-
-        if event.event == "content_block_stop":
-            raw_index = event.data.get("index")
-            if isinstance(raw_index, int):
-                self._record_block_stop(raw_index)
-            return self._emitter.event(event.event, event.data)
-
-        if event.event == "message_delta":
-            delta = event.data.get("delta")
-            if isinstance(delta, dict):
-                stop_reason = delta.get("stop_reason")
-                if isinstance(stop_reason, str):
-                    self.stop_reason = stop_reason
-            return self._emitter.event(event.event, event.data)
-
-        if event.event == "message_stop":
-            self.message_stopped = True
-            return self._emitter.event(event.event, event.data)
-
-        if event.event == "error":
-            return self._emitter.event(event.event, event.data)
-
-        return self._emitter.event(event.event, event.data)
-
     def close_unclosed_blocks(self) -> Iterator[str]:
         while self._open_stack:
             idx = self._open_stack.pop()
@@ -451,44 +396,6 @@ class AnthropicStreamLedger:
                 {"type": "content_block_stop", "index": idx},
             )
 
-    def append_text_suffix(self, suffix: str) -> Iterator[str]:
-        if not suffix or not self.can_append_content():
-            return
-        yield from self.ensure_text_block()
-        active = self._last_open_block("text")
-        if active is None:
-            return
-        yield self.content_block_delta(active.index, "text_delta", suffix)
-
-    def append_thinking_suffix(self, suffix: str) -> Iterator[str]:
-        if not suffix or not self.can_append_content():
-            return
-        yield from self.ensure_thinking_block()
-        active = self._last_open_block("thinking")
-        if active is None:
-            return
-        yield self.content_block_delta(active.index, "thinking_delta", suffix)
-
-    def append_tool_repair_suffix(self, tool_index: int, suffix: str) -> Iterator[str]:
-        tool_blocks = self.tool_blocks()
-        if (
-            tool_index >= len(tool_blocks)
-            or not suffix
-            or not self.can_append_content()
-        ):
-            return
-        block = tool_blocks[tool_index]
-        yield self.content_block_delta(block.index, "input_json_delta", suffix)
-
-    def success_tail(self, stop_reason: str) -> Iterator[str]:
-        yield from self.close_unclosed_blocks()
-        if self.stop_reason is None:
-            yield self.message_delta(
-                self.final_stop_reason(stop_reason), self.estimate_output_tokens()
-            )
-        if not self.message_stopped:
-            yield self.message_stop()
-
     def can_salvage_tool_use(self, schemas: dict[str, ToolSchema]) -> bool:
         tool_blocks = self.tool_blocks()
         if not tool_blocks:
@@ -499,27 +406,6 @@ class AnthropicStreamLedger:
             if parse_complete_tool_input(block.content, block.name, schemas) is None:
                 return False
         return True
-
-    def accept_tool_repair(
-        self, tool_index: int, candidate: str, schemas: dict[str, ToolSchema]
-    ) -> str | None:
-        tool_blocks = self.tool_blocks()
-        if tool_index >= len(tool_blocks):
-            return None
-        block = tool_blocks[tool_index]
-        repair = accept_tool_json_repair(
-            block.content,
-            candidate,
-            tool_name=block.name,
-            schemas=schemas,
-        )
-        return repair.suffix if repair is not None else None
-
-    def continuation_text_suffix(self, candidate: str) -> str | None:
-        return continuation_suffix(self.accumulated_text, candidate)
-
-    def continuation_thinking_suffix(self, candidate: str) -> str | None:
-        return continuation_suffix(self.accumulated_reasoning, candidate)
 
     def tool_blocks(self) -> list[StreamBlockState]:
         return [
@@ -542,9 +428,6 @@ class AnthropicStreamLedger:
 
     def has_content_block(self) -> bool:
         return bool(self._content_blocks)
-
-    def can_append_content(self) -> bool:
-        return self.stop_reason is None and not self.message_stopped
 
     def final_stop_reason(self, fallback: str) -> str:
         if self.has_emitted_tool_block():

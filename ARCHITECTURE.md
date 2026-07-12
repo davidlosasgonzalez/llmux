@@ -190,10 +190,9 @@ new places to add unrelated behavior:
   [application/execution.py](src/free_claude_code/application/execution.py) only for shared
   provider resolution, preflight, tracing, token counting, and streaming.
 - [providers/transports/](src/free_claude_code/providers/transports/) owns provider transport
-  families. The OpenAI-chat and native Anthropic transport packages split thin
-  transport bases from per-request stream runners, recovery event construction,
-  request policy, and transport-specific parsing. Shared protocol rules should
-  continue moving toward [src/free_claude_code/core/](src/free_claude_code/core/) when they are not provider-specific.
+  behavior. The OpenAI-chat package splits its transport base from per-request
+  stream execution, recovery, request policy, and tool-call assembly. Shared
+  protocol rules belong in [src/free_claude_code/core/](src/free_claude_code/core/).
 - [messaging/workflow.py](src/free_claude_code/messaging/workflow.py) coordinates messaging runtime
   dependencies. Inbound turn intake, queued node execution, slash command
   dependencies, and tree queue internals live in separate modules so new
@@ -462,9 +461,8 @@ otherwise they fall back to `MODEL`.
 
 The router also resolves thinking. Gateway model IDs can force thinking on or
 off; otherwise `ModelRouter` applies tier-specific thinking overrides or the
-global setting. `ResolvedModel` carries the selected provider's immutable
-`ProviderCapabilities`, so product policy reads explicit semantic capabilities
-instead of inferring behavior from a provider ID or transport family.
+global setting. `ResolvedModel` carries only the selected route and thinking
+decision; provider catalog metadata does not cross the application boundary.
 
 `GET /v1/models` advertises:
 
@@ -490,10 +488,9 @@ passes it as `model_catalog_json`. Codex users open the native picker with
 
 Provider metadata is neutral and centralized in
 [config/provider_catalog.py](src/free_claude_code/config/provider_catalog.py). Each
-`ProviderDescriptor` declares provider ID, immutable semantic capabilities,
-credential env var, default base URL, settings attribute names, and proxy support.
-Capabilities describe product behavior such as locality and Anthropic server-tool
-passthrough; they do not select a concrete adapter.
+`ProviderDescriptor` declares provider ID, display name, locality, credential env
+var, default base URL, settings attribute names, and proxy support. It does not
+select a concrete adapter.
 
 [providers/runtime/](src/free_claude_code/providers/runtime/) owns construction details for one
 closable provider generation: factory wiring, provider configuration, lazy
@@ -537,37 +534,30 @@ compatibility layer.
 - `BaseProvider`: the abstract implementation base for cleanup, model listing,
   explicit preflight, and `stream_response()`.
 
-There are two transport families under [providers/transports/](src/free_claude_code/providers/transports/):
+There is one transport family under [providers/transports/](src/free_claude_code/providers/transports/):
 
 - [providers/transports/openai_chat/](src/free_claude_code/providers/transports/openai_chat/)
   implements `OpenAIChatTransport` for providers with OpenAI-compatible
   `/chat/completions` APIs. Its `transport.py` co-locates the transport base with
   the exactly typed private per-request runner and its recovery operations; no
   cross-module object reaches through an untyped transport backchannel. The
-  package also owns OpenAI request policy and tool-call assembly.
-- [providers/transports/anthropic_messages/](src/free_claude_code/providers/transports/anthropic_messages/)
-  implements `AnthropicMessagesTransport` for providers with
-  Anthropic-compatible `/messages` APIs. In FCC this transport is intentionally
-  local-only for llama.cpp and Ollama. Its `transport.py` likewise owns the
-  transport and exactly typed private stream/recovery lifecycle together. The
-  package also owns native request policy and HTTP response helpers.
+  package also owns OpenAI request policy, tool-call assembly, and the explicit
+  server-root-to-`/v1` normalization selected by local providers that accept both
+  URL forms.
 
-Both transport families explicitly implement preflight by constructing the same
+The transport explicitly implements preflight by constructing the same
 upstream request body they will later stream. `BaseProvider` makes that operation
 abstract, so a new provider cannot silently omit the commit-boundary validation.
 LM Studio composes the OpenAI-chat conversion first and its context-budget probe
 second; conversion failure therefore cannot open a stream or run the probe.
 
-Provider request construction mirrors the transport family split. OpenAI-chat
-providers call the OpenAI request policy for Anthropic-to-OpenAI conversion,
+Providers call the OpenAI request policy for Anthropic-to-OpenAI conversion,
 thinking replay selection, `extra_body`, and chat-completion field normalization.
-Native Anthropic providers call the native request policy for raw request
-dumping, default tokens, stream flags, thinking payloads, and `extra_body`
-handling. Concrete provider packages keep only true upstream quirks such as
+Concrete provider packages keep only true upstream quirks such as
 Gemini thought signatures, NIM tool-schema aliases, retry downgrades, and NVCF
 deployment-failure classification, or DeepSeek attachment/tool/thinking
-compatibility. Cloud providers use OpenAI-chat unless they are local native
-runtimes. DeepSeek intentionally uses its
+compatibility. Ollama, llama.cpp, and LM Studio use their OpenAI-compatible Chat
+Completions endpoints like the remote providers. DeepSeek intentionally uses its
 OpenAI-compatible Chat Completions endpoint because that is the endpoint that
 reports prompt-cache hit/miss counters; the provider maps those counters back
 into Anthropic usage fields for Claude-compatible clients. Cloudflare uses its
@@ -591,7 +581,7 @@ SDK/HTTP failure classification, safe diagnostic construction, transport
 cleanup, thinking/tool handling, retry or recovery where supported, and
 returning successful Anthropic SSE strings to the service layer. Final failures
 cross that boundary as `ExecutionFailure`, not as provider-authored wire events.
-Every provider and both transport families receive the same concrete
+Every provider receives the same concrete
 `MessagesRequest` owned by the Anthropic protocol package. Known wire fields are
 accessed through that model; `Any` and dynamic attribute lookup are reserved for
 SDK response objects and genuinely open-ended nested extension payloads.
@@ -619,8 +609,8 @@ usage quirks such as DeepSeek prompt-cache counters.
    catalog. Add admin-only help text or provider-specific fields under
    [config/admin/](src/free_claude_code/config/admin/) only when the generated manifest is
    insufficient.
-4. Implement the provider under [src/free_claude_code/providers/](src/free_claude_code/providers/) using the appropriate
-   shared transport family.
+4. Implement the provider under [src/free_claude_code/providers/](src/free_claude_code/providers/) using the shared
+   OpenAI-chat transport.
 5. Add a factory in [providers/runtime/factory.py](src/free_claude_code/providers/runtime/factory.py).
 6. Add deterministic tests under [tests/providers/](tests/providers/) and any
    relevant contract tests.
@@ -642,9 +632,7 @@ usage quirks such as DeepSeek prompt-cache counters.
 - tool schema and tool-result handling;
 - thinking block handling;
 - stream lifecycle through `src/free_claude_code/core/anthropic/streaming`, including the neutral
-  stream ledger, Anthropic SSE emitter, native event normalization,
-  continuation-body construction, and tool repair;
-- native Anthropic stream policy;
+  stream ledger, Anthropic SSE emitter, continuation-body construction, and tool repair;
 - token counting and Anthropic-owned failure-kind-to-wire mapping.
 
 Shared stream behavior lives under
@@ -665,9 +653,7 @@ map the canonical kind and status to their wire error types.
 [providers/failure_policy.py](src/free_claude_code/providers/failure_policy.py)
 owns generic raw OpenAI SDK and `httpx` exception classification,
 transient status/body inference, stable provider wording, and final diagnostic
-construction for those failures. Native Anthropic wire errors are instead
-mapped to canonical failures by the Anthropic protocol package, then consumed
-by provider retry/recovery policy.
+construction for those failures.
 Concrete adapters may supply one narrow semantic override for an upstream quirk
 that the shared SDK cannot express correctly. The concrete adapter owns the
 exact upstream marker, while the shared failure policy owns its canonical
@@ -685,12 +671,11 @@ its existing five-attempt exponential-backoff budget. `ExecutionFailure.retryabl
 records provider-policy eligibility; it never tells the client to retry after FCC
 has finalized the failure.
 
-Provider transport packages remain upstream adapters: OpenAI-chat providers
-convert chat chunks into ledger operations, and native Anthropic providers parse
-upstream SSE and canonicalize upstream error events. After retry, continuation,
-and tool salvage are exhausted, a transport discards uncommitted output or
-flushes committed output, closes any open content blocks, and raises
-`ExecutionFailure`. It never synthesizes a terminal Anthropic error event.
+The provider transport remains an upstream adapter: it converts OpenAI chat
+chunks into ledger operations. After retry, continuation, and tool salvage are
+exhausted, it discards uncommitted output or flushes committed output, closes
+open content blocks, and raises `ExecutionFailure`. It never synthesizes a
+terminal Anthropic error event.
 
 The public HTTP commit boundary solely decides whether a final failure can use
 non-2xx JSON or must use a terminal protocol event; the protocol packages own
@@ -786,13 +771,10 @@ Messages handler can stream local Anthropic server-tool responses without sendin
 request upstream. [api/web_tools/egress.py](src/free_claude_code/api/web_tools/egress.py) enforces URL
 scheme and private-network restrictions for `web_fetch`.
 
-The Messages handler reads the routed model's
-`ProviderCapabilities.server_tool_passthrough` value. Providers without this
-capability reject unsupported server-tool requests before execution instead of
-performing a lossy conversion. Forced `web_search` or `web_fetch` requests are
-handled locally when `ENABLE_WEB_SERVER_TOOLS` is true; when local handling is
-disabled, only providers declaring passthrough may receive those blocks. This
-keeps product policy independent of provider IDs and transport implementation.
+Anthropic server-tool definitions are never passed to upstream OpenAI Chat
+providers because that conversion would be lossy. Forced `web_search` or
+`web_fetch` requests are handled locally when `ENABLE_WEB_SERVER_TOOLS` is true;
+otherwise the Messages handler rejects them before provider execution.
 
 ## CLI Launchers And Managed Claude
 

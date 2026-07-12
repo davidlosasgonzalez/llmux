@@ -7,11 +7,11 @@ from loguru import logger
 
 from free_claude_code.application.errors import InvalidRequestError
 from free_claude_code.config.constants import ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS
-from free_claude_code.core.anthropic import serialize_tool_result_content
-from free_claude_code.core.anthropic.models import MessagesRequest
-from free_claude_code.core.anthropic.native_messages_request import (
-    dump_raw_messages_request,
+from free_claude_code.core.anthropic import (
+    dump_messages_request,
+    serialize_tool_result_content,
 )
+from free_claude_code.core.anthropic.models import MessagesRequest
 from free_claude_code.providers.transports.openai_chat import (
     OpenAIChatRequestPolicy,
     build_openai_chat_request_body,
@@ -48,7 +48,7 @@ def build_deepseek_request_body(
         len(request_data.messages),
     )
 
-    data = dump_raw_messages_request(request_data)
+    data = dump_messages_request(request_data)
     if "messages" in data:
         data["messages"] = _strip_unsupported_attachment_blocks(data["messages"])
     _validate_deepseek_request_dict(data)

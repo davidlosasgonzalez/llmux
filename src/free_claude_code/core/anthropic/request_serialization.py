@@ -3,6 +3,38 @@
 import json
 from typing import Any
 
+from .models import MessagesRequest
+
+_MESSAGES_REQUEST_FIELDS = (
+    "model",
+    "messages",
+    "system",
+    "max_tokens",
+    "stop_sequences",
+    "stream",
+    "temperature",
+    "top_p",
+    "top_k",
+    "metadata",
+    "tools",
+    "tool_choice",
+    "thinking",
+    "context_management",
+    "output_config",
+    "mcp_servers",
+    "extra_body",
+)
+
+
+def dump_messages_request(request: MessagesRequest) -> dict[str, Any]:
+    """Return JSON-ready public Messages fields without FCC routing state."""
+    raw = request.model_dump(exclude_none=True)
+    return {
+        field: raw[field]
+        for field in _MESSAGES_REQUEST_FIELDS
+        if field in raw and raw[field] is not None
+    }
+
 
 def serialize_tool_result_content(content: Any) -> str:
     """Serialize Anthropic ``tool_result.content`` into provider-safe text."""

@@ -194,23 +194,3 @@ def provider_chat_body_snapshot(body: Mapping[str, Any]) -> dict[str, Any]:
     keys = ("model", "messages", "tools", "tool_choice", "temperature", "max_tokens")
     snap = {k: body[k] for k in keys if k in body and body[k] is not None}
     return sanitize_trace_value(snap)
-
-
-def provider_native_messages_body_snapshot(body: Mapping[str, Any]) -> dict[str, Any]:
-    """Sanitized Anthropic Messages API body subset for traces."""
-    keys = (
-        "model",
-        "messages",
-        "system",
-        "tools",
-        "tool_choice",
-        "max_tokens",
-        "thinking",
-        "metadata",
-        "temperature",
-        "top_p",
-        "top_k",
-        "stop_sequences",
-    )
-    snap = {k: body[k] for k in keys if k in body and body[k] is not None}
-    return sanitize_trace_value(snap)

@@ -12,7 +12,7 @@ import uuid
 from collections.abc import AsyncIterator
 from typing import Any
 
-from .native_sse_block_policy import parse_native_sse_event
+from .stream_contracts import parse_sse_text
 
 __all__ = ["aggregate_anthropic_sse_to_message"]
 
@@ -91,15 +91,8 @@ async def aggregate_anthropic_sse_to_message(
         buffer += chunk
         while "\n\n" in buffer:
             raw_event, buffer = buffer.split("\n\n", 1)
-            _event_name, data_text = parse_native_sse_event(raw_event + "\n\n")
-            if not data_text:
-                continue
-            try:
-                payload = json.loads(data_text)
-            except json.JSONDecodeError:
-                continue
-            if isinstance(payload, dict):
-                handle_payload(payload)
+            for event in parse_sse_text(raw_event + "\n\n"):
+                handle_payload(event.data)
 
     content: list[dict[str, Any]] = []
     for idx in sorted(blocks):

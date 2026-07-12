@@ -64,8 +64,8 @@ Default targets do not send real bot messages or load voice backends:
 | `tools` | forced tool_use and tool_result continuation | tool-capable configured provider |
 | `rate_limit` | disconnect cleanup and follow-up request | configured provider |
 | `lmstudio` | local `/models` plus OpenAI-chat-backed Messages through proxy | running LM Studio server |
-| `llamacpp` | local `/models` plus native `/messages` through proxy | running llama-server |
-| `ollama` | local `/api/tags` plus native Anthropic messages through proxy | running Ollama server |
+| `llamacpp` | local `/models` plus OpenAI-chat-backed Messages through proxy | running llama-server |
+| `ollama` | local `/v1/models` plus OpenAI-chat-backed Messages through proxy | running Ollama server |
 
 Heavy/side-effectful targets are opt-in:
 

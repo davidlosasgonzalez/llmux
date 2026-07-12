@@ -40,20 +40,12 @@ SAMBANOVA_DEFAULT_BASE = "https://api.sambanova.ai/v1"
 
 
 @dataclass(frozen=True, slots=True)
-class ProviderCapabilities:
-    """Static provider semantics used by application policy."""
-
-    local: bool = False
-    server_tool_passthrough: bool = False
-
-
-@dataclass(frozen=True, slots=True)
 class ProviderDescriptor:
     """Metadata for building :class:`~providers.base.ProviderConfig` and factory wiring."""
 
     provider_id: str
     display_name: str
-    capabilities: ProviderCapabilities = ProviderCapabilities()
+    local: bool = False
     credential_env: str | None = None
     credential_url: str | None = None
     credential_attr: str | None = None
@@ -258,7 +250,7 @@ PROVIDER_CATALOG: dict[str, ProviderDescriptor] = {
         default_base_url=LMSTUDIO_DEFAULT_BASE,
         base_url_attr="lm_studio_base_url",
         proxy_attr="lmstudio_proxy",
-        capabilities=ProviderCapabilities(local=True),
+        local=True,
     ),
     "llamacpp": ProviderDescriptor(
         provider_id="llamacpp",
@@ -267,10 +259,7 @@ PROVIDER_CATALOG: dict[str, ProviderDescriptor] = {
         default_base_url=LLAMACPP_DEFAULT_BASE,
         base_url_attr="llamacpp_base_url",
         proxy_attr="llamacpp_proxy",
-        capabilities=ProviderCapabilities(
-            local=True,
-            server_tool_passthrough=True,
-        ),
+        local=True,
     ),
     "ollama": ProviderDescriptor(
         provider_id="ollama",
@@ -278,10 +267,7 @@ PROVIDER_CATALOG: dict[str, ProviderDescriptor] = {
         static_credential="ollama",
         default_base_url=OLLAMA_DEFAULT_BASE,
         base_url_attr="ollama_base_url",
-        capabilities=ProviderCapabilities(
-            local=True,
-            server_tool_passthrough=True,
-        ),
+        local=True,
     ),
 }
 

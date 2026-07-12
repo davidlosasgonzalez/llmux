@@ -12,7 +12,6 @@ from .errors import (
     anthropic_error_type_for_failure,
     anthropic_failure_payload,
     anthropic_status_for_error_type,
-    execution_failure_from_anthropic_error,
 )
 from .models import (
     ContentBlockDocument,
@@ -36,8 +35,7 @@ from .models import (
     Tool,
     Usage,
 )
-from .native_messages_request import sanitize_native_messages_thinking_policy
-from .request_serialization import serialize_tool_result_content
+from .request_serialization import dump_messages_request, serialize_tool_result_content
 from .request_snapshot import anthropic_request_snapshot
 from .sse_aggregation import aggregate_anthropic_sse_to_message
 from .streaming import (
@@ -90,14 +88,13 @@ __all__ = [
     "anthropic_request_snapshot",
     "anthropic_status_for_error_type",
     "build_base_request_body",
-    "execution_failure_from_anthropic_error",
+    "dump_messages_request",
     "extract_text_from_content",
     "format_sse_event",
     "get_block_attr",
     "get_block_type",
     "get_token_count",
     "map_stop_reason",
-    "sanitize_native_messages_thinking_policy",
     "serialize_tool_result_content",
     "set_if_not_none",
 ]

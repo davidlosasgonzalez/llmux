@@ -9,7 +9,6 @@ from free_claude_code.config.model_refs import parse_model_name, parse_provider_
 from free_claude_code.config.provider_catalog import (
     PROVIDER_CATALOG,
     SUPPORTED_PROVIDER_IDS,
-    ProviderCapabilities,
 )
 from free_claude_code.config.settings import Settings
 from free_claude_code.core.anthropic import MessagesRequest, TokenCountRequest
@@ -23,7 +22,6 @@ class ResolvedModel:
     provider_model: str
     provider_model_ref: str
     thinking_enabled: bool
-    capabilities: ProviderCapabilities
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,12 +67,12 @@ class ModelRouter:
                 provider_model=direct_provider_model,
                 provider_model_ref=claude_model_name,
                 thinking_enabled=thinking_enabled,
-                capabilities=self._provider_capabilities(direct_provider_id),
             )
 
         provider_model_ref = self._resolve_model_ref(claude_model_name)
         thinking_enabled = self._resolve_thinking(claude_model_name)
         provider_id = parse_provider_type(provider_model_ref)
+        self._validate_provider_id(provider_id)
         provider_model = parse_model_name(provider_model_ref)
         if provider_model != claude_model_name:
             logger.debug(
@@ -86,15 +84,12 @@ class ModelRouter:
             provider_model=provider_model,
             provider_model_ref=provider_model_ref,
             thinking_enabled=thinking_enabled,
-            capabilities=self._provider_capabilities(provider_id),
         )
 
     @staticmethod
-    def _provider_capabilities(provider_id: str) -> ProviderCapabilities:
-        descriptor = PROVIDER_CATALOG.get(provider_id)
-        if descriptor is None:
+    def _validate_provider_id(provider_id: str) -> None:
+        if provider_id not in PROVIDER_CATALOG:
             raise UnknownProviderError.for_provider(provider_id, PROVIDER_CATALOG)
-        return descriptor.capabilities
 
     def _direct_provider_model(
         self, model_name: str

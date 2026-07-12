@@ -239,7 +239,7 @@ class SmokeConfig:
         self, provider: str, mapped_providers: set[str]
     ) -> bool:
         descriptor = PROVIDER_CATALOG[provider]
-        if not descriptor.capabilities.local:
+        if not descriptor.local:
             return True
         if provider in mapped_providers:
             return True

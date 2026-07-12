@@ -5,11 +5,6 @@ from free_claude_code.core.anthropic import MessagesRequest, Tool
 from .parsers import content_text
 
 
-def request_text(request: MessagesRequest) -> str:
-    """Join all user/assistant message content into one string for tool input parsing."""
-    return "\n".join(content_text(message.content) for message in request.messages)
-
-
 def forced_tool_turn_text(request: MessagesRequest) -> str:
     """Text for parsing forced server-tool inputs: latest user turn only (avoids stale history)."""
     if not request.messages:
@@ -70,14 +65,12 @@ def unsupported_server_tool_error(
     if forced and not web_tools_enabled:
         return (
             f"tool_choice forces Anthropic server tool {forced!r}, but local web server tools are "
-            "disabled (ENABLE_WEB_SERVER_TOOLS=false). Enable them or use a native Anthropic "
-            "Messages transport such as ollama or llama.cpp."
+            "disabled (ENABLE_WEB_SERVER_TOOLS=false). Enable them or remove the forced server tool."
         )
     if not forced and has_listed_anthropic_server_tools(request):
         return (
-            "OpenAI Chat upstreams cannot use listed Anthropic server tools "
-            "(web_search / web_fetch) without the local web server tool handler. Use a native "
-            "Anthropic transport such as ollama or llama.cpp, set ENABLE_WEB_SERVER_TOOLS=true and force the tool with "
-            "tool_choice, or remove these tools from the request."
+            "FCC cannot pass listed Anthropic server tools (web_search / web_fetch) "
+            "to OpenAI Chat upstreams. Set ENABLE_WEB_SERVER_TOOLS=true and force the "
+            "tool with tool_choice, or remove these tools from the request."
         )
     return None

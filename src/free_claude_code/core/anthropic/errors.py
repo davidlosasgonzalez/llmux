@@ -1,6 +1,5 @@
 """Anthropic error types and envelopes."""
 
-from collections.abc import Mapping
 from typing import Any
 
 from free_claude_code.core.diagnostics import redact_sensitive_error_text
@@ -28,19 +27,6 @@ _FAILURE_ERROR_TYPES = {
     FailureKind.TIMEOUT: "api_error",
     FailureKind.UPSTREAM: "api_error",
     FailureKind.UNAVAILABLE: "api_error",
-}
-
-_ERROR_TYPE_FAILURE_KINDS = {
-    "invalid_request_error": FailureKind.INVALID_REQUEST,
-    "request_too_large": FailureKind.INVALID_REQUEST,
-    "authentication_error": FailureKind.AUTHENTICATION,
-    "billing_error": FailureKind.PERMISSION,
-    "permission_error": FailureKind.PERMISSION,
-    "not_found_error": FailureKind.INVALID_REQUEST,
-    "rate_limit_error": FailureKind.RATE_LIMIT,
-    "overloaded_error": FailureKind.OVERLOADED,
-    "timeout_error": FailureKind.TIMEOUT,
-    "api_error": FailureKind.UPSTREAM,
 }
 
 
@@ -99,38 +85,3 @@ def anthropic_failure_payload(
 def anthropic_status_for_error_type(error_type: str) -> int:
     """Return the standard HTTP status for an Anthropic error type."""
     return _ANTHROPIC_ERROR_STATUS_CODES.get(error_type, 500)
-
-
-def execution_failure_from_anthropic_error(
-    data: Mapping[str, Any],
-) -> ExecutionFailure:
-    """Canonicalize one native upstream Anthropic error event."""
-    error = data.get("error")
-    if not isinstance(error, Mapping):
-        error = data
-    raw_type = error.get("type")
-    error_type = (
-        raw_type.strip()
-        if isinstance(raw_type, str) and raw_type.strip()
-        else "api_error"
-    )
-    raw_message = error.get("message")
-    message = (
-        redact_sensitive_error_text(raw_message.strip())
-        if isinstance(raw_message, str) and raw_message.strip()
-        else "Provider request failed unexpectedly."
-    )
-    kind = _ERROR_TYPE_FAILURE_KINDS.get(error_type, FailureKind.UPSTREAM)
-    return ExecutionFailure(
-        kind=kind,
-        status_code=anthropic_status_for_error_type(error_type),
-        message=message,
-        retryable=kind
-        in {
-            FailureKind.RATE_LIMIT,
-            FailureKind.OVERLOADED,
-            FailureKind.TIMEOUT,
-            FailureKind.UPSTREAM,
-            FailureKind.UNAVAILABLE,
-        },
-    )

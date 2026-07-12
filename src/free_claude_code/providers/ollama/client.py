@@ -1,43 +1,40 @@
 """Ollama provider implementation."""
 
-import httpx
-
+from free_claude_code.config.constants import ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS
+from free_claude_code.core.anthropic.models import MessagesRequest
 from free_claude_code.providers.base import ProviderConfig
 from free_claude_code.providers.defaults import OLLAMA_DEFAULT_BASE
-from free_claude_code.providers.model_listing import extract_ollama_model_ids
 from free_claude_code.providers.rate_limit import ProviderRateLimiter
-from free_claude_code.providers.transports.anthropic_messages import (
-    AnthropicMessagesTransport,
+from free_claude_code.providers.transports.openai_chat import (
+    OpenAIChatRequestPolicy,
+    OpenAIChatTransport,
+    build_openai_chat_request_body,
+    openai_v1_base_url,
+)
+
+_REQUEST_POLICY = OpenAIChatRequestPolicy(
+    provider_name="OLLAMA",
+    default_max_tokens=ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS,
 )
 
 
-class OllamaProvider(AnthropicMessagesTransport):
-    """Ollama provider using native Anthropic Messages API."""
+class OllamaProvider(OpenAIChatTransport):
+    """Ollama provider using OpenAI-compatible Chat Completions."""
 
     def __init__(self, config: ProviderConfig, *, rate_limiter: ProviderRateLimiter):
         super().__init__(
             config,
             provider_name="OLLAMA",
-            default_base_url=OLLAMA_DEFAULT_BASE,
+            base_url=openai_v1_base_url(config.base_url or OLLAMA_DEFAULT_BASE),
+            api_key=config.api_key or "ollama",
             rate_limiter=rate_limiter,
         )
-        self._api_key = config.api_key or "ollama"
 
-    async def _send_stream_request(self, body: dict) -> httpx.Response:
-        """Create a streaming native Anthropic messages response."""
-        request = self._client.build_request(
-            "POST",
-            "/v1/messages",
-            json=body,
-            headers=self._request_headers(),
+    def _build_request_body(
+        self, request: MessagesRequest, thinking_enabled: bool | None = None
+    ) -> dict:
+        return build_openai_chat_request_body(
+            request,
+            thinking_enabled=self._is_thinking_enabled(request, thinking_enabled),
+            policy=_REQUEST_POLICY,
         )
-        return await self._client.send(request, stream=True)
-
-    async def _send_model_list_request(self) -> httpx.Response:
-        """Query Ollama's native local model-list endpoint."""
-        return await self._client.get(f"{self._base_url}/api/tags")
-
-    def _extract_model_ids_from_model_list_payload(
-        self, payload: object
-    ) -> frozenset[str]:
-        return extract_ollama_model_ids(payload, provider_name=self._provider_name)

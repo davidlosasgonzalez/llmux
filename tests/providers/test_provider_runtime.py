@@ -142,12 +142,11 @@ def test_provider_catalog_covers_advertised_provider_ids():
         assert descriptor.provider_id
 
 
-def test_ollama_descriptor_uses_local_server_tool_semantics():
+def test_ollama_descriptor_uses_local_openai_endpoint_semantics():
     descriptor = PROVIDER_CATALOG["ollama"]
 
     assert descriptor.default_base_url == "http://localhost:11434"
-    assert descriptor.capabilities.local is True
-    assert descriptor.capabilities.server_tool_passthrough is True
+    assert descriptor.local is True
 
 
 def test_zai_descriptor_uses_fixed_cloud_base_url():

@@ -4,7 +4,6 @@ from types import SimpleNamespace
 from typing import Any
 from unittest.mock import AsyncMock, patch
 
-import httpx
 import pytest
 
 from free_claude_code.application.errors import ApplicationUnavailableError
@@ -64,14 +63,6 @@ def _manager(
     )
 
 
-def _response(status_code: int, payload: object) -> httpx.Response:
-    return httpx.Response(
-        status_code,
-        json=payload,
-        request=httpx.Request("GET", "https://example.test/models"),
-    )
-
-
 @pytest.mark.asyncio
 async def test_nim_lists_openai_compatible_model_ids() -> None:
     config = ProviderConfig(api_key="test-key")
@@ -92,20 +83,31 @@ async def test_nim_lists_openai_compatible_model_ids() -> None:
 
 
 @pytest.mark.asyncio
-async def test_native_anthropic_messages_provider_lists_model_ids() -> None:
-    provider = LlamaCppProvider(
-        ProviderConfig(api_key="llamacpp", base_url="http://localhost:8080/v1"),
-        rate_limiter=passthrough_rate_limiter(),
-    )
+@pytest.mark.parametrize(
+    "provider",
+    [
+        LlamaCppProvider(
+            ProviderConfig(api_key="llamacpp", base_url="http://localhost:8080/v1"),
+            rate_limiter=passthrough_rate_limiter(),
+        ),
+        OllamaProvider(
+            ProviderConfig(api_key="ollama", base_url="http://localhost:11434"),
+            rate_limiter=passthrough_rate_limiter(),
+        ),
+    ],
+)
+async def test_local_openai_chat_providers_list_model_ids(
+    provider: LlamaCppProvider | OllamaProvider,
+) -> None:
     with patch.object(
-        provider._client,
-        "get",
+        provider._client.models,
+        "list",
         new_callable=AsyncMock,
-        return_value=_response(200, {"data": [{"id": "local/model"}]}),
-    ) as mock_get:
+        return_value=SimpleNamespace(data=[SimpleNamespace(id="local/model")]),
+    ) as mock_list:
         assert await provider.list_model_ids() == frozenset({"local/model"})
 
-    mock_get.assert_awaited_once_with("/models", headers={})
+    mock_list.assert_awaited_once_with()
 
 
 @pytest.mark.asyncio
@@ -257,33 +259,6 @@ async def test_openrouter_model_metadata_rejects_malformed_ids() -> None:
 
 
 @pytest.mark.asyncio
-async def test_ollama_lists_native_tag_model_ids() -> None:
-    provider = OllamaProvider(
-        ProviderConfig(api_key="ollama", base_url="http://localhost:11434"),
-        rate_limiter=passthrough_rate_limiter(),
-    )
-    with patch.object(
-        provider._client,
-        "get",
-        new_callable=AsyncMock,
-        return_value=_response(
-            200,
-            {
-                "models": [
-                    {"name": "llama3.1:latest", "model": "llama3.1:latest"},
-                    {"name": "qwen3"},
-                ]
-            },
-        ),
-    ) as mock_get:
-        assert await provider.list_model_ids() == frozenset(
-            {"llama3.1:latest", "qwen3"}
-        )
-
-    mock_get.assert_awaited_once_with("http://localhost:11434/api/tags")
-
-
-@pytest.mark.asyncio
 async def test_model_listing_rejects_malformed_payload() -> None:
     provider = LlamaCppProvider(
         ProviderConfig(api_key="llamacpp", base_url="http://localhost:8080/v1"),
@@ -291,10 +266,10 @@ async def test_model_listing_rejects_malformed_payload() -> None:
     )
     with (
         patch.object(
-            provider._client,
-            "get",
+            provider._client.models,
+            "list",
             new_callable=AsyncMock,
-            return_value=_response(200, {"data": [{}]}),
+            return_value=SimpleNamespace(data=[SimpleNamespace()]),
         ),
         pytest.raises(ModelListResponseError, match="malformed"),
     ):
@@ -302,19 +277,19 @@ async def test_model_listing_rejects_malformed_payload() -> None:
 
 
 @pytest.mark.asyncio
-async def test_model_listing_raises_http_status_errors() -> None:
+async def test_model_listing_propagates_upstream_errors() -> None:
     provider = LlamaCppProvider(
         ProviderConfig(api_key="llamacpp", base_url="http://localhost:8080/v1"),
         rate_limiter=passthrough_rate_limiter(),
     )
     with (
         patch.object(
-            provider._client,
-            "get",
+            provider._client.models,
+            "list",
             new_callable=AsyncMock,
-            return_value=_response(503, {"error": "down"}),
+            side_effect=RuntimeError("upstream unavailable"),
         ),
-        pytest.raises(httpx.HTTPStatusError),
+        pytest.raises(RuntimeError, match="upstream unavailable"),
     ):
         await provider.list_model_ids()
 

@@ -89,31 +89,6 @@ def extract_openrouter_tool_model_infos(
     return frozenset(model_infos)
 
 
-def extract_ollama_model_ids(payload: Any, *, provider_name: str) -> frozenset[str]:
-    """Extract model ids from Ollama's native ``/api/tags`` response."""
-    models = _field(payload, "models")
-    if not _is_sequence(models):
-        raise _malformed(provider_name, "expected top-level models array")
-
-    model_ids: set[str] = set()
-    for item in models:
-        item_ids: list[str] = []
-        for key in ("model", "name"):
-            value = _field(item, key)
-            if isinstance(value, str) and value.strip():
-                item_ids.append(value)
-        if not item_ids:
-            raise _malformed(
-                provider_name,
-                "expected every models item to include model or name",
-            )
-        model_ids.update(item_ids)
-
-    if not model_ids:
-        raise _malformed(provider_name, "response did not include any model ids")
-    return frozenset(model_ids)
-
-
 def _field(item: Any, name: str) -> Any:
     if isinstance(item, Mapping):
         return item.get(name)
