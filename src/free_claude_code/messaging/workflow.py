@@ -312,7 +312,7 @@ class MessagingWorkflow:
             return
 
         async with self._state_lock:
-            self.forget_message_ids(
+            self.forget_clearable_message_ids(
                 self.platform_name,
                 chat_id,
                 {message_id},
@@ -455,7 +455,7 @@ class MessagingWorkflow:
                 if voice_result is None:
                     return None
                 return ReplyClearResult(
-                    message_ids=voice_result.message_ids,
+                    clearable_message_ids=voice_result.clearable_message_ids,
                     tree_cleared=False,
                 )
 
@@ -464,11 +464,11 @@ class MessagingWorkflow:
             if branch.removed_tree_identity is not None:
                 self.session_store.remove_tree_snapshot(branch.removed_tree_identity)
 
-        message_ids = set(branch.message_ids)
+        clearable_message_ids = set(branch.clearable_message_ids)
         if voice_result is not None:
-            message_ids.update(voice_result.message_ids)
+            clearable_message_ids.update(voice_result.clearable_message_ids)
         return ReplyClearResult(
-            message_ids=frozenset(message_ids),
+            clearable_message_ids=frozenset(clearable_message_ids),
             tree_cleared=True,
         )
 
@@ -510,27 +510,29 @@ class MessagingWorkflow:
         for voice in voice_results:
             self.render_voice_stopped(voice)
         async with self._state_lock:
-            message_ids: set[str] = set()
+            clearable_message_ids: set[str] = set()
             clear_scope = MessageScope(platform=platform, chat_id=chat_id)
             for voice in voice_results:
                 if voice.scope == clear_scope:
-                    message_ids.update(voice.message_ids)
+                    clearable_message_ids.update(voice.clearable_message_ids)
             try:
-                message_ids.update(
+                clearable_message_ids.update(
                     str(message_id)
-                    for message_id in self.session_store.get_message_ids_for_chat(
-                        platform,
-                        chat_id,
+                    for message_id in self.session_store.get_clearable_message_ids_for_chat(
+                        platform, chat_id
                     )
                     if message_id is not None
                 )
             except Exception as exc:
                 logger.debug(
-                    "Failed to read message log for /clear: {}", type(exc).__name__
+                    "Failed to read clearable-message log for /clear: {}",
+                    type(exc).__name__,
                 )
 
-            message_ids.update(
-                await self._tree_queue.get_message_ids_for_chat(platform, chat_id)
+            clearable_message_ids.update(
+                await self._tree_queue.get_clearable_message_ids_for_chat(
+                    platform, chat_id
+                )
             )
             # All fallible/cancellable reads precede the commit boundary. Once
             # the epoch advances, the following synchronous wipe and the
@@ -552,7 +554,7 @@ class MessagingWorkflow:
                 failures.append(exc)
             # A runner may terminalize during task draining after the early
             # store clear. The detached manager now rejects later writes; clear
-            # this final pre-detach snapshot without erasing newer message logs.
+            # this final pre-detach snapshot without erasing newer clearable IDs.
             try:
                 self.session_store.clear_conversation_snapshot()
             except Exception as exc:
@@ -573,7 +575,7 @@ class MessagingWorkflow:
                 raise failures[0]
             if failures:
                 raise ExceptionGroup("Global clear failed", failures)
-            return frozenset(message_ids)
+            return frozenset(clearable_message_ids)
 
     async def _cancel_all_pending_voices(
         self,
@@ -606,14 +608,16 @@ class MessagingWorkflow:
             )
         )
 
-    def forget_message_ids(
+    def forget_clearable_message_ids(
         self,
         platform: str,
         chat_id: str,
         message_ids: set[str],
     ) -> None:
         try:
-            self.session_store.forget_message_ids(platform, chat_id, message_ids)
+            self.session_store.forget_clearable_message_ids(
+                platform, chat_id, message_ids
+            )
         except Exception as exc:
             logger.warning(
                 "Failed to update session store after branch clear: {}",
@@ -631,12 +635,11 @@ class MessagingWorkflow:
         if not msg_id:
             return False
         try:
-            self.session_store.record_message_id(
+            self.session_store.record_outbound_message_id(
                 platform,
                 chat_id,
                 str(msg_id),
-                direction="out",
-                kind=kind,
+                kind,
             )
         except Exception as exc:
             logger.debug(

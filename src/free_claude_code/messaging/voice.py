@@ -63,19 +63,18 @@ class VoiceHandoffOutcome(Enum):
 
 @dataclass(frozen=True, slots=True)
 class VoiceCancellationResult:
-    """Message IDs released by one successful voice cancellation."""
+    """Released ownership for one successfully cancelled user voice note."""
 
     scope: MessageScope
     voice_message_id: str
     status_message_id: str | None
 
     @property
-    def message_ids(self) -> frozenset[str]:
-        """Return each platform message ID owned by the cancelled voice note."""
-        ids = {self.voice_message_id}
-        if self.status_message_id is not None:
-            ids.add(self.status_message_id)
-        return frozenset(ids)
+    def clearable_message_ids(self) -> frozenset[str]:
+        """Return only FCC-authored platform messages authorized for deletion."""
+        if self.status_message_id is None:
+            return frozenset()
+        return frozenset({self.status_message_id})
 
 
 @dataclass(slots=True)

@@ -148,8 +148,9 @@ def mock_session_store():
     store.get_tree = MagicMock(return_value=None)
     store.register_node = MagicMock()
     store.clear_all = MagicMock()
-    store.record_message_id = MagicMock()
-    store.get_message_ids_for_chat = MagicMock(return_value=[])
+    store.record_outbound_message_id = MagicMock()
+    store.record_clear_command_id = MagicMock()
+    store.get_clearable_message_ids_for_chat = MagicMock(return_value=[])
     return store
 
 

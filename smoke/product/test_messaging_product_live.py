@@ -69,6 +69,7 @@ async def test_messaging_commands_stop_clear_stats_e2e(
 ) -> None:
     driver = FakePlatformDriver(platform_name, tmp_path)
     root = await driver.send("start work", message_id="root_1")
+    root_status_id = driver.platform.sent[-1]["message_id"]
 
     await driver.send("/stats", message_id="stats_1")
     await driver.send("/stop", message_id="stop_1", reply_to=root.message_id)
@@ -76,9 +77,11 @@ async def test_messaging_commands_stop_clear_stats_e2e(
     await driver.send("/clear", message_id="clear_all")
 
     sent_text = "\n".join(sent["text"] for sent in driver.platform.sent)
+    deleted = {entry["message_id"] for entry in driver.platform.deletes}
     assert "Stats" in sent_text
     assert "Nothing to stop for that message" in sent_text
-    assert driver.platform.deletes
+    assert {root_status_id, "clear_1", "clear_all"} <= deleted
+    assert root.message_id not in deleted
     assert driver.session_store.load_conversation_snapshot().trees == {}
 
 
@@ -110,7 +113,7 @@ async def test_messaging_startup_notice_is_clearable_e2e(tmp_path) -> None:
         "🚀 *Claude Code Proxy is online\\!* \\(Bot API\\)"
     )
     assert second_startup["parse_mode"] == "MarkdownV2"
-    assert driver.session_store.get_message_ids_for_chat(
+    assert driver.session_store.get_clearable_message_ids_for_chat(
         scope.platform, scope.chat_id
     ) == [first_startup_id, second_startup_id]
 
@@ -119,7 +122,9 @@ async def test_messaging_startup_notice_is_clearable_e2e(tmp_path) -> None:
     deleted = {entry["message_id"] for entry in driver.platform.deletes}
     assert {first_startup_id, second_startup_id, "clear_startup"} <= deleted
     assert (
-        driver.session_store.get_message_ids_for_chat(scope.platform, scope.chat_id)
+        driver.session_store.get_clearable_message_ids_for_chat(
+            scope.platform, scope.chat_id
+        )
         == []
     )
 
@@ -396,7 +401,8 @@ async def test_voice_platform_fake_e2e(platform_name: str, tmp_path) -> None:
     await driver.send("/stop", message_id="stop_voice")
 
     deleted = {entry["message_id"] for entry in driver.platform.deletes}
-    assert {"voice_msg_1", "voice_status_1", "clear_voice"} <= deleted
+    assert {"voice_status_1", "clear_voice"} <= deleted
+    assert "voice_msg_1" not in deleted
     assert driver.platform.pending_voice_count == 0
     sent_text = "\n".join(sent["text"] for sent in driver.platform.sent)
     assert "Voice note cancelled" in sent_text

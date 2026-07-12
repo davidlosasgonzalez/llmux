@@ -450,8 +450,9 @@ class FakePlatform:
         result = self._pending_voice.get((scope, reply_id))
         if result is None:
             return None
-        for message_id in result.message_ids:
-            self._pending_voice.pop((scope, message_id), None)
+        self._pending_voice.pop((scope, result.voice_message_id), None)
+        if result.status_message_id is not None:
+            self._pending_voice.pop((scope, result.status_message_id), None)
         return result
 
     async def cancel_all_pending_voices(

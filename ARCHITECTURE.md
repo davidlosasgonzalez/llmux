@@ -946,19 +946,20 @@ generation before sending outside its state lock. Once delivery returns a
 message ID, a cancellation-safe finalizer briefly reacquires the lock: it records
 the ID only if no global clear or startup cancellation crossed the reservation;
 otherwise it releases the lock and deletes the notice. Failed compensation
-attempts to restore the ID to the current message log so a later `/clear` can
+attempts to restore the ID to the current clearable-message log so a later `/clear` can
 retry. No platform I/O runs under the workflow lock. Ordinary notice-send
 failure is privacy-safe and nonfatal, while cancellation before a delivery
 receipt remains immediate and cannot create a phantom message ID.
 
-[messaging/turn_intake.py](src/free_claude_code/messaging/turn_intake.py) owns inbound message
-recording, slash command dispatch, status-echo filtering, initial status
-messages, and rendering detached frozen admission/queue effects. It asks the workflow
-to resolve and admit turns rather than receiving a mutable tree. Reply lookup is
-always scoped by platform and chat; an unknown or cross-chat reference cannot
-attach to another tree and therefore starts an independent root. If duplicate
-delivery or an epoch change rejects admission after a provisional status was
-sent, intake deletes that status and removes it from the message log.
+[messaging/turn_intake.py](src/free_claude_code/messaging/turn_intake.py) owns explicit clear-command
+retention, slash command dispatch, status-echo filtering, initial status messages,
+and rendering detached frozen admission/queue effects. Ordinary user messages are
+never inserted into the clearable-message log. Intake asks the workflow to resolve
+and admit turns rather than receiving a mutable tree. Reply lookup is always scoped
+by platform and chat; an unknown or cross-chat reference cannot attach to another
+tree and therefore starts an independent root. If duplicate delivery or an epoch
+change rejects admission after a provisional status was sent, intake deletes that
+status and removes it from the clearable-message log.
 
 [messaging/node_runner.py](src/free_claude_code/messaging/node_runner.py) owns managed CLI session
 lifecycle for queued nodes: parent-session fork/resume, session registration,
@@ -1015,7 +1016,9 @@ task draining. Reply `/stop` cancels exactly one request; its matching finisher
 releases execution ownership and advances the next eligible queued request.
 Global `/stop` drains every queue instead, and reply `/clear` removes the whole
 selected branch before any survivor can advance. Separate trees still progress
-independently.
+independently. Branch transitions return internal `reference_ids` for repository
+unindexing separately from `clearable_message_ids` for platform deletion. User
+prompt IDs remain references only; FCC status IDs are the branch's deletion targets.
 [messaging/trees/repository.py](src/free_claude_code/messaging/trees/repository.py)
 is manager-private and owns only aggregate/reference indexes.
 [messaging/trees/processor.py](src/free_claude_code/messaging/trees/processor.py) owns every
@@ -1063,21 +1066,22 @@ that dirty state for retry. Successful retry writes the current in-memory
 snapshot and is the only operation that marks it clean.
 Global `/clear` performs an early authoritative wipe, detaches and drains every
 tree, then writes an authoritative empty conversation snapshot while preserving
-message IDs recorded after the early wipe. Once clear commits, ordinary failures
-from final persistence, cancellation effects, and CLI cleanup are all attempted
-and preserved rather than producing a false successful clear.
-Per-chat message ID tracking for `/clear` lives in
-[messaging/session/message_log.py](src/free_claude_code/messaging/session/message_log.py). Startup
-notices use the same bounded log as other clearable output. An incoming
-standalone `/clear` defers log insertion because the command handler owns its ID
-on success; this prevents the command from evicting an older deletion target at
-the cap. Failed or cancelled clear attempts record the command before propagating
-so it remains discoverable by a later clear.
+clearable IDs recorded after the early wipe. Once clear commits, ordinary failures
+from final persistence, cancellation effects, and CLI cleanup are all attempted and
+preserved rather than producing a false successful clear.
+Per-chat deletion ownership for `/clear` lives in
+[messaging/session/clearable_message_log.py](src/free_claude_code/messaging/session/clearable_message_log.py).
+The bounded log accepts only FCC-authored output and explicit clear commands;
+loading drops legacy user-content entries. Startup notices use the same log as other
+clearable output. An incoming standalone `/clear` defers insertion because the
+command handler owns its ID on success; this prevents the command from evicting an
+older deletion target at the cap. Failed or cancelled clear attempts record the
+command before propagating so it remains discoverable by a later clear.
 
-`/clear` guarantees FCC state cleanup and tries tracked platform deletes through
-the list-based outbound delete port, but Discord/Telegram can still reject
-individual message deletions for platform reasons such as permissions, age, or
-missing messages.
+`/clear` guarantees FCC state cleanup and tries only authorized platform deletes
+through the list-based outbound delete port. User-authored prompts and voice notes
+remain on the platform. Discord/Telegram can still reject individual deletions for
+platform reasons such as permissions, age, or missing messages.
 
 ```mermaid
 sequenceDiagram

@@ -10,7 +10,6 @@ from .cli_event_constants import STATUS_MESSAGE_PREFIXES
 from .command_context import MessagingCommandContext
 from .command_dispatcher import (
     dispatch_command,
-    message_kind_for_command,
     parse_command_base,
 )
 from .models import IncomingMessage, MessageScope
@@ -51,24 +50,19 @@ class MessagingTurnIntake:
         self._record_outgoing_message = record_outgoing_message
         self._log_messaging_error_details = log_messaging_error_details
 
-    def _record_incoming_message(
-        self,
-        incoming: IncomingMessage,
-        command_base: str,
-    ) -> None:
+    def _record_clear_command(self, incoming: IncomingMessage) -> None:
+        """Retain a clear command only when later clear cleanup may need it."""
         if incoming.message_id is None:
             return
         try:
-            self.session_store.record_message_id(
+            self.session_store.record_clear_command_id(
                 incoming.platform,
                 incoming.chat_id,
                 str(incoming.message_id),
-                direction="in",
-                kind=message_kind_for_command(command_base),
             )
         except Exception as exc:
             logger.debug(
-                "Failed to record incoming message_id: {}",
+                "Failed to record clear command message_id: {}",
                 format_exception_for_log(
                     exc,
                     log_full_message=self._log_messaging_error_details,
@@ -89,16 +83,17 @@ class MessagingTurnIntake:
         # Standalone clear owns and deletes its command ID. Defer recording so the
         # command cannot evict an older deletion target from a bounded log; if the
         # clear fails or is cancelled, retain the command for a later clear.
-        is_global_clear = cmd_base == "/clear" and not incoming.is_reply()
-        if not is_global_clear:
-            self._record_incoming_message(incoming, cmd_base)
+        is_clear = cmd_base == "/clear"
+        is_global_clear = is_clear and not incoming.is_reply()
+        if is_clear and not is_global_clear:
+            self._record_clear_command(incoming)
 
         try:
             if await dispatch_command(self._command_context, incoming, cmd_base):
                 return
         except BaseException:
             if is_global_clear:
-                self._record_incoming_message(incoming, cmd_base)
+                self._record_clear_command(incoming)
             raise
 
         text = incoming.text or ""
@@ -197,7 +192,7 @@ class MessagingTurnIntake:
                 type(exc).__name__,
             )
         try:
-            self.session_store.forget_message_ids(
+            self.session_store.forget_clearable_message_ids(
                 incoming.platform,
                 incoming.chat_id,
                 {status_message_id},

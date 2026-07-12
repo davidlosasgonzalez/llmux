@@ -101,7 +101,8 @@ class TreeBranchRemoval:
     """Single-tree atomic cancellation and graph-removal transition."""
 
     cancellation: TreeCancellation
-    message_ids: frozenset[str]
+    reference_ids: frozenset[str]
+    clearable_message_ids: frozenset[str]
     removed_entire_tree: bool
 
 
@@ -111,7 +112,7 @@ class BranchRemovalResult:
 
     cancellation: CancellationResult
     removed_tree_identity: TreeIdentity | None
-    message_ids: frozenset[str]
+    clearable_message_ids: frozenset[str]
 
 
 @dataclass(frozen=True, slots=True)

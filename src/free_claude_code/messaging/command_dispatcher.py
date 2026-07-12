@@ -18,11 +18,6 @@ def parse_command_base(text: str | None) -> str:
     return cmd.split("@", 1)[0] if cmd else ""
 
 
-def message_kind_for_command(command_base: str) -> str:
-    """Return the persistence kind for an incoming message."""
-    return "command" if command_base.startswith("/") else "content"
-
-
 async def dispatch_command(
     context: MessagingCommandContext,
     incoming: IncomingMessage,

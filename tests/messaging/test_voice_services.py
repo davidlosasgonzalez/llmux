@@ -54,7 +54,7 @@ async def test_cancel_before_status_binding_rejects_late_flow() -> None:
         voice_message_id="voice-1",
         status_message_id=None,
     )
-    assert cancellation.message_ids == frozenset({"voice-1"})
+    assert cancellation.clearable_message_ids == frozenset()
     assert await registry.bind_status(claim, "status-1") is False
     assert await registry.handoff(claim, callback) is VoiceHandoffOutcome.REJECTED
     assert callback_called is False
@@ -119,7 +119,7 @@ async def test_cancel_removes_then_drains_handoff_without_holding_lock() -> None
         voice_message_id="voice-1",
         status_message_id="status-1",
     )
-    assert cancellation.message_ids == frozenset({"voice-1", "status-1"})
+    assert cancellation.clearable_message_ids == frozenset({"status-1"})
     assert await asyncio.wait_for(handoff_task, timeout=1) is (
         VoiceHandoffOutcome.CANCELLED
     )
@@ -584,8 +584,8 @@ async def test_cancel_all_deduplicates_aliases_and_excludes_current_child() -> N
     assert cancellations is not None
     assert len(cancellations) == 1
     assert {result.scope for result in cancellations} == {TELEGRAM_CHAT}
-    assert {result.message_ids for result in cancellations} == {
-        frozenset({"voice-1", "status-1"}),
+    assert {result.clearable_message_ids for result in cancellations} == {
+        frozenset({"status-1"}),
     }
 
 

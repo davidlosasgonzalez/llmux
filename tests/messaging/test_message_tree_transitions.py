@@ -158,6 +158,19 @@ async def test_cancelled_queue_member_is_never_claimed() -> None:
 
 
 @pytest.mark.asyncio
+async def test_branch_removal_separates_references_from_clearable_messages() -> None:
+    tree = _tree()
+    await _add(tree, "child", "status-child")
+
+    removed = await tree.remove_branch("root")
+
+    assert removed.reference_ids == frozenset(
+        {"root", "status-root", "child", "status-child"}
+    )
+    assert removed.clearable_message_ids == frozenset({"status-root", "status-child"})
+
+
+@pytest.mark.asyncio
 async def test_concurrent_duplicate_enqueue_produces_one_claim_only() -> None:
     tree = _tree()
     gate = asyncio.Event()

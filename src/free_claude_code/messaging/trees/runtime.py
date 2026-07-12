@@ -281,7 +281,8 @@ class MessageTree:
                 )
                 return TreeBranchRemoval(
                     cancellation=empty,
-                    message_ids=frozenset(),
+                    reference_ids=frozenset(),
+                    clearable_message_ids=frozenset(),
                     removed_entire_tree=False,
                 )
 
@@ -297,16 +298,19 @@ class MessageTree:
                 if active is not None:
                     active.cancellation_requested = True
             cancelled_nodes: list[NodeUiTarget] = []
-            message_ids: set[str] = set()
+            reference_ids: set[str] = set()
+            clearable_message_ids: set[str] = set()
             queue_changed = False
 
             for node_id in branch_ids:
                 node = self._graph.get_node(node_id)
                 if node is None:
                     continue
-                message_ids.add(node.node_id)
+                reference_ids.add(node.node_id)
                 if node.status_message_id:
-                    message_ids.add(str(node.status_message_id))
+                    status_message_id = str(node.status_message_id)
+                    reference_ids.add(status_message_id)
+                    clearable_message_ids.add(status_message_id)
                 queue_changed = self._queue.remove(node_id) or queue_changed
                 if node.state in (MessageState.PENDING, MessageState.IN_PROGRESS):
                     node.mark_error()
@@ -327,7 +331,8 @@ class MessageTree:
             )
             return TreeBranchRemoval(
                 cancellation=cancellation,
-                message_ids=frozenset(message_ids),
+                reference_ids=frozenset(reference_ids),
+                clearable_message_ids=frozenset(clearable_message_ids),
                 removed_entire_tree=removed_entire_tree,
             )
 
@@ -444,19 +449,20 @@ class MessageTree:
         async with self._lock:
             return self._graph.snapshot()
 
-    async def message_ids_for_chat(self, platform: str, chat_id: str) -> set[str]:
-        """Copy message IDs belonging to one platform chat."""
+    async def clearable_message_ids_for_chat(
+        self, platform: str, chat_id: str
+    ) -> set[str]:
+        """Copy FCC-authored message IDs belonging to one platform chat."""
         async with self._lock:
             if self.identity.scope.platform != str(platform) or (
                 self.identity.scope.chat_id != str(chat_id)
             ):
                 return set()
-            message_ids: set[str] = set()
+            clearable_message_ids: set[str] = set()
             for node in self._graph.all_nodes():
-                message_ids.add(node.node_id)
                 if node.status_message_id:
-                    message_ids.add(str(node.status_message_id))
-            return message_ids
+                    clearable_message_ids.add(str(node.status_message_id))
+            return clearable_message_ids
 
     @classmethod
     def from_snapshot(cls, snapshot: TreeSnapshot) -> MessageTree:

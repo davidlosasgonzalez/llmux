@@ -1,11 +1,11 @@
-"""Per-chat message ID log used by messaging clear commands."""
+"""Persist platform messages that `/clear` is authorized to delete."""
 
 from datetime import UTC, datetime
 from typing import Any
 
 
-class MessageLog:
-    """Track inbound/outbound platform message IDs in insertion order."""
+class ClearableMessageLog:
+    """Track FCC output and explicit clear-command IDs in insertion order."""
 
     def __init__(self, *, cap: int | None = None) -> None:
         self._items: dict[str, list[dict[str, Any]]] = {}
@@ -17,7 +17,8 @@ class MessageLog:
         return self._cap
 
     @classmethod
-    def from_json(cls, raw_log: Any, *, cap: int | None = None) -> MessageLog:
+    def from_json(cls, raw_log: Any, *, cap: int | None = None) -> ClearableMessageLog:
+        """Load clearable IDs while dropping legacy user-content entries."""
         log = cls(cap=cap)
         if not isinstance(raw_log, dict):
             return log
@@ -30,37 +31,56 @@ class MessageLog:
                 message_id = item.get("message_id")
                 if message_id is None:
                     continue
+                direction = str(item.get("direction") or "")
+                kind = str(item.get("kind") or "")
+                if direction != "out" and kind != "clear_command":
+                    continue
                 log._append(
                     chat_key,
                     str(message_id),
                     ts=str(item.get("ts") or ""),
-                    direction=str(item.get("direction") or ""),
-                    kind=str(item.get("kind") or ""),
+                    direction=direction,
+                    kind=kind,
                 )
         return log
 
     def to_json(self) -> dict[str, list[dict[str, Any]]]:
         return {chat_key: list(items) for chat_key, items in self._items.items()}
 
-    def record(
+    def record_outbound(
         self,
         *,
         platform: str,
         chat_id: str,
         message_id: str,
-        direction: str,
         kind: str,
     ) -> bool:
-        chat_key = make_chat_key(platform, chat_id)
+        """Record one FCC-authored platform message."""
         return self._append(
-            chat_key,
+            make_chat_key(platform, chat_id),
             str(message_id),
             ts=datetime.now(UTC).isoformat(),
-            direction=str(direction),
+            direction="out",
             kind=str(kind),
         )
 
-    def get_message_ids_for_chat(self, platform: str, chat_id: str) -> list[str]:
+    def record_clear_command(
+        self,
+        *,
+        platform: str,
+        chat_id: str,
+        message_id: str,
+    ) -> bool:
+        """Record an explicit user command that authorized its own deletion."""
+        return self._append(
+            make_chat_key(platform, chat_id),
+            str(message_id),
+            ts=datetime.now(UTC).isoformat(),
+            direction="in",
+            kind="clear_command",
+        )
+
+    def ids_for_chat(self, platform: str, chat_id: str) -> list[str]:
         chat_key = make_chat_key(platform, chat_id)
         return [
             str(item.get("message_id"))
@@ -68,9 +88,7 @@ class MessageLog:
             if item.get("message_id") is not None
         ]
 
-    def remove_message_ids(
-        self, platform: str, chat_id: str, message_ids: set[str]
-    ) -> bool:
+    def remove_ids(self, platform: str, chat_id: str, message_ids: set[str]) -> bool:
         chat_key = make_chat_key(platform, chat_id)
         if not message_ids or chat_key not in self._items:
             return False

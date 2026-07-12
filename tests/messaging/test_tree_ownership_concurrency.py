@@ -329,7 +329,7 @@ async def test_branch_removal_cannot_leave_a_detached_running_descendant() -> No
         parent_node_id="branch",
     )
 
-    assert removed.message_ids == frozenset({"branch", "status-branch"})
+    assert removed.clearable_message_ids == frozenset({"status-branch"})
     assert await manager.resolve_node_id(_SCOPE, "branch") is None
     assert late.accepted is True
     late_node = await manager.get_node(_SCOPE, "late")

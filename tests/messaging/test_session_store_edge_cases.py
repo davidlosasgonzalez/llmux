@@ -579,17 +579,62 @@ class TestSessionStoreClearAll:
         store2 = SessionStore(storage_path=path)
         assert store2.load_conversation_snapshot().is_empty
 
-    def test_message_log_persists_and_dedups(self, tmp_path):
+    def test_clearable_message_log_persists_and_dedups(self, tmp_path):
         path = str(tmp_path / "sessions.json")
         store = SessionStore(storage_path=path)
 
-        store.record_message_id("telegram", "c1", "1", direction="in", kind="command")
-        store.record_message_id("telegram", "c1", "2", direction="out", kind="command")
-        store.record_message_id("telegram", "c1", "2", direction="out", kind="command")
+        store.record_outbound_message_id("telegram", "c1", "2", "command")
+        store.record_outbound_message_id("telegram", "c1", "2", "command")
+        store.record_clear_command_id("telegram", "c1", "3")
 
-        ids = store.get_message_ids_for_chat("telegram", "c1")
-        assert ids == ["1", "2"]
+        ids = store.get_clearable_message_ids_for_chat("telegram", "c1")
+        assert ids == ["2", "3"]
 
         store.flush_pending_save()
         store2 = SessionStore(storage_path=path)
-        assert store2.get_message_ids_for_chat("telegram", "c1") == ["1", "2"]
+        assert store2.get_clearable_message_ids_for_chat("telegram", "c1") == [
+            "2",
+            "3",
+        ]
+
+    def test_load_drops_legacy_user_messages_from_clearable_log(self, tmp_path):
+        path = tmp_path / "sessions.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "conversation": {"trees": []},
+                    "message_log": {
+                        "telegram:c1": [
+                            {
+                                "message_id": "prompt",
+                                "direction": "in",
+                                "kind": "content",
+                            },
+                            {
+                                "message_id": "old-command",
+                                "direction": "in",
+                                "kind": "command",
+                            },
+                            {
+                                "message_id": "status",
+                                "direction": "out",
+                                "kind": "status",
+                            },
+                            {
+                                "message_id": "clear-command",
+                                "direction": "in",
+                                "kind": "clear_command",
+                            },
+                        ]
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        store = SessionStore(storage_path=str(path))
+
+        assert store.get_clearable_message_ids_for_chat("telegram", "c1") == [
+            "status",
+            "clear-command",
+        ]

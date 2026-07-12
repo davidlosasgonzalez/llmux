@@ -241,9 +241,7 @@ async def test_branch_removal_atomically_unindexes_subtree_and_preserves_sibling
     )
 
     assert result.removed_tree_identity is None
-    assert result.message_ids == frozenset(
-        {"branch", "status-branch", "leaf", "status-leaf"}
-    )
+    assert result.clearable_message_ids == frozenset({"status-branch", "status-leaf"})
     assert {
         effect.node.node_id: effect.ui_owner for effect in result.cancellation.effects
     } == {
@@ -291,9 +289,7 @@ async def test_root_removal_atomically_cancels_and_unindexes_entire_tree() -> No
     assert result.removed_tree_identity is not None
     assert result.removed_tree_identity.scope == _SCOPE
     assert result.removed_tree_identity.root_id == "root"
-    assert result.message_ids == frozenset(
-        {"root", "status-root", "child", "status-child"}
-    )
+    assert result.clearable_message_ids == frozenset({"status-root", "status-child"})
     assert {
         effect.node.node_id: effect.ui_owner for effect in result.cancellation.effects
     } == {

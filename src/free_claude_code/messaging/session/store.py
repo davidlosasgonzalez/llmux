@@ -11,13 +11,13 @@ from free_claude_code.messaging.trees import (
     TreeSnapshot,
 )
 
-from .message_log import MessageLog
+from .clearable_message_log import ClearableMessageLog
 from .persistence import DebouncedJsonPersistence
 
 
 class SessionStore:
     """
-    Persistent storage for conversation snapshots and message IDs.
+    Persistent storage for conversation snapshots and clearable platform messages.
 
     The store reads both the old raw ``trees``/``node_to_tree`` shape and the
     current typed ``conversation`` snapshot shape. Runtime callers deal in typed
@@ -33,7 +33,7 @@ class SessionStore:
         self.storage_path = storage_path
         self._lock = threading.RLock()
         self._conversation = ConversationSnapshot()
-        self._message_log = MessageLog(cap=message_log_cap)
+        self._clearable_messages = ClearableMessageLog(cap=message_log_cap)
         self._dirty = False
         self._persistence = DebouncedJsonPersistence(
             storage_path,
@@ -63,15 +63,15 @@ class SessionStore:
 
         with self._lock:
             self._conversation = ConversationSnapshot.from_json(conversation_data)
-            self._message_log = MessageLog.from_json(
+            self._clearable_messages = ClearableMessageLog.from_json(
                 data.get("message_log", {}) if isinstance(data, dict) else {},
-                cap=self._message_log.cap,
+                cap=self._clearable_messages.cap,
             )
             message_count = sum(
-                len(items) for items in self._message_log.to_json().values()
+                len(items) for items in self._clearable_messages.to_json().values()
             )
             logger.info(
-                "Loaded {} trees and {} msg_ids from {}",
+                "Loaded {} trees and {} clearable message IDs from {}",
                 len(self._conversation.trees),
                 message_count,
                 self.storage_path,
@@ -81,7 +81,7 @@ class SessionStore:
         with self._lock:
             return {
                 "conversation": self._conversation.to_json(),
-                "message_log": self._message_log.to_json(),
+                "message_log": self._clearable_messages.to_json(),
             }
 
     def load_conversation_snapshot(self) -> ConversationSnapshot:
@@ -107,38 +107,53 @@ class SessionStore:
     def flush_pending_save(self) -> None:
         self._persistence.flush()
 
-    def record_message_id(
+    def record_outbound_message_id(
         self,
         platform: str,
         chat_id: str,
         message_id: str,
-        direction: str,
         kind: str,
     ) -> None:
         if message_id is None:
             return
         with self._lock:
-            recorded = self._message_log.record(
+            recorded = self._clearable_messages.record_outbound(
                 platform=str(platform),
                 chat_id=str(chat_id),
                 message_id=str(message_id),
-                direction=str(direction),
                 kind=str(kind),
             )
             if recorded:
                 self._persistence.schedule_save()
 
-    def get_message_ids_for_chat(self, platform: str, chat_id: str) -> list[str]:
+    def record_clear_command_id(
+        self,
+        platform: str,
+        chat_id: str,
+        message_id: str,
+    ) -> None:
+        if message_id is None:
+            return
         with self._lock:
-            return self._message_log.get_message_ids_for_chat(
-                str(platform), str(chat_id)
+            recorded = self._clearable_messages.record_clear_command(
+                platform=str(platform),
+                chat_id=str(chat_id),
+                message_id=str(message_id),
             )
+            if recorded:
+                self._persistence.schedule_save()
 
-    def forget_message_ids(
+    def get_clearable_message_ids_for_chat(
+        self, platform: str, chat_id: str
+    ) -> list[str]:
+        with self._lock:
+            return self._clearable_messages.ids_for_chat(str(platform), str(chat_id))
+
+    def forget_clearable_message_ids(
         self, platform: str, chat_id: str, message_ids: set[str]
     ) -> None:
         with self._lock:
-            removed = self._message_log.remove_message_ids(
+            removed = self._clearable_messages.remove_ids(
                 str(platform),
                 str(chat_id),
                 {str(message_id) for message_id in message_ids},
@@ -149,7 +164,7 @@ class SessionStore:
     def clear_all(self) -> None:
         with self._lock:
             self._conversation = ConversationSnapshot()
-            self._message_log.clear()
+            self._clearable_messages.clear()
             self._write_current_state()
 
     def clear_conversation_snapshot(self) -> None:

@@ -469,18 +469,18 @@ class TreeQueueManager:
                 return BranchRemovalResult(
                     cancellation=CancellationResult(),
                     removed_tree_identity=None,
-                    message_ids=frozenset(),
+                    clearable_message_ids=frozenset(),
                 )
             target = await tree.resolve_reply(branch_root_id)
             if target is None:
                 return BranchRemovalResult(
                     cancellation=CancellationResult(),
                     removed_tree_identity=None,
-                    message_ids=frozenset(),
+                    clearable_message_ids=frozenset(),
                 )
             identity = tree.identity
             transition = await tree.remove_branch(target.node_id)
-            lookup_ids = set(transition.message_ids)
+            lookup_ids = set(transition.reference_ids)
             if transition.removed_entire_tree:
                 self._repository.remove_tree(identity)
             else:
@@ -514,7 +514,7 @@ class TreeQueueManager:
             removed_tree_identity=(
                 identity if transition.removed_entire_tree else None
             ),
-            message_ids=transition.message_ids,
+            clearable_message_ids=transition.clearable_message_ids,
         )
 
     def get_tree_count(self) -> int:
@@ -527,12 +527,16 @@ class TreeQueueManager:
         """Wait until every processor-owned claim has finished cleanup."""
         await self._processor.wait_idle()
 
-    async def get_message_ids_for_chat(self, platform: str, chat_id: str) -> set[str]:
+    async def get_clearable_message_ids_for_chat(
+        self, platform: str, chat_id: str
+    ) -> set[str]:
         async with self._lock:
-            message_ids: set[str] = set()
+            clearable_message_ids: set[str] = set()
             for tree in self._repository.trees():
-                message_ids.update(await tree.message_ids_for_chat(platform, chat_id))
-            return message_ids
+                clearable_message_ids.update(
+                    await tree.clearable_message_ids_for_chat(platform, chat_id)
+                )
+            return clearable_message_ids
 
     async def snapshot(self) -> ConversationSnapshot:
         async with self._lock:

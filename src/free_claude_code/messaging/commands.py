@@ -161,14 +161,14 @@ async def handle_clear_command(
             )
             return
 
-        message_ids = set(result.message_ids)
+        clearable_message_ids = set(result.clearable_message_ids)
         if incoming.message_id is not None:
-            message_ids.add(str(incoming.message_id))
-        await _delete_message_ids(handler, incoming.chat_id, message_ids)
-        handler.forget_message_ids(
+            clearable_message_ids.add(str(incoming.message_id))
+        await _delete_message_ids(handler, incoming.chat_id, clearable_message_ids)
+        handler.forget_clearable_message_ids(
             incoming.platform,
             incoming.chat_id,
-            message_ids,
+            clearable_message_ids,
         )
         if not result.tree_cleared:
             msg_id = await handler.outbound.queue_send_message(

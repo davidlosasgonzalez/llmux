@@ -13,7 +13,7 @@ from .transcript import RenderCtx
 class ReplyClearResult:
     """Customer-facing result of clearing one replied-to owner."""
 
-    message_ids: frozenset[str]
+    clearable_message_ids: frozenset[str]
     tree_cleared: bool
 
 
@@ -73,16 +73,16 @@ class MessagingCommandContext(Protocol):
         ...
 
     async def clear_all_state(self, platform: str, chat_id: str) -> frozenset[str]:
-        """Globally clear FCC state and return invoking-chat platform IDs."""
+        """Clear FCC state and return authorized invoking-chat deletion IDs."""
         ...
 
-    def forget_message_ids(
+    def forget_clearable_message_ids(
         self,
         platform: str,
         chat_id: str,
         message_ids: set[str],
     ) -> None:
-        """Forget deleted platform message IDs."""
+        """Forget deleted platform message IDs authorized for clear."""
         ...
 
     def record_outgoing_message(

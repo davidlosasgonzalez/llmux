@@ -438,7 +438,7 @@ FEATURE_INVENTORY: tuple[FeatureCoverage, ...] = (
     ),
     FeatureCoverage(
         "messaging_commands",
-        "Messaging commands mutate state with task-status-owned stop feedback",
+        "Messaging commands mutate FCC state while preserving user-authored messages",
         "public_surface",
         (
             "tests/messaging/test_handler.py",

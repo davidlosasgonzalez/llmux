@@ -128,6 +128,26 @@ async def test_handle_message_turn_trace_always_includes_full_message_text(
     assert trace_mock.call_args.kwargs["message_text"] == text
 
 
+@pytest.mark.asyncio
+async def test_user_prompt_is_never_recorded_as_clearable(
+    handler,
+    mock_session_store,
+    incoming_message_factory,
+) -> None:
+    incoming = incoming_message_factory(text="keep me", message_id="user-prompt")
+
+    await handler.handle_message(incoming)
+    await _wait_for_idle(handler)
+
+    mock_session_store.record_clear_command_id.assert_not_called()
+    mock_session_store.record_outbound_message_id.assert_called_once_with(
+        incoming.platform,
+        incoming.chat_id,
+        "msg_123",
+        "status",
+    )
+
+
 @pytest.mark.parametrize(
     ("target", "expected"),
     [
@@ -574,7 +594,7 @@ async def test_duplicate_delivery_removes_its_provisional_status(
         ["status-rejected"],
         fire_and_forget=False,
     )
-    mock_session_store.forget_message_ids.assert_called_once_with(
+    mock_session_store.forget_clearable_message_ids.assert_called_once_with(
         incoming.platform,
         incoming.chat_id,
         {"status-rejected"},
@@ -1304,6 +1324,7 @@ async def test_global_clear_command_deletes_returned_ids(
         fire_and_forget=False,
     )
     mock_platform.queue_send_message.assert_not_awaited()
+    handler.session_store.record_clear_command_id.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -1329,12 +1350,10 @@ async def test_interrupted_global_clear_records_its_deferred_command_id(
     with pytest.raises(type(failure)):
         await handler.handle_message(incoming)
 
-    mock_session_store.record_message_id.assert_called_once_with(
+    mock_session_store.record_clear_command_id.assert_called_once_with(
         incoming.platform,
         incoming.chat_id,
         incoming.message_id,
-        direction="in",
-        kind="command",
     )
     mock_platform.queue_delete_messages.assert_not_awaited()
 
@@ -1355,12 +1374,11 @@ async def test_startup_notice_is_published_and_recorded_for_clear(
         parse_mode="MarkdownV2",
         fire_and_forget=False,
     )
-    mock_session_store.record_message_id.assert_called_once_with(
+    mock_session_store.record_outbound_message_id.assert_called_once_with(
         _SCOPE.platform,
         _SCOPE.chat_id,
         "startup_1",
-        direction="out",
-        kind="startup",
+        "startup",
     )
     mock_platform.queue_delete_messages.assert_not_awaited()
 
@@ -1375,7 +1393,7 @@ async def test_startup_notice_failure_is_nonfatal_and_records_nothing(
 
     await handler.publish_startup_notice(_startup_notice())
 
-    mock_session_store.record_message_id.assert_not_called()
+    mock_session_store.record_outbound_message_id.assert_not_called()
     mock_platform.queue_delete_messages.assert_not_awaited()
 
 
@@ -1389,7 +1407,7 @@ async def test_startup_notice_without_delivery_receipt_records_nothing(
 
     await handler.publish_startup_notice(_startup_notice())
 
-    mock_session_store.record_message_id.assert_not_called()
+    mock_session_store.record_outbound_message_id.assert_not_called()
     mock_platform.queue_delete_messages.assert_not_awaited()
 
 
@@ -1400,7 +1418,9 @@ async def test_startup_notice_record_failure_is_compensated_outside_state_lock(
     mock_session_store,
 ) -> None:
     mock_platform.queue_send_message.return_value = "startup_1"
-    mock_session_store.record_message_id.side_effect = OSError("store unavailable")
+    mock_session_store.record_outbound_message_id.side_effect = OSError(
+        "store unavailable"
+    )
 
     async def delete_notice(*args, **kwargs) -> None:
         assert not handler._state_lock.locked()
@@ -1409,19 +1429,18 @@ async def test_startup_notice_record_failure_is_compensated_outside_state_lock(
 
     await handler.publish_startup_notice(_startup_notice())
 
-    mock_session_store.record_message_id.assert_called_once_with(
+    mock_session_store.record_outbound_message_id.assert_called_once_with(
         _SCOPE.platform,
         _SCOPE.chat_id,
         "startup_1",
-        direction="out",
-        kind="startup",
+        "startup",
     )
     mock_platform.queue_delete_messages.assert_awaited_once_with(
         _SCOPE.chat_id,
         ["startup_1"],
         fire_and_forget=False,
     )
-    mock_session_store.forget_message_ids.assert_called_once_with(
+    mock_session_store.forget_clearable_message_ids.assert_called_once_with(
         _SCOPE.platform,
         _SCOPE.chat_id,
         {"startup_1"},
@@ -1435,7 +1454,7 @@ async def test_failed_startup_notice_compensation_restores_clear_ownership(
     mock_session_store,
 ) -> None:
     mock_platform.queue_send_message.return_value = "startup_1"
-    mock_session_store.record_message_id.side_effect = (
+    mock_session_store.record_outbound_message_id.side_effect = (
         OSError("store unavailable"),
         None,
     )
@@ -1443,24 +1462,22 @@ async def test_failed_startup_notice_compensation_restores_clear_ownership(
 
     await handler.publish_startup_notice(_startup_notice())
 
-    assert mock_session_store.record_message_id.call_count == 2
-    assert mock_session_store.record_message_id.call_args_list == [
+    assert mock_session_store.record_outbound_message_id.call_count == 2
+    assert mock_session_store.record_outbound_message_id.call_args_list == [
         call(
             _SCOPE.platform,
             _SCOPE.chat_id,
             "startup_1",
-            direction="out",
-            kind="startup",
+            "startup",
         ),
         call(
             _SCOPE.platform,
             _SCOPE.chat_id,
             "startup_1",
-            direction="out",
-            kind="startup",
+            "startup",
         ),
     ]
-    mock_session_store.forget_message_ids.assert_not_called()
+    mock_session_store.forget_clearable_message_ids.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -1488,7 +1505,7 @@ async def test_startup_notice_publication_propagates_cancellation(
     with pytest.raises(asyncio.CancelledError):
         await task
     await send_cancelled.wait()
-    mock_session_store.record_message_id.assert_not_called()
+    mock_session_store.record_outbound_message_id.assert_not_called()
     mock_platform.queue_delete_messages.assert_not_awaited()
 
 
@@ -1532,13 +1549,13 @@ async def test_startup_notice_cancellation_after_receipt_finishes_compensation(
         with pytest.raises(asyncio.CancelledError):
             await task
 
-    mock_session_store.record_message_id.assert_not_called()
+    mock_session_store.record_outbound_message_id.assert_not_called()
     mock_platform.queue_delete_messages.assert_awaited_once_with(
         _SCOPE.chat_id,
         ["startup_1"],
         fire_and_forget=False,
     )
-    mock_session_store.forget_message_ids.assert_called_once_with(
+    mock_session_store.forget_clearable_message_ids.assert_called_once_with(
         _SCOPE.platform,
         _SCOPE.chat_id,
         {"startup_1"},
@@ -1583,7 +1600,9 @@ async def test_concurrent_global_clear_does_not_wait_for_startup_delivery(
         release_send.set()
         await asyncio.gather(publish_task, clear_task, return_exceptions=True)
 
-    assert store.get_message_ids_for_chat(_SCOPE.platform, _SCOPE.chat_id) == []
+    assert (
+        store.get_clearable_message_ids_for_chat(_SCOPE.platform, _SCOPE.chat_id) == []
+    )
     mock_platform.queue_delete_messages.assert_awaited_once_with(
         _SCOPE.chat_id,
         ["startup_1"],
@@ -1619,12 +1638,11 @@ async def test_global_stop_does_not_wait_for_or_invalidate_startup_delivery(
         release_send.set()
         await asyncio.gather(publish_task, stop_task, return_exceptions=True)
 
-    mock_session_store.record_message_id.assert_called_once_with(
+    mock_session_store.record_outbound_message_id.assert_called_once_with(
         _SCOPE.platform,
         _SCOPE.chat_id,
         "startup_1",
-        direction="out",
-        kind="startup",
+        "startup",
     )
     mock_platform.queue_delete_messages.assert_not_awaited()
 
@@ -1668,9 +1686,9 @@ async def test_global_clear_precedes_concurrent_startup_notice_publication(
         assert await clear_task == frozenset()
         await publish_task
 
-    assert store.get_message_ids_for_chat(_SCOPE.platform, _SCOPE.chat_id) == [
-        "msg_123"
-    ]
+    assert store.get_clearable_message_ids_for_chat(
+        _SCOPE.platform, _SCOPE.chat_id
+    ) == ["msg_123"]
     mock_platform.queue_delete_messages.assert_not_awaited()
 
 
@@ -1692,12 +1710,11 @@ async def test_clear_command_cannot_evict_startup_notice_at_message_log_cap(
         platform_name="telegram",
         voice_cancellation=mock_platform,
     )
-    store.record_message_id(
+    store.record_outbound_message_id(
         _SCOPE.platform,
         _SCOPE.chat_id,
         "100",
-        direction="out",
-        kind="startup",
+        "startup",
     )
     incoming = incoming_message_factory(
         text="/clear",
@@ -1731,13 +1748,13 @@ async def test_clear_all_state_is_chat_scoped_for_deletes_and_global_for_fcc_sta
     await handler.tree_queue.admit(root_1, "101")
     await handler.tree_queue.admit(root_2, "201")
     await _wait_for_idle(handler)
-    mock_session_store.get_message_ids_for_chat.return_value = ["42"]
+    mock_session_store.get_clearable_message_ids_for_chat.return_value = ["42"]
     mock_session_store.reset_mock()
-    mock_session_store.get_message_ids_for_chat.return_value = ["42"]
+    mock_session_store.get_clearable_message_ids_for_chat.return_value = ["42"]
 
     message_ids = await handler.clear_all_state("telegram", "chat_1")
 
-    assert message_ids == frozenset({"42", "100", "101"})
+    assert message_ids == frozenset({"42", "101"})
     assert "200" not in message_ids
     assert handler.get_tree_count() == 0
     mock_cli_manager.stop_all.assert_awaited_once()
@@ -1774,13 +1791,13 @@ async def test_clear_all_joins_voices_before_lock_and_returns_only_current_chat_
         return CancellationResult()
 
     mock_platform.cancel_all_pending_voices.side_effect = cancel_voices
-    mock_session_store.get_message_ids_for_chat.return_value = ["stored"]
+    mock_session_store.get_clearable_message_ids_for_chat.return_value = ["stored"]
     with patch.object(handler.tree_queue, "clear_all", side_effect=clear_trees):
         message_ids = await handler.clear_all_state("telegram", "chat_1")
     await asyncio.sleep(0)
 
     assert events == ["voices", "trees"]
-    assert message_ids == frozenset({"stored", "voice", "voice_status"})
+    assert message_ids == frozenset({"stored", "voice_status"})
     assert "other_voice" not in message_ids
     assert "other_status" not in message_ids
     assert {
@@ -1983,7 +2000,7 @@ async def test_cancelled_global_clear_finishes_owned_transaction_before_propagat
     mock_session_store.reset_mock()
     with patch.object(
         handler.tree_queue,
-        "get_message_ids_for_chat",
+        "get_clearable_message_ids_for_chat",
         new=block_id_read,
     ):
         clear_task = asyncio.create_task(
@@ -2074,16 +2091,22 @@ async def test_reply_clear_removes_only_branch_and_persists_remaining_tree(
         )
     )
 
-    assert set(deleted_ids) == {"102", "103", "150"}
+    assert set(deleted_ids) == {"103", "150"}
+    assert "102" not in deleted_ids
     assert "100" not in deleted_ids
     assert "101" not in deleted_ids
     assert await handler.tree_queue.get_node(root.scope, "102") is None
     assert await handler.tree_queue.get_node(root.scope, "100") is not None
     mock_session_store.save_tree_snapshot.assert_called_once()
-    mock_session_store.forget_message_ids.assert_called_once_with(
+    mock_session_store.record_clear_command_id.assert_called_once_with(
         "telegram",
         "chat_1",
-        {"102", "103", "150"},
+        "150",
+    )
+    mock_session_store.forget_clearable_message_ids.assert_called_once_with(
+        "telegram",
+        "chat_1",
+        {"103", "150"},
     )
 
 
@@ -2100,12 +2123,10 @@ async def test_reply_clear_unknown_reports_nothing_to_clear(
     await handler.handle_message(incoming)
 
     assert "Nothing to clear" in mock_platform.queue_send_message.call_args.args[1]
-    mock_session_store.record_message_id.assert_any_call(
+    mock_session_store.record_clear_command_id.assert_any_call(
         incoming.platform,
         incoming.chat_id,
         incoming.message_id,
-        direction="in",
-        kind="command",
     )
     mock_session_store.clear_all.assert_not_called()
 
@@ -2135,7 +2156,8 @@ async def test_reply_clear_root_removes_tree_snapshot(
         )
     )
 
-    assert set(deleted_ids) == {"100", "101", "150"}
+    assert set(deleted_ids) == {"101", "150"}
+    assert "100" not in deleted_ids
     mock_session_store.remove_tree_snapshot.assert_called_once_with(
         TreeIdentity(scope=root.scope, root_id="100")
     )
@@ -2211,7 +2233,7 @@ async def test_global_clear_removes_snapshot_saved_during_detach_window(
     await workflow.handle_message(incoming)
     await runner_started.wait()
 
-    get_ids = workflow.tree_queue.get_message_ids_for_chat
+    get_ids = workflow.tree_queue.get_clearable_message_ids_for_chat
 
     async def block_id_read(platform: str, chat_id: str) -> set[str]:
         id_read_started.set()
@@ -2221,7 +2243,7 @@ async def test_global_clear_removes_snapshot_saved_during_detach_window(
     try:
         with patch.object(
             workflow.tree_queue,
-            "get_message_ids_for_chat",
+            "get_clearable_message_ids_for_chat",
             new=block_id_read,
         ):
             clear_task = asyncio.create_task(
@@ -2298,8 +2320,8 @@ async def test_global_clear_invalidates_inflight_prompt_without_waiting_for_stat
 @pytest.mark.parametrize(
     ("status_message_id", "expected_deleted_ids"),
     [
-        ("101", {"100", "101", "150"}),
-        (None, {"100", "150"}),
+        ("101", {"101", "150"}),
+        (None, {"150"}),
     ],
 )
 async def test_reply_clear_pending_voice_cancels_and_reports(
@@ -2309,12 +2331,12 @@ async def test_reply_clear_pending_voice_cancels_and_reports(
     status_message_id,
     expected_deleted_ids,
 ) -> None:
-    message_ids = {"100"}
-    if status_message_id is not None:
-        message_ids.add(status_message_id)
+    clearable_message_ids = (
+        {status_message_id} if status_message_id is not None else set()
+    )
     handler.clear_reply = AsyncMock(
         return_value=ReplyClearResult(
-            message_ids=frozenset(message_ids),
+            clearable_message_ids=frozenset(clearable_message_ids),
             tree_cleared=False,
         )
     )
@@ -2345,7 +2367,7 @@ async def test_reply_clear_deletes_owned_result_ids(
 ) -> None:
     handler.clear_reply = AsyncMock(
         return_value=ReplyClearResult(
-            message_ids=frozenset({"voice", "tree_status"}),
+            clearable_message_ids=frozenset({"tree_status"}),
             tree_cleared=True,
         )
     )
@@ -2365,10 +2387,10 @@ async def test_reply_clear_deletes_owned_result_ids(
 
     handler.clear_reply.assert_awaited_once_with(incoming.scope, "voice")
     assert set(deleted_ids) == {
-        "voice",
         "tree_status",
         "clear",
     }
+    assert "voice" not in deleted_ids
     mock_platform.queue_send_message.assert_not_awaited()
 
 
@@ -2394,7 +2416,7 @@ async def test_reply_clear_joins_voice_then_unions_authoritative_branch_ids(
     branch = BranchRemovalResult(
         cancellation=CancellationResult(),
         removed_tree_identity=None,
-        message_ids=frozenset({"voice", "tree_status"}),
+        clearable_message_ids=frozenset({"tree_status"}),
     )
     mock_platform.cancel_pending_voice.side_effect = cancel_voice
     with (
@@ -2414,7 +2436,7 @@ async def test_reply_clear_joins_voice_then_unions_authoritative_branch_ids(
     await asyncio.sleep(0)
 
     assert result == ReplyClearResult(
-        message_ids=frozenset({"voice", "voice_status", "tree_status"}),
+        clearable_message_ids=frozenset({"voice_status", "tree_status"}),
         tree_cleared=True,
     )
     assert events == ["voice", "resolve"]
