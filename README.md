@@ -92,7 +92,8 @@ fcc-server
 To print the installed Free Claude Code version without starting the server,
 run `fcc-server --version`.
 
-Keep this process running. The startup log shows the Admin UI address:
+Keep this process running. By default, the Admin UI opens in your browser once
+the server is healthy. Its address is always shown in the startup log:
 
 ```text
 INFO:     Admin UI: http://127.0.0.1:8082/admin (local-only)
