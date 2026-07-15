@@ -22,6 +22,7 @@ from .models import (
     CouncilResult,
     Critique,
     Depth,
+    FailureKind,
     ModelRef,
     Proposal,
     Review,
@@ -38,7 +39,7 @@ from .parsing import (
 )
 from .provider_limits import budget_multiplier
 from .quota import QuotaTracker, classify_failure, retry_after_seconds
-from .scoring import score_model
+from .scoring import latency_penalty, score_model
 from .selector import select_models
 from .storage import CouncilStore, ModelStats
 
@@ -172,12 +173,38 @@ class Orchestrator:
             used_models.add(critic.key)
             used_providers.add(critic.provider)
 
+            if not critique.is_informative:
+                # A degenerate critique (revise/reject, score 0, no issues) gives
+                # no usable signal. Retry once with a different critic before we
+                # give up on judging this round.
+                alt = self._pick_one(
+                    candidates,
+                    category,
+                    avoid_families={synthesizer.family} | proposal_families,
+                    avoid_providers={synthesizer.provider},
+                    role="critic",
+                    exclude_keys=frozenset({critic.key}),
+                )
+                if alt.key != critic.key:
+                    critique = await self._critique(
+                        question, synthesis, alt, category, request_id, index
+                    )
+                    critic = alt
+                    used_models.add(critic.key)
+                    used_providers.add(critic.provider)
+
             result.rounds.append(
                 Round(index=index, synthesis=synthesis, critique=critique)
             )
 
             if critique.verdict is Verdict.REJECT and self._store is not None:
                 self._store.record_synthesis_rejected(synthesizer.key, category)
+
+            if not critique.is_informative:
+                # No trustworthy critic could judge this synthesis. Stop refining
+                # rather than burning the remaining rounds against a null signal.
+                result.stop_reason = "critique unavailable"
+                break
 
             if self._is_acceptable(critique):
                 result.stop_reason = "quality threshold met"
@@ -341,12 +368,32 @@ class Orchestrator:
                 detail=self._quota.block_reason(model.provider),
             )
         try:
-            invocation = await self._invoker.invoke(
-                model,
-                system,
-                user,
-                max_tokens=self._config.max_tokens_per_call,
-                request_id=f"{request_id}:{phase}",
+            invocation = await asyncio.wait_for(
+                self._invoker.invoke(
+                    model,
+                    system,
+                    user,
+                    max_tokens=self._config.max_tokens_per_call,
+                    request_id=f"{request_id}:{phase}",
+                ),
+                timeout=self._config.call_timeout_s,
+            )
+        except TimeoutError:
+            # A model that blows the per-call budget is a provider failure: it
+            # trips the circuit breaker like any other, so the round can proceed
+            # with the models that did answer instead of stalling on this one.
+            self._quota.note_failure(model.provider, FailureKind.PROVIDER_FAILURE)
+            logger.warning(
+                "council.invoke.timeout model={} phase={} timeout_s={}",
+                model.key,
+                phase,
+                self._config.call_timeout_s,
+            )
+            return InvocationResult.failure(
+                model.key,
+                FailureKind.PROVIDER_FAILURE,
+                detail=f"call exceeded {self._config.call_timeout_s:.0f}s timeout",
+                latency_s=self._config.call_timeout_s,
             )
         except Exception as exc:
             kind = classify_failure(exc)
@@ -486,8 +533,11 @@ class Orchestrator:
         avoid_families: set[str],
         avoid_providers: set[str],
         role: str,
+        exclude_keys: frozenset[str] = frozenset(),
     ) -> ModelRef:
-        available = self._available(candidates)
+        available = [
+            m for m in self._available(candidates) if m.key not in exclude_keys
+        ]
         preferred = [
             m
             for m in available
@@ -496,18 +546,23 @@ class Orchestrator:
         ranked = self._rank(preferred or available, category, role)
         if ranked:
             return ranked[0]
-        # Should never happen (caller guarantees a non-empty pool), but stay safe.
-        return candidates[0]
+        # exclude_keys may have emptied the pool; fall back to any candidate.
+        return available[0] if available else candidates[0]
 
     def _rank(self, models: list[ModelRef], category: str, role: str) -> list[ModelRef]:
-        return sorted(
-            models,
-            key=lambda m: (
-                score_model(m, self._stats_lookup(m.key, category))
-                * budget_multiplier(m.provider, role)
-            ),
-            reverse=True,
-        )
+        # Refiner and critic are invoked in series up to max_rounds times, so a
+        # slow model hurts wall-clock far more in those roles than as one of many
+        # parallel proponents — apply the latency penalty a second time there.
+        serial_role = role in ("refiner", "critic")
+
+        def rank_key(model: ModelRef) -> float:
+            stats = self._stats_lookup(model.key, category)
+            score = score_model(model, stats) * budget_multiplier(model.provider, role)
+            if serial_role:
+                score *= latency_penalty(stats)
+            return score
+
+        return sorted(models, key=rank_key, reverse=True)
 
     def _is_acceptable(self, critique: Critique) -> bool:
         return (
