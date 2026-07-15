@@ -165,7 +165,7 @@ Status of each design point against the current implementation:
       high-value calls, not the parallel fan-out. *(implemented + tested)*
 - [x] **Usage tracking (`/usage`-style).** Every call records requests + tokens
       per model/provider/day in SQLite (`usage_log`). `fcc-council usage` and the
-      `council_usage` MCP tool show requests vs the approximate free RPD limit and
+      `get_usage` MCP tool show requests vs the approximate free RPD limit and
       tokens spent. Approximate by design (provider-reported tokens where
       available). *(implemented + tested)*
 - [ ] **Role-capability config per category** (`roles:` in `council.yaml`) wired
@@ -180,7 +180,7 @@ free models without spending Opus/Fable context.
 
 ```
 Claude Code (Opus/Fable)
-  │  calls MCP tool  council_evaluate(prompt, depth, files, privacy)
+  │  calls MCP tool  evaluate(prompt, depth, files, privacy)
   ▼
 fcc-council serve-mcp   (stdio, local-only)         ← already implemented
   │  CouncilService.create()  (the shared core)
