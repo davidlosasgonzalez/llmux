@@ -1,9 +1,12 @@
 """End-to-end orchestration behaviour with a fake invoker (no network)."""
 
+import asyncio
+
 import pytest
 
 from free_claude_code.council.config import CouncilConfig
-from free_claude_code.council.models import Depth, TaskType
+from free_claude_code.council.invoker import InvocationResult
+from free_claude_code.council.models import Depth, ModelRef, TaskType
 from free_claude_code.council.orchestration import Orchestrator
 from tests.council.support import FakeInvoker, default_candidates
 
@@ -14,6 +17,29 @@ class _Err429(Exception):
 
 def _config() -> CouncilConfig:
     return CouncilConfig()
+
+
+class _SlowInvoker:
+    """Wraps FakeInvoker but sleeps forever for one model, to trip the timeout."""
+
+    def __init__(self, slow_key: str) -> None:
+        self.slow_key = slow_key
+        self._inner = FakeInvoker(critique_scores=[0.95], critique_verdicts=["pass"])
+
+    async def invoke(
+        self,
+        model: ModelRef,
+        system: str,
+        user: str,
+        *,
+        max_tokens: int,
+        request_id: str,
+    ) -> InvocationResult:
+        if model.key == self.slow_key:
+            await asyncio.sleep(60)  # far beyond the tiny test timeout
+        return await self._inner.invoke(
+            model, system, user, max_tokens=max_tokens, request_id=request_id
+        )
 
 
 @pytest.mark.asyncio
@@ -89,6 +115,42 @@ async def test_429_triggers_fallback_and_completes():
     assert result.final_synthesis is not None  # deliberation still completed
     proposal_models = {p.model_key for p in result.proposals}
     assert victim not in proposal_models  # the 429 model was dropped
+
+
+@pytest.mark.asyncio
+async def test_slow_model_times_out_and_deliberation_completes():
+    candidates = default_candidates()
+    victim = candidates[0].key  # groq/llama
+    invoker = _SlowInvoker(slow_key=victim)
+    config = _config().model_copy(update={"call_timeout_s": 0.05})
+    orch = Orchestrator(invoker, config)
+    result = await orch.run("Q", TaskType.GENERAL_REASONING, candidates)
+
+    # The deliberation still produced an answer despite one model hanging...
+    assert result.final_synthesis is not None
+    # ...and the timed-out model contributed no proposal (it was treated as failed).
+    assert victim not in {p.model_key for p in result.proposals}
+
+
+@pytest.mark.asyncio
+async def test_degenerate_critique_retries_then_stops_without_burning_rounds():
+    # A critic that returns "revise" with score 0 and no issues is degenerate.
+    invoker = FakeInvoker(critique_scores=[0.0], critique_verdicts=["revise"])
+    orch = Orchestrator(invoker, _config())
+    result = await orch.run(
+        "Q", TaskType.GENERAL_REASONING, default_candidates(), depth=Depth.DEEP
+    )
+
+    # Stopped immediately instead of grinding through all 3 rounds.
+    assert result.stop_reason == "critique unavailable"
+    assert len(result.rounds) == 1
+    # The guard retried once with a different critic before giving up.
+    critique_calls = [c for c in invoker.calls if c[1] == "critique"]
+    assert len(critique_calls) == 2
+    # A degenerate critique must never be reported as real confidence.
+    compact = result.compact()
+    assert compact["confidence"] is None
+    assert compact["confidence_source"] == "unavailable"
 
 
 @pytest.mark.asyncio

@@ -79,7 +79,7 @@ def retry_after_seconds(error: object) -> float | None:
         return None
     try:
         return float(raw)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return None
 
 

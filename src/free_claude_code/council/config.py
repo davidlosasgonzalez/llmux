@@ -100,6 +100,12 @@ class CouncilConfig(BaseModel):
     # Per-request output cap for each model call.
     max_tokens_per_call: int = Field(default=2048, ge=256)
 
+    # Hard wall-clock ceiling for any single model call. A model that exceeds it
+    # is treated as a provider failure, so one pathologically slow model cannot
+    # stall the whole deliberation (observed: a 159s/call model as synthesiser
+    # dragged a deep run past 10 minutes).
+    call_timeout_s: float = Field(default=90.0, gt=0.0)
+
     def depth_profile(self, depth: Depth | None = None) -> DepthProfile:
         chosen = depth or self.depth
         profile = DEPTH_PRESETS[chosen]

@@ -36,7 +36,7 @@ def propose_prompt(
         '  "evidence": ["facts from the context supporting you"],\n'
         '  "risks": ["ways your answer could be wrong or harmful"],\n'
         '  "unknowns": ["things you could not determine"],\n'
-        '  "confidence": 0.0\n'
+        '  "confidence": "<0.0-1.0>"\n'
         "}"
     )
     parts = [f"TASK:\n{question}"]
@@ -131,7 +131,7 @@ def synthesis_prompt(
         '  "uncertainties": ["what remains unknown"],\n'
         '  "rejected_arguments": [{"argument": "string", "reason": "string"}],\n'
         '  "recommended_action": "string",\n'
-        '  "quality_score": 0.0\n'
+        '  "quality_score": "<0.0-1.0>"\n'
         "}"
     )
     proposal_blocks = [
@@ -163,7 +163,14 @@ def critique_prompt(question: str, synthesis: Synthesis) -> tuple[str, str]:
         "wrong or incomplete. Do NOT propose cosmetic changes and do NOT restate "
         "the answer. Only report issues that could change the decision: false "
         "facts, unproven assumptions, contradictions, ignored risks, superior "
-        "alternatives, or conclusions not supported by the evidence. " + _JSON_RULES
+        "alternatives, or conclusions not supported by the evidence.\n"
+        "Your verdict and score MUST be consistent and honestly computed: "
+        "'pass' requires a high score (>= 0.85) and an empty issue list; "
+        "'revise' or 'reject' requires at least one concrete critical or material "
+        "issue that justifies it. Never return an empty critique — if you truly "
+        "find no defects, that is a 'pass' with a high score, not a 0.0. "
+        "The values in the shape below are placeholders; replace every one, "
+        "including the score, with your own judgement. " + _JSON_RULES
     )
     schema = (
         "{\n"
@@ -172,7 +179,7 @@ def critique_prompt(question: str, synthesis: Synthesis) -> tuple[str, str]:
         '  "minor_issues": ["small issues"],\n'
         '  "missing_evidence": ["claims that need support"],\n'
         '  "verdict": "pass | revise | reject",\n'
-        '  "score": 0.0\n'
+        '  "score": "<0.0-1.0>"\n'
         "}"
     )
     disagreements = (

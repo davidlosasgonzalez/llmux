@@ -107,7 +107,7 @@ class PathPolicy:
         """True when ``path`` resolves inside one of the allowed roots."""
         try:
             candidate = path.expanduser().resolve()
-        except OSError, RuntimeError:
+        except (OSError, RuntimeError):
             return False
         for root in self.roots:
             if candidate == root or root in candidate.parents:

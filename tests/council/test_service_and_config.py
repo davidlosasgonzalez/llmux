@@ -65,6 +65,7 @@ async def test_evaluate_runs_with_three_providers(monkeypatch):
         "material_disagreements",
         "uncertainties",
         "confidence",
+        "confidence_source",
         "models_used",
         "providers_used",
         "rounds",

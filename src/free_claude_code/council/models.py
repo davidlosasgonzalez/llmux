@@ -188,6 +188,24 @@ class Critique:
     verdict: Verdict = Verdict.REVISE
     score: float = 0.0
 
+    @property
+    def is_informative(self) -> bool:
+        """True when the critic delivered a usable, trustworthy verdict.
+
+        Free models frequently emit the degenerate critique ``revise`` with a
+        0.0 score and no issues at all — usually by copying the schema example.
+        That carries no signal, so it must never drive the quality gate nor be
+        reported as a real confidence.
+        """
+        if self.verdict is Verdict.PASS:
+            return True
+        return self.score > 0.0 or bool(
+            self.critical_issues
+            or self.material_issues
+            or self.minor_issues
+            or self.missing_evidence
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class Round:
@@ -234,6 +252,15 @@ class CouncilResult:
         """The small payload Claude Code receives, to avoid context bloat."""
         synthesis = self.final_synthesis
         critique = self.final_critique
+        # Only surface a confidence the critic actually earned. A degenerate or
+        # missing critique reports null, never a fabricated 0.0 the consumer
+        # (Claude Code) might act on.
+        if critique is not None and critique.is_informative:
+            confidence: float | None = critique.score
+            confidence_source = "critic"
+        else:
+            confidence = None
+            confidence_source = "unavailable"
         return {
             "answer": synthesis.final_answer if synthesis else "",
             "recommended_action": synthesis.recommended_action if synthesis else "",
@@ -241,7 +268,8 @@ class CouncilResult:
                 list(synthesis.material_disagreements) if synthesis else []
             ),
             "uncertainties": list(synthesis.uncertainties) if synthesis else [],
-            "confidence": critique.score if critique else 0.0,
+            "confidence": confidence,
+            "confidence_source": confidence_source,
             "models_used": list(self.models_used),
             "providers_used": list(self.providers_used),
             "rounds": len(self.rounds),

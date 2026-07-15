@@ -71,7 +71,7 @@ def extract_json_object(text: str) -> dict[str, Any] | None:
 def _try_load(blob: str) -> dict[str, Any] | None:
     try:
         value = json.loads(blob)
-    except json.JSONDecodeError, ValueError:
+    except (json.JSONDecodeError, ValueError):
         return None
     return value if isinstance(value, dict) else None
 
@@ -95,7 +95,7 @@ def _text(value: Any, default: str = "") -> str:
 def _confidence(value: Any) -> float:
     try:
         number = float(value)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return 0.0
     return max(0.0, min(1.0, number))
 

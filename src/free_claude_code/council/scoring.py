@@ -1,7 +1,8 @@
 """Empirical model scoring for selection and synthesiser choice.
 
-Speed is included but weighted low. Quality, reliability, structured-output
-compliance and remaining quota dominate, per the operator's priorities.
+Quality, reliability, structured-output compliance and remaining quota dominate,
+per the operator's priorities. Latency applies as a multiplicative penalty (not a
+token bonus) so a pathologically slow model actually loses selection weight.
 """
 
 from .capability import capability_prior, category_fit
@@ -39,13 +40,18 @@ def _selected_best_rate(stats: ModelStats) -> float:
     return min(1.0, stats.selected_best / stats.requests)
 
 
-def _speed_bonus(stats: ModelStats) -> float:
-    """Small reward for lower latency; capped so it cannot dominate quality."""
+def latency_penalty(stats: ModelStats) -> float:
+    """Multiplicative penalty for slow models (1.0 = no penalty).
+
+    No penalty up to ~20s average latency, then a linear ramp down to a 0.35
+    floor at ~118s. A tiny additive speed *bonus* never mattered: a model that
+    is 100x slower than its peers must actually lose selection weight, or it
+    keeps winning refiner/critic roles and dragging deep runs into minutes.
+    """
     latency = stats.avg_latency
     if latency <= 0.0:
-        return 0.0
-    # 0 at ~30s+, up to ~0.03 for sub-second replies.
-    return max(0.0, min(0.03, 0.03 * (1.0 - min(latency, 30.0) / 30.0)))
+        return 1.0
+    return max(0.35, 1.0 - max(0.0, latency - 20.0) / 120.0)
 
 
 def score_model(model: ModelRef, stats: ModelStats) -> float:
@@ -71,7 +77,7 @@ def score_model(model: ModelRef, stats: ModelStats) -> float:
         rejection_rate = min(1.0, stats.synthesis_rejected / stats.requests)
         quality *= 1.0 - 0.3 * rejection_rate
 
-    quality += _speed_bonus(stats)
+    quality *= latency_penalty(stats)
 
     quality *= _QUOTA_MULTIPLIER.get(model.quota_status, 0.9)
     quality *= _HEALTH_MULTIPLIER.get(model.health, 1.0)
