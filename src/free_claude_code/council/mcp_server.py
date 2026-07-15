@@ -1,9 +1,9 @@
 """Local MCP server exposing the council over stdio.
 
-Tools: ``council_evaluate``, ``council_models``, ``council_status`` and
-``council_validate_providers``. The server binds to stdio only — it is never
-exposed on a network socket. The ``mcp`` dependency is imported lazily so the
-base package does not require it.
+Tools: ``evaluate``, ``list_models``, ``get_config``, ``check_providers`` and
+``get_usage``. The server binds to stdio only — it is never exposed on a
+network socket. The ``mcp`` dependency is imported lazily so the base package
+does not require it.
 """
 
 from typing import Any
@@ -133,10 +133,10 @@ def build_server() -> Any:
             " uv pip install 'free-claude-code[council]'"
         ) from exc
 
-    server = FastMCP("fcc-council")
+    server = FastMCP("free-llm-verdict")
 
     @server.tool()
-    async def council_evaluate(
+    async def evaluate(
         prompt: str,
         task_type: str = "auto",
         depth: str | None = "deep",
@@ -148,22 +148,22 @@ def build_server() -> Any:
         return await _evaluate(prompt, task_type, depth, files, privacy, max_rounds)
 
     @server.tool()
-    async def council_models() -> dict[str, Any]:
+    async def list_models() -> dict[str, Any]:
         """List the free-eligible models the council can currently use."""
         return await _models()
 
     @server.tool()
-    async def council_validate_providers() -> dict[str, Any]:
+    async def check_providers() -> dict[str, Any]:
         """Report provider authentication and free-access status (no keys)."""
         return await _validate()
 
     @server.tool()
-    async def council_status() -> dict[str, Any]:
+    async def get_config() -> dict[str, Any]:
         """Return the current council configuration summary."""
         return await _status()
 
     @server.tool()
-    async def council_usage(day: str | None = None) -> dict[str, Any]:
+    async def get_usage(day: str | None = None) -> dict[str, Any]:
         """Approximate token/request usage per provider vs free limits (a day)."""
         return await _usage(day)
 

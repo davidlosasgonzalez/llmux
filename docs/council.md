@@ -167,13 +167,13 @@ Default output is Markdown; `--output json` returns the full structured result.
 
 ## MCP tools
 
-- `council_evaluate(prompt, task_type="auto", depth="deep", files=[], privacy="redacted", max_rounds=3)`
-- `council_models()`
-- `council_status()`
-- `council_validate_providers()`
-- `council_usage(day=None)` — approximate requests/tokens per provider vs free limits
+- `evaluate(prompt, task_type="auto", depth="deep", files=[], privacy="redacted", max_rounds=3)`
+- `list_models()`
+- `get_config()`
+- `check_providers()`
+- `get_usage(day=None)` — approximate requests/tokens per provider vs free limits
 
-`council_evaluate` returns a **compact** payload so Claude's context stays small:
+`evaluate` returns a **compact** payload so Claude's context stays small:
 
 ```json
 {

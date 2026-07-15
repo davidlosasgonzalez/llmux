@@ -37,7 +37,7 @@ Use FCC Council when the user asks to:
 
 ## How to invoke
 
-Prefer the MCP tool `council_evaluate` (registered separately). If MCP is not
+Prefer the MCP tool `evaluate` (registered separately). If MCP is not
 available, run the CLI:
 
 ```bash
