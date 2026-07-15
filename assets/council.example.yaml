@@ -1,0 +1,47 @@
+# FCC Council configuration — copy to ~/.fcc/council.yaml
+# Every value is optional; delete a key to use its built-in default.
+# The default regime is strictly free-only. Do NOT set ALLOW_PAID_MODELS unless
+# you explicitly accept possible charges (it is an env var, not a file key).
+
+depth: deep # quick | standard | deep
+max_rounds: 3 # hard ceiling, 1..5
+quality_threshold: 0.85 # stop refining once the critique score reaches this
+parallel_proposals: true
+privacy: redacted # public | redacted | local_only
+
+# Selection order preference. Providers still pass the free-only cost gate.
+provider_priority:
+  - groq
+  - nvidia_nim
+  - cerebras
+  - gemini
+  - mistral
+  - open_router
+  - github_models
+  - cloudflare
+  - cohere
+
+# Turn providers on/off. Adding a paid (card-required) provider here does NOT
+# let it be used in free-only mode; the cost gate still excludes it. Enable a
+# Tier-B/disabled provider only after confirming it is free without a card.
+enabled_providers:
+  - groq
+  - nvidia_nim
+  - cerebras
+  - gemini
+
+minimum_models: 3
+maximum_models: 5
+minimum_distinct_providers: 3
+max_tokens_per_call: 2048
+
+# Optional: capability preferences per task category (advisory).
+roles:
+  software_engineering:
+    proposer_capabilities: [coding, reasoning]
+    critic_capabilities: [reasoning]
+    synthesis_capabilities: [coding, long_context]
+  architecture:
+    proposer_capabilities: [reasoning, long_context]
+    critic_capabilities: [reasoning]
+    synthesis_capabilities: [reasoning, structured_output]
