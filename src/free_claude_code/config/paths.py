@@ -9,6 +9,7 @@ LEGACY_XDG_CONFIG_DIRNAME = ".config"
 MESSAGING_STATE_DIRNAME = "agent_workspace"
 FCC_LOGS_DIRNAME = "logs"
 SERVER_LOG_FILENAME = "server.log"
+COUNCIL_MCP_LOG_FILENAME = "council-mcp.log"
 CODEX_MODEL_CATALOG_FILENAME = "codex-model-catalog.json"
 
 
@@ -44,6 +45,12 @@ def server_log_path() -> Path:
     """Return the canonical server log path."""
 
     return config_dir_path() / FCC_LOGS_DIRNAME / SERVER_LOG_FILENAME
+
+
+def council_mcp_log_path() -> Path:
+    """Return the canonical council MCP server log path."""
+
+    return config_dir_path() / FCC_LOGS_DIRNAME / COUNCIL_MCP_LOG_FILENAME
 
 
 def codex_model_catalog_path() -> Path:

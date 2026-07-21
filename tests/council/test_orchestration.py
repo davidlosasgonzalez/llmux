@@ -83,6 +83,23 @@ async def test_stops_on_two_rounds_without_improvement():
 
 
 @pytest.mark.asyncio
+async def test_stops_when_synthesis_converges():
+    # Identical synthesis text across rounds → refining is pointless; stop at
+    # round 1 (index 1) instead of grinding to the stale-rounds or max-rounds cap.
+    invoker = FakeInvoker(
+        critique_scores=[0.5, 0.6, 0.7],
+        critique_verdicts=["revise", "revise", "revise"],
+        stable_synthesis=True,
+    )
+    orch = Orchestrator(invoker, _config())
+    result = await orch.run(
+        "Question", TaskType.GENERAL_REASONING, default_candidates(), depth=Depth.DEEP
+    )
+    assert result.stop_reason == "synthesis converged"
+    assert len(result.rounds) == 2
+
+
+@pytest.mark.asyncio
 async def test_reviews_are_anonymous():
     invoker = FakeInvoker(critique_scores=[0.95], critique_verdicts=["pass"])
     orch = Orchestrator(invoker, _config())
@@ -115,6 +132,41 @@ async def test_429_triggers_fallback_and_completes():
     assert result.final_synthesis is not None  # deliberation still completed
     proposal_models = {p.model_key for p in result.proposals}
     assert victim not in proposal_models  # the 429 model was dropped
+
+
+@pytest.mark.asyncio
+async def test_synthesiser_failure_falls_back_to_alternate_and_completes():
+    # Regression: a synthesiser provider failure (timeout, 413 token-limit, etc.)
+    # used to raise and abort the whole deliberation, discarding every proposal
+    # and review already gathered. Every candidate but one fails synthesis;
+    # the run must still complete by falling back to the survivor.
+    candidates = default_candidates()
+    survivor = candidates[-1].key
+    invoker = FakeInvoker(
+        raise_for_synthesis={c.key: _Err429() for c in candidates if c.key != survivor},
+        critique_scores=[0.95],
+        critique_verdicts=["pass"],
+    )
+    orch = Orchestrator(invoker, _config())
+    result = await orch.run("Q", TaskType.GENERAL_REASONING, candidates)
+
+    assert result.final_synthesis is not None
+    assert result.final_synthesis.model_key == survivor
+
+
+@pytest.mark.asyncio
+async def test_synthesiser_failure_raises_when_every_model_fails():
+    # No survivor to fall back to: the original failure must still surface
+    # instead of hanging or silently returning a broken result.
+    candidates = default_candidates()
+    invoker = FakeInvoker(
+        raise_for_synthesis={c.key: _Err429() for c in candidates},
+        critique_scores=[0.95],
+        critique_verdicts=["pass"],
+    )
+    orch = Orchestrator(invoker, _config())
+    with pytest.raises(Exception, match="Synthesiser"):
+        await orch.run("Q", TaskType.GENERAL_REASONING, candidates)
 
 
 @pytest.mark.asyncio
@@ -151,6 +203,32 @@ async def test_degenerate_critique_retries_then_stops_without_burning_rounds():
     compact = result.compact()
     assert compact["confidence"] is None
     assert compact["confidence_source"] == "unavailable"
+
+
+@pytest.mark.asyncio
+async def test_invocation_failure_logs_error_with_model_phase_and_detail():
+    from loguru import logger
+
+    candidates = default_candidates()
+    victim = candidates[-1].key
+    invoker = FakeInvoker(
+        raise_for={victim: _Err429()},
+        critique_scores=[0.95],
+        critique_verdicts=["pass"],
+    )
+    orch = Orchestrator(invoker, _config())
+
+    records: list[str] = []
+    sink_id = logger.add(lambda message: records.append(message), level="ERROR")
+    try:
+        await orch.run("Q", TaskType.GENERAL_REASONING, candidates)
+    finally:
+        logger.remove(sink_id)
+
+    error_lines = [r for r in records if "council.invoke.error" in r]
+    assert error_lines
+    assert any(victim in line for line in error_lines)
+    assert any("propose" in line for line in error_lines)
 
 
 @pytest.mark.asyncio

@@ -8,8 +8,10 @@ core".
 
 import datetime
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
+
+from loguru import logger
 
 from free_claude_code.config.settings import Settings, get_settings
 
@@ -24,6 +26,7 @@ from .models import (
     ModelRef,
     Privacy,
     QuotaFailure,
+    ResearchSummary,
     TaskType,
 )
 from .orchestration import Orchestrator
@@ -37,6 +40,13 @@ from .provider_policy import (
 )
 from .quota import QuotaTracker
 from .redaction import PathPolicy, apply_privacy
+from .research import (
+    ResearchService,
+    build_research_service,
+    format_sources,
+    mark_unverified_citations,
+    research_needed,
+)
 from .storage import CouncilStore, UsageRow, save_report
 
 
@@ -75,6 +85,7 @@ class CouncilService:
     lister: ModelLister
     store: CouncilStore | None = None
     allowed_roots: tuple[Path, ...] = field(default_factory=lambda: (Path.cwd(),))
+    research_service: ResearchService | None = None
     _provider_invoker: ProviderModelInvoker | None = None
 
     @classmethod
@@ -115,6 +126,7 @@ class CouncilService:
         max_rounds: int | None = None,
         criteria: str = "",
         extra_context: str = "",
+        research: bool | str = "auto",
         request_id: str = "council",
     ) -> tuple[CouncilResult, Path | None]:
         """Run a full deliberation and return (result, report_path)."""
@@ -130,6 +142,14 @@ class CouncilService:
         context = self._gather_context(files or [], extra_context, resolved_privacy)
         safe_prompt = apply_privacy(prompt, resolved_privacy)
 
+        research_summary, research_context = await self._run_research(
+            safe_prompt, resolved_privacy, research
+        )
+        if research_context:
+            context = (
+                f"{research_context}\n\n{context}" if context else research_context
+            )
+
         resolved_task = (
             classify_task(prompt, has_files=bool(files))
             if task_type == "auto"
@@ -141,6 +161,7 @@ class CouncilService:
 
         candidates, failures = await self._discover(resolved_privacy)
         self._guard_enough_models(candidates, failures)
+        candidates = self._fit_context_window(candidates, context)
 
         orchestrator = Orchestrator(
             self.invoker,
@@ -158,9 +179,99 @@ class CouncilService:
             request_id=request_id,
         )
         result.quota_failures.extend(failures)
+        result.research = research_summary
+
+        await self._maybe_escalate(
+            orchestrator,
+            safe_prompt,
+            resolved_task.value,
+            candidates,
+            result,
+            research_summary,
+            research,
+            resolved_privacy,
+        )
+        self._apply_citation_discipline(result)
 
         report_path = self._save_report(result)
         return result, report_path
+
+    def _fit_context_window(
+        self, candidates: list[ModelRef], context: str
+    ) -> list[ModelRef]:
+        """Drop models whose context window cannot hold the context (e.g. research).
+
+        A short-context free model (Cerebras ≈ 8K) would truncate a large research
+        block and answer from a partial view. This removes models with a *known*
+        window smaller than needed — but only if enough remain to satisfy the
+        free-only minimum; otherwise it keeps them all rather than fail (a
+        truncated call is handled downstream as an ordinary provider failure).
+        Models with an unknown window are always kept.
+
+        Also checks each provider's ``max_request_tokens`` (provider_limits.py):
+        a free tier can reject a request well inside the model's real context
+        window (observed: GitHub Models 413s deepseek-r1-0528 at 4K tokens/req,
+        far below its actual window) — that is a provider-imposed cap, not a
+        model capability, so it is checked independently of ``context_length``.
+        """
+        if not context:
+            return candidates
+        needed = len(context) // 4 + self.config.max_tokens_per_call + 1000
+        fitted = [
+            m
+            for m in candidates
+            if (m.context_length is None or m.context_length >= needed)
+            and (
+                (cap := daily_limit(m.provider).max_request_tokens) is None
+                or cap >= needed
+            )
+        ]
+        if len(fitted) == len(candidates):
+            return candidates
+        distinct = {m.provider for m in fitted}
+        if (
+            len(fitted) >= self.config.minimum_models
+            and len(distinct) >= self.config.minimum_distinct_providers
+        ):
+            logger.info(
+                "council.context.fit needed_tokens={} kept={} of {}",
+                needed,
+                len(fitted),
+                len(candidates),
+            )
+            return fitted
+        logger.warning(
+            "council.context.fit_skipped needed_tokens={} would_keep={} of {} "
+            "(below free-only minimum; keeping all)",
+            needed,
+            len(fitted),
+            len(candidates),
+        )
+        return candidates
+
+    def _apply_citation_discipline(self, result: CouncilResult) -> None:
+        """Rewrite any URL the final synthesis cites but research never fetched.
+
+        Never trusts the prompt contract: every URL in ``final_answer`` and
+        ``recommended_action`` is checked against what research actually fetched.
+        Without research (or with none surviving), every URL is marked — a
+        model cannot earn trust for a citation the local process never verified.
+        """
+        if not result.rounds:
+            return
+        verified = set(result.research.sources_fetched) if result.research else set()
+        last_round = result.rounds[-1]
+        synthesis = last_round.synthesis
+        new_answer = mark_unverified_citations(synthesis.final_answer, verified)
+        new_action = mark_unverified_citations(synthesis.recommended_action, verified)
+        if new_answer == synthesis.final_answer and new_action == (
+            synthesis.recommended_action
+        ):
+            return
+        updated_synthesis = replace(
+            synthesis, final_answer=new_answer, recommended_action=new_action
+        )
+        result.rounds[-1] = replace(last_round, synthesis=updated_synthesis)
 
     async def _discover(
         self, privacy: Privacy
@@ -202,6 +313,93 @@ class CouncilService:
                 f"({', '.join(sorted(distinct_providers))}).",
                 reasons=reasons,
             )
+
+    async def _run_research(
+        self, prompt: str, privacy: Privacy, research: bool | str
+    ) -> tuple[ResearchSummary | None, str]:
+        """Optionally search+fetch sources for the prompt (Phase 2.5).
+
+        Returns ``(summary, context_block)``. The summary is stored on the result;
+        the block (empty unless sources were fetched) is prepended to the panel's
+        context. Never raises: any failure degrades to a summary with a note.
+        """
+        mode = _research_mode(research)
+        if not self.config.research_enabled or mode == "off":
+            return None, ""
+        # Research reaches an external search engine, so it is incompatible with
+        # local-only privacy even though the query is already redacted.
+        if privacy is Privacy.LOCAL_ONLY:
+            if mode == "on":
+                return (
+                    ResearchSummary(
+                        backend="none",
+                        note="research skipped: privacy=local_only",
+                    ),
+                    "",
+                )
+            return None, ""
+        if mode == "auto" and not research_needed(prompt):
+            return None, ""
+
+        result = await self._research_service().investigate(prompt)
+        today = datetime.date.today().isoformat()
+        block = format_sources(result, fetched_on=today) if result.sources else ""
+        return result.summary(), block
+
+    def _research_service(self) -> ResearchService:
+        """The injected research service, or the production DuckDuckGo one."""
+        return self.research_service or build_research_service(
+            max_sources=self.config.research_max_sources,
+            tokens_per_source=self.config.research_tokens_per_source,
+            tokens_total=self.config.research_tokens_total,
+            fetch_timeout_s=self.config.research_fetch_timeout_s,
+            brave_api_key=self.settings.brave_search_api_key,
+        )
+
+    async def _maybe_escalate(
+        self,
+        orchestrator: Orchestrator,
+        prompt: str,
+        category: str,
+        candidates: list[ModelRef],
+        result: CouncilResult,
+        research_summary: ResearchSummary | None,
+        research: bool | str,
+        privacy: Privacy,
+    ) -> None:
+        """Resolve a factual disagreement with evidence instead of majority (T6).
+
+        Only fires when the panel reported a material disagreement AND the run
+        was not already grounded in sources: it runs research targeted at the
+        disagreement text and, if that finds sources, spends exactly one extra
+        synthesis round over the new evidence. Cost is bounded to that one round.
+        """
+        synthesis = result.final_synthesis
+        if synthesis is None or not synthesis.material_disagreements:
+            return
+        already_grounded = (
+            research_summary is not None and not research_summary.unavailable
+        )
+        if already_grounded:
+            return
+        mode = _research_mode(research)
+        if (
+            not self.config.research_enabled
+            or mode == "off"
+            or privacy is Privacy.LOCAL_ONLY
+        ):
+            return
+
+        directed = "; ".join(synthesis.material_disagreements)
+        directed_result = await self._research_service().investigate(directed)
+        if not directed_result.sources:
+            return
+        today = datetime.date.today().isoformat()
+        block = format_sources(directed_result, fetched_on=today)
+        await orchestrator.resynthesise_with_context(
+            prompt, result, candidates, category, block
+        )
+        result.research = directed_result.summary()
 
     def _gather_context(
         self, files: list[str], extra_context: str, privacy: Privacy
@@ -327,12 +525,48 @@ def _ordered_policies(order: list[str]) -> list[ProviderFreeAccess]:
     return result
 
 
+def _research_mode(research: bool | str) -> str:
+    """Normalise the research flag to ``"on" | "off" | "auto"``."""
+    if research is True:
+        return "on"
+    if research is False:
+        return "off"
+    value = str(research).strip().lower()
+    if value in ("on", "true", "yes", "1"):
+        return "on"
+    if value in ("off", "false", "no", "0"):
+        return "off"
+    return "auto"
+
+
+def _iso(timestamp: float) -> str:
+    return datetime.datetime.fromtimestamp(timestamp, tz=datetime.UTC).isoformat()
+
+
 def _full_report(result: CouncilResult) -> dict[str, object]:
     """Serialise the entire deliberation for on-disk archival."""
+    research = None
+    if result.research is not None:
+        research = {
+            "backend": result.research.backend,
+            "queries": result.research.queries,
+            "sources_fetched": result.research.sources_fetched,
+            "note": result.research.note,
+        }
     return {
         "task_type": result.task_type.value,
         "depth": result.depth.value,
         "stop_reason": result.stop_reason,
+        "research": research,
+        "started_at": _iso(result.started_at),
+        "finished_at": (
+            _iso(result.finished_at) if result.finished_at is not None else None
+        ),
+        "elapsed_s": (
+            round(result.finished_at - result.started_at, 1)
+            if result.finished_at is not None
+            else None
+        ),
         "models_used": result.models_used,
         "providers_used": result.providers_used,
         "quota_failures": [
@@ -345,7 +579,9 @@ def _full_report(result: CouncilResult) -> dict[str, object]:
                 "conclusion": p.conclusion,
                 "reasoning_summary": p.reasoning_summary,
                 "assumptions": p.assumptions,
+                "evidence": p.evidence,
                 "risks": p.risks,
+                "unknowns": p.unknowns,
                 "confidence": p.confidence,
             }
             for p in result.proposals
@@ -362,6 +598,7 @@ def _full_report(result: CouncilResult) -> dict[str, object]:
         "rounds": [
             {
                 "index": rnd.index,
+                "elapsed_s": rnd.elapsed_s,
                 "synthesis": {
                     "model": rnd.synthesis.model_key,
                     "final_answer": rnd.synthesis.final_answer,
@@ -377,6 +614,8 @@ def _full_report(result: CouncilResult) -> dict[str, object]:
                     "score": rnd.critique.score,
                     "critical_issues": rnd.critique.critical_issues,
                     "material_issues": rnd.critique.material_issues,
+                    "minor_issues": rnd.critique.minor_issues,
+                    "missing_evidence": rnd.critique.missing_evidence,
                 },
             }
             for rnd in result.rounds

@@ -101,3 +101,20 @@ def test_httpx_resets_to_notset_when_verbose_third_party(tmp_path) -> None:
     log_file = str(tmp_path / "verbose.log")
     configure_logging(log_file, force=True, verbose_third_party=True)
     assert logging.getLogger("httpx").level == logging.NOTSET
+
+
+def test_truncate_false_preserves_history_across_restarts(tmp_path) -> None:
+    """A long-lived server (e.g. an MCP server) must not lose its log on restart."""
+    log_file = str(tmp_path / "persistent.log")
+    configure_logging(log_file, force=True, truncate=False)
+    logger.info("first run")
+    logger.complete()
+
+    # Simulate a restart: reconfigure the same path without truncating.
+    configure_logging(log_file, force=True, truncate=False)
+    logger.info("second run")
+    logger.complete()
+
+    text = Path(log_file).read_text(encoding="utf-8")
+    assert "first run" in text
+    assert "second run" in text

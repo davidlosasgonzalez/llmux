@@ -7,6 +7,7 @@ synthesiser only ever see labels (A, B, C, ...), never provider or model names.
 
 import asyncio
 import datetime
+import difflib
 import hashlib
 import time
 from collections.abc import Callable
@@ -76,6 +77,9 @@ class Orchestrator:
             store.stats_for if store is not None else _default_stats_lookup
         )
         self._quota = quota or QuotaTracker()
+        # Models known to have exhausted their free quota earlier today; loaded
+        # once per run so a fresh run skips them instead of re-hitting the 429.
+        self._exhausted_today: set[str] = set()
 
     async def run(
         self,
@@ -95,6 +99,11 @@ class Orchestrator:
             depth=depth or self._config.depth,
             started_at=time.time(),
         )
+        if self._store is not None:
+            self._exhausted_today = self._store.exhausted_keys(_today())
+            # Skip models already out of quota today across every selection phase
+            # (select_models does not route through _available).
+            candidates = self._available(candidates)
 
         # --- Phase 3: independent proposals -------------------------------
         proponents = select_models(
@@ -147,7 +156,8 @@ class Orchestrator:
         stale_rounds = 0
 
         for index in range(profile.max_rounds):
-            synthesis = await self._synthesise(
+            round_started_at = time.time()
+            synthesis, synthesizer = await self._synthesise_with_fallback(
                 question,
                 proposals_by_label,
                 result.reviews,
@@ -156,6 +166,10 @@ class Orchestrator:
                 category,
                 request_id,
                 index,
+                context,
+                candidates,
+                proposal_families,
+                set(),
             )
             used_models.add(synthesizer.key)
             used_providers.add(synthesizer.provider)
@@ -168,7 +182,7 @@ class Orchestrator:
                 role="critic",
             )
             critique = await self._critique(
-                question, synthesis, critic, category, request_id, index
+                question, synthesis, critic, category, request_id, index, context
             )
             used_models.add(critic.key)
             used_providers.add(critic.provider)
@@ -187,14 +201,19 @@ class Orchestrator:
                 )
                 if alt.key != critic.key:
                     critique = await self._critique(
-                        question, synthesis, alt, category, request_id, index
+                        question, synthesis, alt, category, request_id, index, context
                     )
                     critic = alt
                     used_models.add(critic.key)
                     used_providers.add(critic.provider)
 
             result.rounds.append(
-                Round(index=index, synthesis=synthesis, critique=critique)
+                Round(
+                    index=index,
+                    synthesis=synthesis,
+                    critique=critique,
+                    elapsed_s=round(time.time() - round_started_at, 1),
+                )
             )
 
             if critique.verdict is Verdict.REJECT and self._store is not None:
@@ -208,6 +227,18 @@ class Orchestrator:
 
             if self._is_acceptable(critique):
                 result.stop_reason = "quality threshold met"
+                break
+
+            # If the synthesiser reproduced the previous answer almost verbatim,
+            # further rounds cost calls without changing the text. Stop on this
+            # textual convergence — a faster, score-independent signal than
+            # waiting two stale rounds.
+            if index > 0 and _texts_converged(
+                result.rounds[index - 1].synthesis.final_answer,
+                synthesis.final_answer,
+                self._config.convergence_threshold,
+            ):
+                result.stop_reason = "synthesis converged"
                 break
 
             improved = critique.score - last_score >= self._config.improvement_epsilon
@@ -226,6 +257,80 @@ class Orchestrator:
         result.providers_used = sorted(used_providers)
         result.finished_at = time.time()
         return result
+
+    async def resynthesise_with_context(
+        self,
+        question: str,
+        result: CouncilResult,
+        candidates: list[ModelRef],
+        category: str,
+        context: str,
+        request_id: str = "council",
+    ) -> None:
+        """Append one extra synthesis+critique round grounded in new evidence.
+
+        Used by the service to escalate a factual disagreement (Phase 6/T6): it
+        reuses the proposals and reviews already gathered, so only one synthesis
+        and one critique are spent — never a full re-deliberation. Mutates
+        ``result`` in place, adding a round and refreshing the timing/model sets.
+        """
+        if not result.proposals:
+            return
+        proposals_by_label = {
+            _label(index): proposal for index, proposal in enumerate(result.proposals)
+        }
+        # Proposals only retain a model key, so avoid same-provider synthesis by
+        # deriving providers from those keys (family avoidance is best-effort).
+        proposal_providers = {p.model_key.split("/", 1)[0] for p in result.proposals}
+        index = len(result.rounds)
+        round_started_at = time.time()
+
+        synthesizer = self._pick_one(
+            candidates,
+            category,
+            avoid_families=set(),
+            avoid_providers=proposal_providers,
+            role="refiner",
+        )
+        synthesis, synthesizer = await self._synthesise_with_fallback(
+            question,
+            proposals_by_label,
+            result.reviews,
+            synthesizer,
+            result.final_critique,
+            category,
+            request_id,
+            index,
+            context,
+            candidates,
+            set(),
+            proposal_providers,
+        )
+        critic = self._pick_one(
+            candidates,
+            category,
+            avoid_families={synthesizer.family},
+            avoid_providers={synthesizer.provider},
+            role="critic",
+        )
+        critique = await self._critique(
+            question, synthesis, critic, category, request_id, index, context
+        )
+        result.rounds.append(
+            Round(
+                index=index,
+                synthesis=synthesis,
+                critique=critique,
+                elapsed_s=round(time.time() - round_started_at, 1),
+            )
+        )
+        result.models_used = sorted(
+            set(result.models_used) | {synthesizer.key, critic.key}
+        )
+        result.providers_used = sorted(
+            set(result.providers_used) | {synthesizer.provider, critic.provider}
+        )
+        result.stop_reason = "escalated with research"
 
     # ------------------------------------------------------------------ #
     # Phase 3
@@ -284,10 +389,15 @@ class Orchestrator:
 
         async def one(model: ModelRef) -> Review | None:
             invocation = await self._invoke(model, system, user, request_id, "review")
+            review = parse_review(model.key, invocation.text) if invocation.ok else None
+            # Record before returning: a failed review must still reach the
+            # store (quota-exhaustion memory + selection stats), the same as
+            # _gather_proposals already does. Skipping this on failure is why
+            # a provider that only ever fails in review/synthesis/critique was
+            # invisible to both cross-run quota memory and T2's scoring.
+            self._record(model, "review", "review", invocation, review)
             if not invocation.ok:
                 return None
-            review = parse_review(model.key, invocation.text)
-            self._record(model, "review", "review", invocation, review)
             return review
 
         results = await asyncio.gather(*(one(m) for m in reviewers))
@@ -306,24 +416,101 @@ class Orchestrator:
         category: str,
         request_id: str,
         index: int,
+        context: str = "",
     ) -> Synthesis:
         system, user = prompts.synthesis_prompt(
-            question, proposals_by_label, reviews, prior_critique=prior_critique
+            question,
+            proposals_by_label,
+            reviews,
+            prior_critique=prior_critique,
+            context=context,
         )
         invocation = await self._invoke(
             synthesizer, system, user, request_id, f"synthesis-{index}"
         )
+        synthesis = (
+            parse_synthesis(synthesizer.key, invocation.text) if invocation.ok else None
+        )
+        # Record before raising: a failed synthesis must still reach the store
+        # (quota-exhaustion memory + selection stats), the same as
+        # _gather_proposals already does.
+        self._record(synthesizer, "synthesis", category, invocation, synthesis)
         if not invocation.ok:
             raise DeliberationFailedError(
                 f"Synthesiser {synthesizer.key} failed: {invocation.detail}"
             )
-        synthesis = parse_synthesis(synthesizer.key, invocation.text)
-        self._record(synthesizer, "synthesis", category, invocation, synthesis)
         if synthesis is None or not synthesis.final_answer.strip():
             raise DeliberationFailedError(
                 f"Synthesiser {synthesizer.key} returned no answer."
             )
         return synthesis
+
+    async def _synthesise_with_fallback(
+        self,
+        question: str,
+        proposals_by_label: dict[str, Proposal],
+        reviews: list[Review],
+        synthesizer: ModelRef,
+        prior_critique: Critique | None,
+        category: str,
+        request_id: str,
+        index: int,
+        context: str,
+        candidates: list[ModelRef],
+        avoid_families: set[str],
+        avoid_providers: set[str],
+    ) -> tuple[Synthesis, ModelRef]:
+        """Synthesise, retrying with a different model on provider failure.
+
+        A single synthesiser timeout or provider-side rejection (e.g. a
+        token-limit 413 tripped by a large research context) used to abort the
+        whole deliberation, discarding every proposal and review already paid
+        for. Mirrors the critic retry-on-uninformative-verdict a few lines up:
+        exclude the failed model and try once more, bounded by the candidate
+        pool so a fully-down provider set still surfaces the original error.
+        """
+        current = synthesizer
+        tried: set[str] = set()
+        max_attempts = min(3, len(candidates))
+        for attempt in range(1, max_attempts + 1):
+            tried.add(current.key)
+            try:
+                synthesis = await self._synthesise(
+                    question,
+                    proposals_by_label,
+                    reviews,
+                    current,
+                    prior_critique,
+                    category,
+                    request_id,
+                    index,
+                    context,
+                )
+                return synthesis, current
+            except DeliberationFailedError as exc:
+                logger.warning(
+                    "council.synthesis.failed model={} attempt={}/{} err={}",
+                    current.key,
+                    attempt,
+                    max_attempts,
+                    exc,
+                )
+                if attempt >= max_attempts:
+                    raise
+                nxt = self._pick_one(
+                    candidates,
+                    category,
+                    avoid_families=avoid_families,
+                    avoid_providers=avoid_providers,
+                    role="refiner",
+                    exclude_keys=frozenset(tried),
+                )
+                if nxt.key in tried:
+                    raise
+                current = nxt
+        raise DeliberationFailedError(
+            f"Synthesiser {synthesizer.key} failed and no alternate was available."
+        )
 
     # ------------------------------------------------------------------ #
     # Phase 6
@@ -336,17 +523,21 @@ class Orchestrator:
         category: str,
         request_id: str,
         index: int,
+        context: str = "",
     ) -> Critique:
-        system, user = prompts.critique_prompt(question, synthesis)
+        system, user = prompts.critique_prompt(question, synthesis, context=context)
         invocation = await self._invoke(
             critic, system, user, request_id, f"critique-{index}"
         )
-        if not invocation.ok:
-            # A missing critic must not pass a synthesis by default; force revise.
-            return Critique(model_key=critic.key, verdict=Verdict.REVISE, score=0.0)
-        critique = parse_critique(critic.key, invocation.text)
+        critique = (
+            parse_critique(critic.key, invocation.text) if invocation.ok else None
+        )
+        # Record before returning: a failed critic must still reach the store
+        # (quota-exhaustion memory + selection stats), the same as
+        # _gather_proposals already does.
         self._record(critic, "critique", category, invocation, critique)
-        if critique is None:
+        if not invocation.ok or critique is None:
+            # A missing critic must not pass a synthesis by default; force revise.
             return Critique(model_key=critic.key, verdict=Verdict.REVISE, score=0.0)
         return critique
 
@@ -367,6 +558,7 @@ class Orchestrator:
                 classify_failure({"type": "rate_limited"}),
                 detail=self._quota.block_reason(model.provider),
             )
+        started_at = time.time()
         try:
             invocation = await asyncio.wait_for(
                 self._invoker.invoke(
@@ -383,7 +575,7 @@ class Orchestrator:
             # trips the circuit breaker like any other, so the round can proceed
             # with the models that did answer instead of stalling on this one.
             self._quota.note_failure(model.provider, FailureKind.PROVIDER_FAILURE)
-            logger.warning(
+            logger.error(
                 "council.invoke.timeout model={} phase={} timeout_s={}",
                 model.key,
                 phase,
@@ -400,11 +592,12 @@ class Orchestrator:
             self._quota.note_failure(
                 model.provider, kind, retry_after=retry_after_seconds(exc)
             )
-            logger.warning(
-                "council.invoke.error model={} phase={} kind={}",
+            logger.error(
+                "council.invoke.error model={} phase={} kind={} detail={}",
                 model.key,
                 phase,
                 kind.value,
+                str(exc)[:500],
             )
             return InvocationResult.failure(model.key, kind, detail=str(exc))
 
@@ -412,6 +605,13 @@ class Orchestrator:
             self._quota.note_success(model.provider)
         elif invocation.failure_kind is not None:
             self._quota.note_failure(model.provider, invocation.failure_kind)
+        logger.info(
+            "council.invoke.done model={} phase={} ok={} elapsed_s={}",
+            model.key,
+            phase,
+            invocation.ok,
+            round(time.time() - started_at, 1),
+        )
         return invocation
 
     def _record(
@@ -445,6 +645,11 @@ class Orchestrator:
             input_tokens=invocation.input_tokens,
             output_tokens=invocation.output_tokens,
         )
+        # Remember a hard quota exhaustion so later runs today skip this model.
+        if invocation.failure_kind is FailureKind.QUOTA_EXHAUSTED:
+            today = _today()
+            self._store.record_exhaustion(model.key, model.provider, today)
+            self._exhausted_today.add(model.key)
 
     def _record_cross_review(
         self,
@@ -483,12 +688,17 @@ class Orchestrator:
     # Selection helpers
     # ------------------------------------------------------------------ #
     def _available(self, models: list[ModelRef]) -> list[ModelRef]:
-        """Drop models whose provider is currently circuit-broken.
+        """Drop models that are circuit-broken or already quota-exhausted today.
 
-        Falls back to the full list if everything is blocked, so selection never
-        starves entirely.
+        Falls back to the full list if everything is filtered out, so selection
+        never starves entirely.
         """
-        live = [m for m in models if not self._quota.is_blocked(m.provider)]
+        live = [
+            m
+            for m in models
+            if not self._quota.is_blocked(m.provider)
+            and m.key not in self._exhausted_today
+        ]
         return live or models
 
     def _pick_panel(
@@ -579,6 +789,22 @@ def _label(index: int) -> str:
 
 def _content_hash(text: str) -> str:
     return hashlib.sha256(text.strip().encode("utf-8")).hexdigest()
+
+
+def _normalise(text: str) -> str:
+    return " ".join(text.lower().split())
+
+
+def _texts_converged(previous: str, current: str, threshold: float) -> bool:
+    """True when two synthesis answers are near-identical after normalisation.
+
+    Uses stdlib ``difflib`` (deterministic, no dependency) on whitespace- and
+    case-normalised text so trivial reformatting does not read as a change.
+    """
+    prev, curr = _normalise(previous), _normalise(current)
+    if not prev or not curr:
+        return False
+    return difflib.SequenceMatcher(None, prev, curr).ratio() >= threshold
 
 
 def _today() -> str:

@@ -18,6 +18,7 @@ def make_model(
     *,
     family: str = "fam",
     cost: CostStatus = CostStatus.FREE_TIER,
+    context_length: int | None = None,
 ) -> ModelRef:
     return ModelRef(
         provider=provider,
@@ -28,6 +29,7 @@ def make_model(
         health=Health.HEALTHY,
         supports_tools=True,
         supports_json=True,
+        context_length=context_length,
     )
 
 
@@ -61,6 +63,12 @@ class FakeInvoker:
 
     # model_key -> exception to raise on invoke (simulate 429 etc.)
     raise_for: dict[str, Exception] = field(default_factory=dict)
+    # model_key -> exception, but only when invoked for one specific phase
+    # (lets a test fail a model in exactly one role without also killing its
+    # calls in the other phases).
+    raise_for_synthesis: dict[str, Exception] = field(default_factory=dict)
+    raise_for_review: dict[str, Exception] = field(default_factory=dict)
+    raise_for_critique: dict[str, Exception] = field(default_factory=dict)
     # model_keys that should return unparseable text on propose.
     bad_json_for: set[str] = field(default_factory=set)
     # model_keys whose review should be unparseable garbage (discarded).
@@ -68,6 +76,12 @@ class FakeInvoker:
     # Sequence of critique scores returned per synthesis round.
     critique_scores: list[float] = field(default_factory=lambda: [0.95])
     critique_verdicts: list[str] = field(default_factory=lambda: ["pass"])
+    # Material disagreements every synthesis should report (drives T6 escalation).
+    synthesis_disagreements: list[str] = field(default_factory=list)
+    # URLs appended to every synthesis' final_answer (drives T7 citation checks).
+    synthesis_urls: list[str] = field(default_factory=list)
+    # When True, every synthesis returns identical text (drives convergence stop).
+    stable_synthesis: bool = False
     # Records every (model_key, phase, system, user) call for assertions.
     calls: list[tuple[str, str, str, str]] = field(default_factory=list)
     _round: int = 0
@@ -86,6 +100,12 @@ class FakeInvoker:
 
         if model.key in self.raise_for:
             raise self.raise_for[model.key]
+        if phase == "synthesis" and model.key in self.raise_for_synthesis:
+            raise self.raise_for_synthesis[model.key]
+        if phase == "review" and model.key in self.raise_for_review:
+            raise self.raise_for_review[model.key]
+        if phase == "critique" and model.key in self.raise_for_critique:
+            raise self.raise_for_critique[model.key]
 
         if phase == "propose":
             if model.key in self.bad_json_for:
@@ -114,10 +134,17 @@ class FakeInvoker:
                 "recommended_synthesis": ["combine"],
             }
         elif phase == "synthesis":
+            answer = (
+                "Synthesised answer"
+                if self.stable_synthesis
+                else f"Synthesised answer (round {self._round})"
+            )
+            if self.synthesis_urls:
+                answer += " See " + " and ".join(self.synthesis_urls) + "."
             payload = {
-                "final_answer": f"Synthesised answer (round {self._round})",
+                "final_answer": answer,
                 "consensus": ["c1"],
-                "material_disagreements": [],
+                "material_disagreements": list(self.synthesis_disagreements),
                 "uncertainties": [],
                 "rejected_arguments": [],
                 "recommended_action": "do it",

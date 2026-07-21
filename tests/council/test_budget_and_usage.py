@@ -87,3 +87,118 @@ async def test_usage_is_recorded(tmp_path):
     assert sum(r.requests for r in rows) > 0
     assert sum(r.total_tokens for r in rows) > 0  # tokens accumulated
     store.close()
+
+
+def test_exhaustion_round_trip(tmp_path):
+    store = CouncilStore(tmp_path / "council.db")
+    store.record_exhaustion("groq/llama", "groq", "2026-07-15")
+    store.record_exhaustion("groq/llama", "groq", "2026-07-15")  # idempotent
+    assert store.exhausted_keys("2026-07-15") == {"groq/llama"}
+    assert store.exhausted_keys("2026-07-16") == set()
+    store.close()
+
+
+class _QuotaError(RuntimeError):
+    """Message triggers classify_failure -> QUOTA_EXHAUSTED."""
+
+
+@pytest.mark.asyncio
+async def test_quota_exhaustion_is_recorded_and_skipped_next_run(tmp_path):
+    store = CouncilStore(tmp_path / "council.db")
+    candidates = default_candidates()
+    victim = candidates[-1].key  # nvidia_nim/nvidia/nemotron
+
+    # Run 1: the victim hits a hard quota exhaustion → it is remembered for today.
+    orch1 = Orchestrator(
+        FakeInvoker(
+            raise_for={victim: _QuotaError("quota exhausted")},
+            critique_scores=[0.95],
+            critique_verdicts=["pass"],
+        ),
+        CouncilConfig(),
+        store=store,
+    )
+    await orch1.run("Q", TaskType.GENERAL_REASONING, candidates)
+
+    from free_claude_code.council.orchestration import _today
+
+    assert victim in store.exhausted_keys(_today())
+
+    # Run 2 (fresh orchestrator, same store): the victim is skipped up front.
+    invoker2 = FakeInvoker(critique_scores=[0.95], critique_verdicts=["pass"])
+    orch2 = Orchestrator(invoker2, CouncilConfig(), store=store)
+    result = await orch2.run("Q", TaskType.GENERAL_REASONING, candidates)
+
+    assert result.final_synthesis is not None
+    called_keys = {key for (key, _phase, _s, _u) in invoker2.calls}
+    assert victim not in called_keys  # never invoked in the second run
+    store.close()
+
+
+# Regression: _gather_reviews / _synthesise / _critique used to return/raise on
+# a failed invocation *before* calling self._record(...), so a model that only
+# ever failed in one of those three roles left no trace in the store — neither
+# the cross-run quota-exhaustion memory above, nor the stats score_model reads.
+# Only _gather_proposals recorded failures. These three mirror the round-trip
+# test above for each of the other phases.
+@pytest.mark.asyncio
+async def test_review_failure_is_recorded(tmp_path):
+    from free_claude_code.council.orchestration import _today
+
+    store = CouncilStore(tmp_path / "council.db")
+    candidates = default_candidates()
+    invoker = FakeInvoker(
+        raise_for_review={c.key: _QuotaError("quota exhausted") for c in candidates},
+        critique_scores=[0.95],
+        critique_verdicts=["pass"],
+    )
+    orch = Orchestrator(invoker, CouncilConfig(), store=store)
+    result = await orch.run("Q", TaskType.GENERAL_REASONING, candidates)
+
+    assert result.final_synthesis is not None  # a failed review is non-fatal
+    exhausted = store.exhausted_keys(_today())
+    assert exhausted, "a reviewer that only ever fails must still be recorded"
+    assert exhausted <= {c.key for c in candidates}
+    store.close()
+
+
+@pytest.mark.asyncio
+async def test_synthesis_failure_is_recorded_even_when_fallback_recovers(tmp_path):
+    from free_claude_code.council.orchestration import _today
+
+    store = CouncilStore(tmp_path / "council.db")
+    candidates = default_candidates()
+    victim = candidates[-1].key
+    invoker = FakeInvoker(
+        raise_for_synthesis={victim: _QuotaError("quota exhausted")},
+        critique_scores=[0.95],
+        critique_verdicts=["pass"],
+    )
+    orch = Orchestrator(invoker, CouncilConfig(), store=store)
+    result = await orch.run("Q", TaskType.GENERAL_REASONING, candidates)
+
+    # The synthesiser fallback recovers the run...
+    assert result.final_synthesis is not None
+    # ...but the failed attempt must still have reached the store, or a future
+    # run (fresh process) would retry the same exhausted synthesiser.
+    assert victim in store.exhausted_keys(_today())
+    store.close()
+
+
+@pytest.mark.asyncio
+async def test_critique_failure_is_recorded(tmp_path):
+    from free_claude_code.council.orchestration import _today
+
+    store = CouncilStore(tmp_path / "council.db")
+    candidates = default_candidates()
+    invoker = FakeInvoker(
+        raise_for_critique={c.key: _QuotaError("quota exhausted") for c in candidates},
+    )
+    orch = Orchestrator(invoker, CouncilConfig(), store=store)
+    result = await orch.run("Q", TaskType.GENERAL_REASONING, candidates)
+
+    assert result.stop_reason == "critique unavailable"  # forced to REVISE/0.0
+    exhausted = store.exhausted_keys(_today())
+    assert exhausted, "a critic that only ever fails must still be recorded"
+    assert exhausted <= {c.key for c in candidates}
+    store.close()

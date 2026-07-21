@@ -105,7 +105,11 @@ class InterceptHandler(logging.Handler):
 
 
 def configure_logging(
-    log_file: str | Path, *, force: bool = False, verbose_third_party: bool = False
+    log_file: str | Path,
+    *,
+    force: bool = False,
+    verbose_third_party: bool = False,
+    truncate: bool = True,
 ) -> None:
     """Configure loguru with JSON output to log_file and intercept stdlib logging.
 
@@ -114,6 +118,9 @@ def configure_logging(
 
     When ``verbose_third_party`` is false, noisy HTTP and Telegram loggers are capped
     at WARNING unless explicitly configured otherwise.
+
+    ``truncate`` clears the log file on configure; set to False for long-lived
+    logs (e.g. an MCP server) where each restart should append, not erase history.
     """
     global _configured
     if _configured and not force:
@@ -126,8 +133,8 @@ def configure_logging(
     log_path = Path(log_file)
     log_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Truncate log file on fresh start for clean debugging
-    log_path.write_text("")
+    if truncate:
+        log_path.write_text("")
 
     # Add file sink: JSON lines, DEBUG level, context vars at top level
     logger.add(

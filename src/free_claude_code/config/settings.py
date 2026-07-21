@@ -87,6 +87,11 @@ class Settings(BaseSettings):
     # ==================== Ollama Cloud ====================
     ollama_api_key: str = Field(default="", validation_alias="OLLAMA_API_KEY")
 
+    # ==================== Brave Search (council research) ====================
+    brave_search_api_key: str = Field(
+        default="", validation_alias="BRAVE_SEARCH_API_KEY"
+    )
+
     # ==================== Messaging Platform Selection ====================
     # Valid: "telegram" | "discord" | "none"
     messaging_platform: str = Field(

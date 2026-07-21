@@ -39,6 +39,12 @@ CREATE TABLE IF NOT EXISTS usage_log (
     output_tokens INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (provider, model_key, day)
 );
+CREATE TABLE IF NOT EXISTS quota_exhaustion (
+    model_key TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    day TEXT NOT NULL,
+    PRIMARY KEY (model_key, day)
+);
 """
 
 
@@ -219,6 +225,27 @@ class CouncilStore:
             (provider, model_key, day, input_tokens, output_tokens),
         )
         self._conn.commit()
+
+    def record_exhaustion(self, model_key: str, provider: str, day: str) -> None:
+        """Note that ``model_key`` exhausted its free quota on ``day``.
+
+        Lets a later run on the same day skip a model already known to be out of
+        quota, instead of spending a call to rediscover the 429.
+        """
+        self._conn.execute(
+            "INSERT OR IGNORE INTO quota_exhaustion (model_key, provider, day) "
+            "VALUES (?, ?, ?)",
+            (model_key, provider, day),
+        )
+        self._conn.commit()
+
+    def exhausted_keys(self, day: str) -> set[str]:
+        """Model keys known to have exhausted their free quota on ``day``."""
+        rows = self._conn.execute(
+            "SELECT model_key FROM quota_exhaustion WHERE day = ?",
+            (day,),
+        ).fetchall()
+        return {row["model_key"] for row in rows}
 
     def usage_rows(self, day: str | None = None) -> list[UsageRow]:
         """Return usage rows, optionally filtered to a single ``day``."""

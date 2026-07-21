@@ -27,6 +27,13 @@ class DailyLimit:
     rpm: int | None = None
     rpd: int | None = None
     tokens_per_day: int | None = None
+    # Hard cap on one request's total token count (prompt + completion) that
+    # the free tier itself enforces — distinct from a model's real context
+    # window (``ModelRef.context_length``), which can be far larger. Observed
+    # directly: GitHub Models free tier rejects deepseek-r1-0528 with HTTP 413
+    # ("Request body too large... Max size: 4000 tokens") well inside that
+    # model's real window, so ``_fit_context_window`` must check both.
+    max_request_tokens: int | None = None
     note: str = ""
 
 
@@ -70,6 +77,7 @@ _LIMITS: dict[str, DailyLimit] = {
         SCARCE,
         rpm=10,
         rpd=50,
+        max_request_tokens=4000,
         note="High-tier (e.g. deepseek-r1) 50 RPD; low-tier 150. 8K in / 4K out.",
     ),
     "mistral": DailyLimit("mistral", HIGH_THROUGHPUT, note="Free experiment tier."),
@@ -93,6 +101,10 @@ def daily_limit(provider: str) -> DailyLimit:
 
 def budget_class(provider: str) -> str:
     return daily_limit(provider).budget_class
+
+
+def max_request_tokens(provider: str) -> int | None:
+    return daily_limit(provider).max_request_tokens
 
 
 # Soft multiplier applied to a provider's selection score, by role. Fan-out

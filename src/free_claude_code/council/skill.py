@@ -47,15 +47,30 @@ fcc-council evaluate --output json --depth deep "<question>"
 Send ONLY the context that is actually needed — never the whole repository, and
 never secrets. Use depth `deep` unless the user asks for speed (then `quick`).
 
+## Web research
+
+The `research` parameter ("auto" | "on" | "off", default "auto") lets the local
+process fetch current sources before the models deliberate — none of the free
+models can browse. In "auto" it fires only when the prompt hinges on current
+facts (versions, limits, prices, official docs). Force it "on" for a currency
+question the heuristic might miss; it is always skipped under `local_only`
+privacy. When it runs, `research.sources_fetched` lists the URLs that grounded
+the answer.
+
+Any URL in the answer NOT in `research.sources_fetched` was appended by the
+local process with `(URL recordada, no verificada en esta ejecución)` — a
+model's memory of a URL is never presented as a verified citation.
+
 ## Presenting the result
 
 The tool returns a compact JSON payload. Present to the user:
 - the conclusion (`answer`);
 - the recommended action (`recommended_action`);
 - material disagreements;
-- uncertainties;
+- uncertainties (includes a research-unavailable note when applicable);
 - which models and providers participated (`models_used`, `providers_used`);
-- the number of rounds (`rounds`).
+- the number of rounds (`rounds`);
+- when present, the sources research fetched (`research.sources_fetched`).
 
 Do NOT run another full Claude Code session inside this skill. Call the MCP tool
 or the `fcc-council` CLI core only.
