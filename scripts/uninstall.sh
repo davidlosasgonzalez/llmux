@@ -98,7 +98,7 @@ is_fcc_command_running() {
         if pgrep -x "$command_name" >/dev/null 2>&1; then
             return 0
         fi
-        if pgrep -f "(^|/)${command_name}( |$)" >/dev/null 2>&1; then
+        if pgrep -f "^([^ ]*/)?${command_name}( |$)" >/dev/null 2>&1; then
             return 0
         fi
         return 1
