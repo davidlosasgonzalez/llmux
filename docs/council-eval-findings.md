@@ -3,6 +3,12 @@
 > Documento vivo. Objetivo: acercar el razonamiento del council a Opus.
 > Metodología: mismo prompt a Opus (con web) y al MCP; anotar cada fallo del MCP.
 > Fecha de inicio: 2026-07-15
+>
+> **Estado (2026-07-15): hallazgos A, B, C, E resueltos** vía el bloque de
+> fiabilidad T1–T7 (ver `docs/council.md`). D nunca se rellenó durante la
+> evaluación original (no hubo hallazgos de rendimiento/coste distintos de los
+> ya cubiertos en A3). Los "Fix propuesto" de abajo quedan como registro
+> histórico del diagnóstico, no como trabajo pendiente.
 
 ## Leyenda de severidad
 - 🔴 crítico — produce respuesta incorrecta o rompe la ejecución
@@ -89,24 +95,24 @@ default Paid **30 s**, máx **5 min (300.000 ms)**, clave `cpu_ms`, Free 10 ms.
 ---
 
 ## D. Rendimiento / coste
-*(pendiente)*
+
+No se registraron hallazgos propios en la evaluación original — la única
+observación de rendimiento (latencia de sintetizador sin guardia) quedó
+archivada bajo A3 y se resolvió ahí (T2).
 
 ---
 
 ## E. Compatibilidad / portabilidad
 
-### E1 🧹 Sintaxis `except X, Y:` (Python 2) por todo el repo
-- **Hallazgo (2026-07-15):** `parsing.py` no compilaba en Python 3.11-3.13
-  (`SyntaxError: multiple exception types must be parenthesized`). Solo funciona
-  porque el proyecto está clavado a 3.14 (`.python-version`), que la acepta con
-  semántica de tupla (verificado empíricamente: captura ambos tipos).
-- **Resuelto en `council/`:** `parsing.py` (2), `quota.py` (1), `redaction.py` (1).
-- **Follow-up (fuera de `council/`, 7 instancias):**
-  - `core/anthropic/tokens.py:104`
-  - `providers/openai_chat/provider.py:448` (`except asyncio.CancelledError, GeneratorExit:`)
-  - `messaging/voice.py:310` (`except asyncio.CancelledError, Exception:` — además, capturar `CancelledError` en un `except` amplio es sospechoso; revisar aparte)
-  - `messaging/rendering/telegram_markdown.py:179,186`
-  - `messaging/rendering/discord_markdown.py:171,178`
-- **Recomendación:** un barrido `except (X, Y):` en todo el repo + regla ruff
-  (E722/pyupgrade) para que no reaparezca. No incluido en el commit de T1/T2 por
-  acotar el radio a módulos verificados.
+### E1 ✅ Sintaxis `except X, Y:` — no es un defecto en este proyecto
+- **Aclaración (2026-07-15):** la forma sin paréntesis `except X, Y:` es
+  **PEP 758 (Python 3.14+)**, no legacy de Python-2. El proyecto declara
+  `requires-python >=3.14.0` y el `CLAUDE.md` la documenta como el estándar que
+  usa el formateador ruff (py314). `ruff format --check` la acepta en todo el
+  repo. No hay bug de portabilidad ni "barrido a `except (X, Y):`" que hacer:
+  la recomendación original estaba equivocada y queda retirada.
+- **Sub-punto legítimo pendiente (independiente de la sintaxis):**
+  `messaging/voice.py:310` hace `except asyncio.CancelledError, Exception:` y
+  `continue` — tragarse `CancelledError` en `_consume_results` es sospechoso
+  (la cancelación normalmente debe propagarse). Revisar aparte; no forma parte
+  del trabajo de fiabilidad del council.

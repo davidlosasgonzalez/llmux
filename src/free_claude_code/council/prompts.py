@@ -12,6 +12,13 @@ _JSON_RULES = (
     "no prose before or after. Use double quotes. Keep every list concise."
 )
 
+_CITATION_CONTRACT = (
+    "Citation rule: you may only cite a URL if it appears in AUTHORISED CONTEXT "
+    "under FUENTES VERIFICADAS. Never cite a URL from memory as if it were "
+    "verified — if you mention one anyway, label it "
+    "'(URL recordada, no verificada en esta ejecución)'."
+)
+
 
 def propose_prompt(
     question: str,
@@ -26,7 +33,7 @@ def propose_prompt(
         f"{task_type.value.replace('_', ' ')} task. Solve it INDEPENDENTLY. "
         "Do NOT assume other panelists agree with you, and do NOT assume any "
         "consensus exists. Base every claim on the given context or clearly "
-        "label it an assumption. " + _JSON_RULES
+        "label it an assumption. " + _CITATION_CONTRACT + " " + _JSON_RULES
     )
     schema = (
         "{\n"
@@ -106,22 +113,40 @@ def _format_review(index: int, review: Review) -> str:
     return "\n".join(lines)
 
 
+_FACTUAL_DISAGREEMENT_RULE = (
+    "If panelists disagree on a verifiable fact (a version, limit, price, date, "
+    "or API behaviour), do NOT resolve it by majority vote nor by appealing to "
+    "'the documentation says' unless the AUTHORISED CONTEXT contains VERIFIED "
+    "SOURCES that settle it. Absent such evidence, keep the conflict in "
+    "material_disagreements and present BOTH values in the answer, marking which "
+    "one lacks verification. A shared but unsourced belief is not evidence."
+)
+
+
 def synthesis_prompt(
     question: str,
     proposals: dict[str, Proposal],
     reviews: list[Review],
     *,
     prior_critique: Critique | None = None,
+    context: str = "",
 ) -> tuple[str, str]:
     """Phase 5 / 7 — merge proposals and reviews into a final answer.
 
     When ``prior_critique`` is present this is a refinement round: the critique's
-    issues must be addressed rather than repeated.
+    issues must be addressed rather than repeated. ``context`` carries any
+    verified research sources so the synthesiser can settle factual conflicts on
+    evidence instead of consensus.
     """
     system = (
         "You are the synthesiser. Produce the best possible answer by combining "
         "the strongest, best-supported elements and discarding weak ones. Do not "
-        "invent facts. Attribute nothing to specific panelists. " + _JSON_RULES
+        "invent facts. Attribute nothing to specific panelists. "
+        + _FACTUAL_DISAGREEMENT_RULE
+        + " "
+        + _CITATION_CONTRACT
+        + " "
+        + _JSON_RULES
     )
     schema = (
         "{\n"
@@ -140,7 +165,10 @@ def synthesis_prompt(
     review_blocks = [
         _format_review(index + 1, review) for index, review in enumerate(reviews)
     ]
-    parts = [f"TASK:\n{question}", *proposal_blocks, *review_blocks]
+    parts = [f"TASK:\n{question}"]
+    if context:
+        parts.append(f"AUTHORISED CONTEXT (only this may be relied upon):\n{context}")
+    parts.extend([*proposal_blocks, *review_blocks])
     if prior_critique is not None:
         issues = (
             prior_critique.critical_issues
@@ -156,14 +184,23 @@ def synthesis_prompt(
     return system, "\n\n".join(parts)
 
 
-def critique_prompt(question: str, synthesis: Synthesis) -> tuple[str, str]:
-    """Phase 6 — adversarial critique that tries to break the synthesis."""
+def critique_prompt(
+    question: str, synthesis: Synthesis, *, context: str = ""
+) -> tuple[str, str]:
+    """Phase 6 — adversarial critique that tries to break the synthesis.
+
+    ``context`` carries any verified research sources so the critic can flag
+    factual claims (versions, limits, prices) that the sources contradict — or
+    that lack any source at all.
+    """
     system = (
         "You are an adversarial critic. Try to prove the synthesis below is "
         "wrong or incomplete. Do NOT propose cosmetic changes and do NOT restate "
         "the answer. Only report issues that could change the decision: false "
         "facts, unproven assumptions, contradictions, ignored risks, superior "
-        "alternatives, or conclusions not supported by the evidence.\n"
+        "alternatives, conclusions not supported by the evidence, or claims about "
+        "versions/limits/prices/dates that have no verified source in the "
+        "AUTHORISED CONTEXT (or that contradict one that is present).\n"
         "Your verdict and score MUST be consistent and honestly computed: "
         "'pass' requires a high score (>= 0.85) and an empty issue list; "
         "'revise' or 'reject' requires at least one concrete critical or material "
@@ -187,8 +224,14 @@ def critique_prompt(question: str, synthesis: Synthesis) -> tuple[str, str]:
         if synthesis.material_disagreements
         else ""
     )
+    context_block = (
+        f"AUTHORISED CONTEXT (only this may be relied upon):\n{context}\n\n"
+        if context
+        else ""
+    )
     user = (
         f"TASK:\n{question}\n\n"
+        f"{context_block}"
         f"SYNTHESIS TO ATTACK:\n{synthesis.final_answer}\n"
         f"Recommended action: {synthesis.recommended_action}{disagreements}\n\n"
         f"Return this JSON:\n{schema}"

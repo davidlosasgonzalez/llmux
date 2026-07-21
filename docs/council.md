@@ -25,13 +25,18 @@ the Anthropic SSE aggregator, `ProviderRegistry`/catalogue).
 1. **Classifies** the task (deterministic keyword rules).
 2. **Selects** 3–5 diverse free models (provider/family diversity, empirical
    scores, health, quota).
-3. **Proposes** — each model answers independently in structured JSON.
-4. **Cross-reviews** — reviewers rank the proposals **anonymously** (labels
+3. **Researches** (optional, Phase 2.5) — when the prompt hinges on current
+   facts (versions, limits, prices, docs), the local process searches and
+   fetches sources itself (no model can browse) and injects them as verified
+   context. See [Web research](#web-research).
+4. **Proposes** — each model answers independently in structured JSON.
+5. **Cross-reviews** — reviewers rank the proposals **anonymously** (labels
    A/B/C/D; provider and model identity are never revealed).
-5. **Synthesises** — the best free model for the category merges the strongest
-   elements.
-6. **Critiques** — a different-family model tries to break the synthesis.
-7. **Refines** — repeats synthesis+critique until the critique passes, the
+6. **Synthesises** — the best free model for the category merges the strongest
+   elements; a factual disagreement is settled on verified evidence, never by
+   majority (unresolved conflicts are escalated to one directed research round).
+7. **Critiques** — a different-family model tries to break the synthesis.
+8. **Refines** — repeats synthesis+critique until the critique passes, the
    quality threshold is met, two rounds show no material improvement, or the
    round cap is hit (default 3, max 5).
 
@@ -92,6 +97,7 @@ endpoint, not the model family.
 | GitHub Models | `GITHUB_MODELS_TOKEN` | <https://github.com/marketplace?type=models> |
 | Cloudflare Workers AI | `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID` | <https://developers.cloudflare.com/workers-ai/> |
 | Cohere | `COHERE_API_KEY` | <https://dashboard.cohere.com/api-keys> |
+| Brave Search (web research) | `BRAVE_SEARCH_API_KEY` | <https://brave.com/search/api/> |
 
 None of the above require a payment card for their free tier at the time of
 writing. Always confirm with `fcc-council providers validate`.
@@ -109,8 +115,12 @@ mkdir -p ~/.fcc && cp assets/council.example.yaml ~/.fcc/council.yaml
 ```
 
 Key settings: `depth` (`quick`/`standard`/`deep`, default `deep`), `max_rounds`
-(≤5), `quality_threshold` (0.85), `privacy` (`redacted` default),
-`enabled_providers`, `minimum_models`/`minimum_distinct_providers`.
+(≤5), `quality_threshold` (0.85), `convergence_threshold` (0.98 — stop once a
+synthesis reproduces the previous answer this closely), `privacy` (`redacted`
+default), `enabled_providers`, `minimum_models`/`minimum_distinct_providers`,
+`call_timeout_s` (per-call ceiling, default 90 s), and the research knobs
+`research_enabled`, `research_max_sources`, `research_tokens_per_source`,
+`research_tokens_total`, `research_fetch_timeout_s`.
 
 The `ALLOW_PAID_MODELS` environment variable always overrides the file and
 defaults to `false`.
@@ -125,6 +135,7 @@ Assume free providers may log or reuse inputs. Modes:
   masked before anything leaves the machine.
 - `local_only` — only local providers (LM Studio / llama.cpp / Ollama) are used;
   if none are available the council **fails** rather than sending to the cloud.
+  Web research is disabled in this mode (it would reach an external engine).
 
 File inputs must live under allowed roots (default: the current directory) and
 respect a size cap. Prompts and responses are never logged verbatim; logs are
@@ -158,16 +169,20 @@ fcc-council benchmark            # small local calibration
 fcc-council evaluate "question"
 fcc-council evaluate --depth deep --task-type architecture "question"
 fcc-council evaluate --file path/to/file.py "review this"
+fcc-council evaluate --research on "current Cloudflare Workers CPU limits"
 fcc-council evaluate --output json "question"   # full structured payload
 fcc-council serve-mcp            # start the MCP server (stdio)
 fcc-council install-claude-skill
 ```
 
+`--research` accepts `auto` (default — fires only on currency-sensitive
+prompts), `on`, or `off`.
+
 Default output is Markdown; `--output json` returns the full structured result.
 
 ## MCP tools
 
-- `evaluate(prompt, task_type="auto", depth="deep", files=[], privacy="redacted", max_rounds=3)`
+- `evaluate(prompt, task_type="auto", depth="deep", files=[], privacy="redacted", max_rounds=3, research="auto")`
 - `list_models()`
 - `get_config()`
 - `check_providers()`
@@ -181,17 +196,46 @@ Default output is Markdown; `--output json` returns the full structured result.
   "recommended_action": "...",
   "material_disagreements": [],
   "uncertainties": [],
-  "confidence": 0.0,
+  "confidence": null,
+  "confidence_source": "critic",
   "models_used": [],
   "providers_used": [],
   "rounds": 0,
   "quota_failures": [],
+  "research": null,
+  "elapsed_s": 0.0,
   "report_path": "~/.fcc/council_reports/council-....json"
 }
 ```
 
+`confidence` is the critic's score, or `null` when no trustworthy critique was
+produced (`confidence_source` is `"critic"` or `"unavailable"` — never a
+fabricated `0.0`). `research` is `null` unless a research pass ran, in which case
+it carries `{backend, queries, sources_fetched, note}`. Any URL in the answer
+that research did **not** fetch is marked `(URL recordada, no verificada en esta
+ejecución)` — a citation is never trusted on the model's word alone.
+
 The full deliberation (all proposals, reviews, rounds) is written to
 `report_path`, not returned inline.
+
+## Web research
+
+When `research` is `auto` (default), the local process runs a search-and-fetch
+pass **before** the models propose, but only if the prompt hinges on current
+facts — versions, limits, prices, dates, or official docs. Set `research="on"`
+to force it, or `"off"` to skip it. It is always skipped under `local_only`
+privacy.
+
+- **Search** uses Brave Search API when `BRAVE_SEARCH_API_KEY` is set; otherwise
+  the keyless DuckDuckGo HTML endpoint.
+- **Fetch + extract** downloads the top results and strips them to text, capped
+  by `research_tokens_per_source` / `research_tokens_total`.
+- **Injection** adds the sources as verified context the panel is told to trust
+  over its training memory, citing `[S#]`.
+- **Offline** degrades gracefully: the run continues and surfaces a
+  `research unavailable` note in `uncertainties`.
+
+The sources fetched are recorded under `research.sources_fetched`.
 
 ## Seeing quota and errors
 
@@ -201,6 +245,11 @@ The full deliberation (all proposals, reviews, rounds) is written to
 - Circuit breaking benches a provider after auth failures, 429s or exhausted
   quota, and recovers automatically once the window resets (respecting
   `Retry-After`).
+- A hard quota exhaustion is remembered per model for the rest of the day, so a
+  later run skips that model instead of spending a call to rediscover the 429.
+- `fcc-council serve-mcp` logs to `~/.fcc/logs/council-mcp.log` (JSON lines,
+  appended across restarts — unlike other FCC logs it is not truncated on
+  start, since the server is long-lived).
 
 ## Empirical model selection
 

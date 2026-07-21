@@ -8,6 +8,9 @@ does not require it.
 
 from typing import Any
 
+from free_claude_code.config.logging_config import configure_logging
+from free_claude_code.config.paths import council_mcp_log_path
+
 from .config import load_config
 from .errors import InsufficientFreeModelsError
 from .service import CouncilService
@@ -20,6 +23,7 @@ async def _evaluate(
     files: list[str] | None,
     privacy: str | None,
     max_rounds: int | None,
+    research: str,
 ) -> dict[str, Any]:
     service = CouncilService.create(config=load_config())
     try:
@@ -30,6 +34,7 @@ async def _evaluate(
             files=files or [],
             privacy=privacy,
             max_rounds=max_rounds,
+            research=research,
         )
     except InsufficientFreeModelsError as exc:
         return {
@@ -143,9 +148,17 @@ def build_server() -> Any:
         files: list[str] | None = None,
         privacy: str | None = "redacted",
         max_rounds: int | None = 3,
+        research: str = "auto",
     ) -> dict[str, Any]:
-        """Run a free-only multi-model deliberation and return a compact result."""
-        return await _evaluate(prompt, task_type, depth, files, privacy, max_rounds)
+        """Run a free-only multi-model deliberation and return a compact result.
+
+        ``research`` ("auto" | "on" | "off") controls the web-research phase:
+        "auto" fetches sources only when the prompt hinges on current facts
+        (versions, limits, prices, docs). Disabled under local_only privacy.
+        """
+        return await _evaluate(
+            prompt, task_type, depth, files, privacy, max_rounds, research
+        )
 
     @server.tool()
     async def list_models() -> dict[str, Any]:
@@ -172,4 +185,5 @@ def build_server() -> Any:
 
 def run_stdio() -> None:
     """Start the MCP server over stdio."""
+    configure_logging(council_mcp_log_path(), truncate=False)
     build_server().run()

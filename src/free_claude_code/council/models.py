@@ -214,6 +214,7 @@ class Round:
     index: int
     synthesis: Synthesis
     critique: Critique
+    elapsed_s: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -222,6 +223,26 @@ class QuotaFailure:
 
     provider: str
     reason: str
+
+
+@dataclass(frozen=True, slots=True)
+class ResearchSummary:
+    """SDK-free record of a web-research pass, serialised in the result.
+
+    Kept in ``models`` (not ``research``) so the result stays dependency-free and
+    both ``compact()`` and the on-disk report can serialise it without importing
+    the httpx-backed research module.
+    """
+
+    backend: str
+    queries: list[str] = field(default_factory=list)
+    sources_fetched: list[str] = field(default_factory=list)
+    note: str = ""
+
+    @property
+    def unavailable(self) -> bool:
+        """True when research ran but produced no usable sources."""
+        return not self.sources_fetched
 
 
 @dataclass(slots=True)
@@ -237,6 +258,7 @@ class CouncilResult:
     providers_used: list[str] = field(default_factory=list)
     quota_failures: list[QuotaFailure] = field(default_factory=list)
     stop_reason: str = ""
+    research: ResearchSummary | None = None
     started_at: float = field(default_factory=time.time)
     finished_at: float | None = None
 
@@ -261,13 +283,32 @@ class CouncilResult:
         else:
             confidence = None
             confidence_source = "unavailable"
+        elapsed_s = (
+            round(self.finished_at - self.started_at, 1)
+            if self.finished_at is not None
+            else None
+        )
+        # Surface any research degradation to the consumer as an explicit
+        # uncertainty — silently answering from stale memory is the failure mode
+        # research exists to prevent.
+        uncertainties = list(synthesis.uncertainties) if synthesis else []
+        research: dict[str, object] | None = None
+        if self.research is not None:
+            research = {
+                "backend": self.research.backend,
+                "queries": list(self.research.queries),
+                "sources_fetched": list(self.research.sources_fetched),
+                "note": self.research.note,
+            }
+            if self.research.note:
+                uncertainties.append(self.research.note)
         return {
             "answer": synthesis.final_answer if synthesis else "",
             "recommended_action": synthesis.recommended_action if synthesis else "",
             "material_disagreements": (
                 list(synthesis.material_disagreements) if synthesis else []
             ),
-            "uncertainties": list(synthesis.uncertainties) if synthesis else [],
+            "uncertainties": uncertainties,
             "confidence": confidence,
             "confidence_source": confidence_source,
             "models_used": list(self.models_used),
@@ -280,4 +321,6 @@ class CouncilResult:
             "task_type": self.task_type.value,
             "depth": self.depth.value,
             "stop_reason": self.stop_reason,
+            "research": research,
+            "elapsed_s": elapsed_s,
         }

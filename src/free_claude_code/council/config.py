@@ -95,6 +95,10 @@ class CouncilConfig(BaseModel):
     # least this margin.
     improvement_epsilon: float = Field(default=0.02, ge=0.0)
 
+    # Stop refining as soon as a synthesis reproduces the previous round's answer
+    # at or above this textual similarity — further rounds would not change it.
+    convergence_threshold: float = Field(default=0.98, ge=0.0, le=1.0)
+
     roles: dict[str, RoleSpec] = Field(default_factory=dict)
 
     # Per-request output cap for each model call.
@@ -105,6 +109,19 @@ class CouncilConfig(BaseModel):
     # stall the whole deliberation (observed: a 159s/call model as synthesiser
     # dragged a deep run past 10 minutes).
     call_timeout_s: float = Field(default=90.0, gt=0.0)
+
+    # --- Web research (Phase 2.5) ------------------------------------------
+    # When enabled and the prompt hinges on current facts (versions, limits,
+    # prices, docs), the local process searches and fetches sources before the
+    # panel proposes, then injects them through the existing ``context`` seam.
+    research_enabled: bool = True
+    research_max_sources: int = Field(default=4, ge=1, le=10)
+    # Token budgets (≈4 chars/token) that cap how much fetched text reaches the
+    # panel. The total stays modest so it fits alongside a prompt even for
+    # short-context free models (e.g. Cerebras ≈ 8K).
+    research_tokens_per_source: int = Field(default=2000, ge=200)
+    research_tokens_total: int = Field(default=6000, ge=500)
+    research_fetch_timeout_s: float = Field(default=15.0, gt=0.0)
 
     def depth_profile(self, depth: Depth | None = None) -> DepthProfile:
         chosen = depth or self.depth

@@ -49,6 +49,12 @@ def _build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--privacy", choices=["public", "redacted", "local_only"])
     evaluate.add_argument("--max-rounds", type=int)
     evaluate.add_argument("--criteria", default="")
+    evaluate.add_argument(
+        "--research",
+        choices=["auto", "on", "off"],
+        default="auto",
+        help="Web-research phase: auto (currency prompts only), on, or off.",
+    )
 
     usage = sub.add_parser("usage", help="Show approximate token/request usage.")
     usage.add_argument("--day", default=None, help="YYYY-MM-DD (default: today).")
@@ -120,6 +126,7 @@ async def _run_async(args: argparse.Namespace) -> None:
                 privacy=args.privacy,
                 max_rounds=args.max_rounds,
                 criteria=args.criteria,
+                research=args.research,
             )
             _emit(
                 args.output,

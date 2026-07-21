@@ -6,6 +6,7 @@
 depth: deep # quick | standard | deep
 max_rounds: 3 # hard ceiling, 1..5
 quality_threshold: 0.85 # stop refining once the critique score reaches this
+convergence_threshold: 0.98 # stop once a synthesis repeats the previous answer
 parallel_proposals: true
 privacy: redacted # public | redacted | local_only
 
@@ -34,6 +35,20 @@ minimum_models: 3
 maximum_models: 5
 minimum_distinct_providers: 3
 max_tokens_per_call: 2048
+
+# Hard wall-clock ceiling for any single model call (seconds). A model that
+# exceeds it is treated as a provider failure so one slow model cannot stall the
+# whole deliberation.
+call_timeout_s: 90
+
+# Web research (Phase 2.5). When enabled and the prompt hinges on current facts
+# (versions, limits, prices, docs), the local process searches and fetches
+# sources before the panel proposes. Disabled under local_only privacy.
+research_enabled: true
+research_max_sources: 4
+research_tokens_per_source: 2000 # per-source budget (≈4 chars/token)
+research_tokens_total: 6000 # global budget across all sources
+research_fetch_timeout_s: 15
 
 # Optional: capability preferences per task category (advisory).
 roles:

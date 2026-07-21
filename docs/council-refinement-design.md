@@ -209,9 +209,12 @@ Design choices that make this safe and cheap for Claude Code:
   compare proposals, evaluate architecture/plan, save context) and to send only
   the needed context, never secrets.
 
-The first pending item (budget-class routing) is the most impactful next step: it
-turns "we have the models" into "we spend the right model on the right role
-without exhausting the scarce free quotas."
+Beyond this core flow, the reliability layer (honest critique scores, per-call
+timeouts + latency-aware selection, persistent MCP logging, a web-research phase,
+evidence-based resolution of factual disagreements, and citation discipline) has
+shipped — see `council.md`. The remaining unchecked items above (role-capability
+wiring, optional second-pass, benchmark seeding) are advisory refinements, not
+blockers.
 
 ---
 
