@@ -1,0 +1,18 @@
+[Unit]
+Description=Free Claude Code proxy (fcc-server)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.fcc/.env
+WorkingDirectory=%h
+ExecStart=%h/.local/bin/fcc-server
+Restart=on-failure
+RestartSec=3
+# Keep logs under the managed FCC directory when possible.
+StandardOutput=append:%h/.fcc/logs/server.log
+StandardError=append:%h/.fcc/logs/server.log
+
+[Install]
+WantedBy=default.target

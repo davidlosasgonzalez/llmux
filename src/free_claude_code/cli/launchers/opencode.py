@@ -8,6 +8,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 
 from free_claude_code.cli.proxy_auth import proxy_auth_token
+from free_claude_code.config.model_refs import parse_model_fallbacks
 from free_claude_code.config.paths import OPENCODE_CONFIG_FILENAME, config_dir_path
 from free_claude_code.config.server_urls import local_proxy_root_url
 from free_claude_code.config.settings import Settings, get_settings
@@ -45,6 +46,7 @@ def launch(argv: Sequence[str] | None = None) -> None:
         proxy_root_url=proxy_root_url,
         auth_token=settings.anthropic_auth_token,
         model=resolve_opencode_model(settings),
+        fallback_models=parse_model_fallbacks(settings.model_fallbacks),
         council_command=resolve_council_command(),
     )
     args = list(sys.argv[1:] if argv is None else argv)
@@ -90,11 +92,36 @@ def build_opencode_config_dict(
     auth_token: str,
     model: str,
     council_command: Sequence[str],
+    fallback_models: Sequence[str] = (),
+    reviewer_model: str | None = None,
 ) -> dict[str, object]:
     """Return OpenCode config that routes through FCC and registers Council MCP."""
 
     model_id = model.strip() or "claude-sonnet-4-5"
-    return {
+    models: dict[str, object] = {
+        model_id: {"name": f"FCC ({model_id})"},
+    }
+    for fallback in fallback_models:
+        text = fallback.strip()
+        if text and text not in models:
+            models[text] = {"name": f"FCC ({text})"}
+
+    review_model = (reviewer_model or "").strip()
+    if not review_model:
+        for fallback in fallback_models:
+            if fallback.strip() and fallback.strip() != model_id:
+                review_model = fallback.strip()
+                break
+    if review_model and review_model not in models:
+        models[review_model] = {"name": f"FCC ({review_model})"}
+
+    agents: dict[str, object] = {
+        "build": {
+            "mode": "primary",
+            "model": f"fcc/{model_id}",
+        },
+    }
+    config: dict[str, object] = {
         "$schema": "https://opencode.ai/config.json",
         "model": f"fcc/{model_id}",
         "provider": {
@@ -105,11 +132,7 @@ def build_opencode_config_dict(
                     "baseURL": anthropic_compatible_base_url(proxy_root_url),
                     "apiKey": proxy_auth_token(auth_token),
                 },
-                "models": {
-                    model_id: {
-                        "name": f"FCC ({model_id})",
-                    }
-                },
+                "models": models,
             }
         },
         "mcp": {
@@ -119,7 +142,36 @@ def build_opencode_config_dict(
                 "enabled": True,
             }
         },
+        "agent": agents,
+        "command": {
+            "council": {
+                "description": "Run free multi-model council deliberation via MCP",
+                "template": (
+                    "Run a free-only council deliberation on: $ARGUMENTS\n"
+                    "Use the free-llm-verdict MCP tool `evaluate` with depth quick "
+                    "(research on when facts matter). Return the verdict and key dissent."
+                ),
+            }
+        },
     }
+    if review_model:
+        agents["second-opinion"] = {
+            "description": (
+                "Second-opinion reviewer using a different FCC model family; "
+                "read-only critique of plans and patches"
+            ),
+            "mode": "subagent",
+            "model": f"fcc/{review_model}",
+            "prompt": (
+                "You are a skeptical code reviewer. Critique plans and diffs. "
+                "Do not edit files; prefer read/grep tools. Be concrete."
+            ),
+            "permission": {
+                "edit": "deny",
+                "bash": "ask",
+            },
+        }
+    return config
 
 
 def write_opencode_config(
@@ -128,6 +180,7 @@ def write_opencode_config(
     auth_token: str,
     model: str,
     council_command: Sequence[str],
+    fallback_models: Sequence[str] = (),
     config_dir: Path | None = None,
 ) -> Path:
     """Write generated OpenCode config under ``~/.fcc/`` and return its path."""
@@ -140,6 +193,7 @@ def write_opencode_config(
         auth_token=auth_token,
         model=model,
         council_command=council_command,
+        fallback_models=fallback_models,
     )
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     return path

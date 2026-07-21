@@ -83,10 +83,14 @@ más del propio proxy (`POST /v1/messages`), igual que hoy lo es Claude Code.
 
 ## Papel del Council
 
-Fuera del camino por-tool-call. El harness puede invocarlo como revisor
-opcional en pasos difíciles (planificación, decisiones de diseño), igual
-que se invoca desde Claude Code — y, tras la Fase 5, desde OpenCode — vía
-el MCP `free-llm-verdict`.
+Fuera del camino por-tool-call. El harness / OpenCode puede invocarlo como
+revisor opcional en pasos difíciles (planificación, bugs que resisten 2
+intentos, revisión de diseño) vía MCP `free-llm-verdict` o `/council`.
+
+**Decisión C8 (2026-07-21):** Council permanece en ese nicho; no es el path
+por defecto. La segunda opinión barata la cubre `@second-opinion` (C9). Las
+`model_stats` de `~/.fcc/council.db` + el eval C1 ordenan `MODEL_FALLBACKS`
+(C10). Detalle: `docs/evals/2026-07-21-c8-council-ab.md`.
 
 ## Fases
 
@@ -100,9 +104,10 @@ el MCP `free-llm-verdict`.
    `messaging/` (opt-in), aprobación remota con timeout→deny, cola de
    trabajos desatendidos. Botones Telegram/Discord: **descartados** (giro a
    SSH).
-5. **Integración OpenCode** — ✅ (2026-07-21, `4.12.0`): B1 snippet
-   validado (OpenCode 1.18.4), `fcc-opencode`, MCP Council, `docs/deploy-server.md`,
-   smoke prereq y `fcc-agent jobs`.
+5. **Integración OpenCode** — ✅ (2026-07-21, `4.12.0`): B1–B6.
+6. **v1 servidor: continuidad + calidad** — ✅ (2026-07-21, `4.13.0`): C1–C10
+   (eval kimi, `MODEL_FALLBACKS` pre-commit, launcher multi-modelo, Council
+   nicho, systemd, cuotas SSH, second-opinion, checklist).
 
 ## Implementación
 
@@ -217,4 +222,30 @@ fcc-agent jobs result <job_id>
 
 Cola desatendida (B6): `~/.fcc/agent_jobs/{id}.json` + worker detachado
 (`fcc-agent jobs _run`). Sustituye la superficie messaging para jobs vía SSH.
+
+### Fase 6 — v1 servidor (diseño, pendiente)
+
+Decisiones clave (detalle de tareas C1–C7 en el backlog):
+
+- **Fallback solo pre-commit.** La cadena `MODEL_FALLBACKS` actúa cuando el
+  fallo (429/cuota/5xx persistente) ocurre **antes del primer byte SSE
+  emitido** al cliente; un stream ya comenzado nunca cambia de modelo
+  (semántica de commit-boundary del proxy). Mid-stream sigue la
+  recuperación existente contra el mismo proveedor. Reutiliza `core/quota`
+  (tracker + agotamiento diario) — misma lógica que `FallbackProxyClient`
+  del harness, elevada al camino del proxy para que OpenCode/Claude
+  Code/Codex la hereden sin cambios.
+- **La config OpenCode la genera el launcher en cada arranque** — cualquier
+  mejora (lista multi-modelo) va en `build_opencode_config_dict`, nunca en
+  ediciones manuales de `~/.fcc/opencode.json`.
+- **Política de modelos basada en eval, no en opinión.** Los IDs free
+  cambian cada pocas semanas: C1 deja un script repetible que puntúa
+  candidatos reales de `/v1/models` en tareas agénticas. `github_models/*`
+  queda excluido de la cadena de chat (tope ~4k tokens/request en free).
+- **Council fuera del per-turno.** Se sistematiza vía `AGENTS.md`
+  (planificación, bugs resistentes, revisión de diseño), no en cada tool
+  call.
+- **Honestidad sobre "tipo Sonnet":** ningún free alcanza Sonnet 4.5
+  sostenido en agentic coding; default fuerte + cadena + Council acorta la
+  distancia, no la cierra.
 

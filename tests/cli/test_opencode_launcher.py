@@ -26,11 +26,16 @@ def test_anthropic_compatible_base_url_appends_v1():
 
 
 def test_build_opencode_config_includes_fcc_provider_and_mcp():
-    cfg = build_opencode_config_dict(
-        proxy_root_url="http://127.0.0.1:8082",
-        auth_token="",
-        model="cerebras/gpt-oss-120b",
-        council_command=["fcc-council", "serve-mcp"],
+    cfg = json.loads(
+        json.dumps(
+            build_opencode_config_dict(
+                proxy_root_url="http://127.0.0.1:8082",
+                auth_token="",
+                model="cerebras/gpt-oss-120b",
+                council_command=["fcc-council", "serve-mcp"],
+                fallback_models=["open_router/deepseek/deepseek-v3.2"],
+            )
+        )
     )
     assert cfg["model"] == "fcc/cerebras/gpt-oss-120b"
     provider = cfg["provider"]["fcc"]
@@ -38,10 +43,13 @@ def test_build_opencode_config_includes_fcc_provider_and_mcp():
     assert provider["options"]["baseURL"] == "http://127.0.0.1:8082/v1"
     assert provider["options"]["apiKey"] == "fcc-no-auth"
     assert "cerebras/gpt-oss-120b" in provider["models"]
+    assert "open_router/deepseek/deepseek-v3.2" in provider["models"]
     mcp = cfg["mcp"]["free-llm-verdict"]
     assert mcp["type"] == "local"
     assert mcp["command"] == ["fcc-council", "serve-mcp"]
     assert mcp["enabled"] is True
+    assert "second-opinion" in cfg["agent"]
+    assert cfg["command"]["council"]["template"]
 
 
 def test_write_opencode_config_roundtrip(tmp_path: Path):
