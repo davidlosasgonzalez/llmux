@@ -66,6 +66,30 @@ previsto** — la superficie de control es SSH, no messaging. No se extienden.
 Fuera de v1 (consciente): RAG (A10), validación happy-path de tool calls en
 el proxy (v1.5), cambio de modelo mid-stream, messaging como canal.
 
+## Fase 7 — observabilidad y resiliencia
+
+- [x] **C11 — Trazabilidad por turno (`fcc-trace`).** ✅ (`4.14.0`).
+  `observability/turn_trace.py` + CLI: agrupa `server.log` por `request_id`
+  y explica dónde se fue el tiempo (rate-limit wait/blocks, 429s, retries,
+  modelo, fallbacks, outcome). Reveló: turno de 34s = 96% rate-limit,
+  13× 429 de Cerebras free.
+- [ ] **C12 — Saltar antes ante 429 de free tier.** Que el fallback a otro
+  proveedor se dispare sin agotar los backoffs reactivos largos (hasta 16s)
+  del mismo proveedor. Es la cura real de "tareas sencillas tardan mucho".
+  Medir antes/después con `fcc-trace`. Toca `providers/rate_limit.py` /
+  `application/fallback.py`. MINOR. Acepta: turno equivalente al de hoy baja
+  de ~34s a <10s con `rate_limit_fraction` < 0.3.
+- [ ] **C13 — Auto-doctor (diagnóstico asistido por LLM, human-in-the-loop).**
+  Ante un patrón de fallo recurrente detectado por `fcc-trace`/quota (p. ej.
+  turno con >80% rate-limit, o cadena de fallback agotada), correr el
+  análisis con el Council y **emitir un informe** de qué pasó + ajuste de
+  config sugerido. **Línea roja:** puede proponer y, como mucho, aplicar
+  cambios de **config acotada y reversible** (reordenar `MODEL_FALLBACKS`,
+  degradar un modelo) con allowlist y log de cada acción; **nunca** editar
+  código ni desplegar solo. Acepta: diseño escrito + PoC de informe; sin
+  auto-edición de código. Empezar solo si C11/C12 en uso lo justifican.
+
 ## Nota de versionado
 
 Fase 6 → `4.13.0` (+ `uv lock`) por C2/C3/C9 (producción).
+Fase 7 → `4.14.0` (C11, `fcc-trace`). C12 será otro MINOR.
