@@ -30,6 +30,9 @@ from free_claude_code.config.model_refs import parse_provider_type
 from free_claude_code.config.paths import messaging_state_dir_path
 from free_claude_code.config.server_urls import local_admin_url, local_proxy_root_url
 from free_claude_code.config.settings import Settings, get_settings
+from free_claude_code.messaging.managed_protocols import (
+    ManagedClaudeSessionManagerProtocol,
+)
 from free_claude_code.messaging.platforms import factory as messaging_platform_factory
 from free_claude_code.messaging.platforms.factory import MessagingPlatformOptions
 from free_claude_code.messaging.platforms.ports import (
@@ -116,7 +119,8 @@ class ApplicationRuntime:
         self._messaging_workflow: messaging_workflow_module.MessagingWorkflow | None = (
             None
         )
-        self._cli_manager: cli_managed.ManagedClaudeSessionManager | None = None
+        self._cli_manager: ManagedClaudeSessionManagerProtocol | None = None
+        self._approval_broker: Any | None = None
         self._started = False
         self._closed = False
         self._provider_manager_closed = False
@@ -130,6 +134,11 @@ class ApplicationRuntime:
     def is_closed(self) -> bool:
         """Whether this runtime released its complete ownership graph."""
         return self._closed
+
+    @property
+    def approval_broker(self) -> Any | None:
+        """Remote tool-approval broker when MESSAGING_SESSION_BACKEND=agent."""
+        return self._approval_broker
 
     async def start(self) -> None:
         if self._started:
@@ -366,14 +375,45 @@ class ApplicationRuntime:
         os.makedirs(data_path, exist_ok=True)
         allowed_dirs = [workspace] if settings.allowed_dir else []
 
-        self._cli_manager = cli_managed.ManagedClaudeSessionManager(
-            workspace_path=workspace,
-            proxy_root_url=local_proxy_root_url(settings),
-            allowed_dirs=allowed_dirs,
-            auth_token=settings.anthropic_auth_token,
-            log_raw_cli_diagnostics=settings.log_raw_cli_diagnostics,
-            log_messaging_error_details=settings.log_messaging_error_details,
-        )
+        if settings.messaging_session_backend == "agent":
+            from free_claude_code.agent.managed_adapter import (
+                AgentManagedSessionManager,
+            )
+            from free_claude_code.agent.remote_permissions import (
+                ApprovalBroker,
+                RemotePermissionGate,
+            )
+            from free_claude_code.config.paths import config_dir_path
+
+            broker = ApprovalBroker(
+                timeout_s=settings.messaging_agent_approval_timeout_s
+            )
+            permissions = RemotePermissionGate(
+                broker,
+                auto_approve=settings.messaging_agent_auto_approve,
+            )
+            self._approval_broker = broker
+            self._cli_manager = AgentManagedSessionManager(
+                workspace_path=workspace,
+                proxy_root_url=local_proxy_root_url(settings),
+                auth_token=settings.anthropic_auth_token,
+                model=settings.model,
+                permissions=permissions,
+                exhaustion_db=str(config_dir_path() / "agent_quota.db"),
+                job_timeout_s=settings.messaging_agent_job_timeout_s,
+            )
+            logger.info("messaging session backend: own-agent harness")
+        else:
+            self._approval_broker = None
+            self._cli_manager = cli_managed.ManagedClaudeSessionManager(
+                workspace_path=workspace,
+                proxy_root_url=local_proxy_root_url(settings),
+                allowed_dirs=allowed_dirs,
+                auth_token=settings.anthropic_auth_token,
+                log_raw_cli_diagnostics=settings.log_raw_cli_diagnostics,
+                log_messaging_error_details=settings.log_messaging_error_details,
+            )
+            logger.info("messaging session backend: Claude Code CLI")
         session_store = messaging_session.SessionStore(
             storage_path=os.path.join(data_path, "sessions.json"),
             managed_message_cap=settings.max_message_log_entries_per_chat,
@@ -444,6 +484,7 @@ class ApplicationRuntime:
                 self._messaging_workflow = None
             if self._cli_manager is cli_manager:
                 self._cli_manager = None
+                self._approval_broker = None
         elif cli_manager is not None:
             drained = await best_effort(
                 "cli_manager.stop_all",
@@ -454,6 +495,7 @@ class ApplicationRuntime:
                 return False
             if self._cli_manager is cli_manager:
                 self._cli_manager = None
+                self._approval_broker = None
 
         if runtime is not None:
             closed = await best_effort(

@@ -1,5 +1,6 @@
 """Shared filesystem paths for Free Claude Code configuration."""
 
+import os
 from pathlib import Path
 
 FCC_CONFIG_DIRNAME = ".fcc"
@@ -11,6 +12,8 @@ FCC_LOGS_DIRNAME = "logs"
 SERVER_LOG_FILENAME = "server.log"
 COUNCIL_MCP_LOG_FILENAME = "council-mcp.log"
 CODEX_MODEL_CATALOG_FILENAME = "codex-model-catalog.json"
+AGENT_JOBS_DIRNAME = "agent_jobs"
+OPENCODE_CONFIG_FILENAME = "opencode.json"
 
 
 def config_dir_path() -> Path:
@@ -57,3 +60,18 @@ def codex_model_catalog_path() -> Path:
     """Return the generated Codex model catalog path."""
 
     return config_dir_path() / CODEX_MODEL_CATALOG_FILENAME
+
+
+def agent_jobs_dir_path() -> Path:
+    """Return the directory for persisted ``fcc-agent jobs`` records."""
+
+    override = os.environ.get("FCC_AGENT_JOBS_DIR", "").strip()
+    if override:
+        return Path(override).expanduser()
+    return config_dir_path() / AGENT_JOBS_DIRNAME
+
+
+def opencode_config_path() -> Path:
+    """Return the generated OpenCode config path written by ``fcc-opencode``."""
+
+    return config_dir_path() / OPENCODE_CONFIG_FILENAME

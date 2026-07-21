@@ -8,6 +8,8 @@ import time
 from dataclasses import dataclass, field
 from enum import StrEnum
 
+from free_claude_code.core.quota import FailureKind as FailureKind
+
 
 class TaskType(StrEnum):
     """Deliberation categories used to pick roles and models."""
@@ -76,23 +78,6 @@ class Verdict(StrEnum):
     PASS = "pass"
     REVISE = "revise"
     REJECT = "reject"
-
-
-class FailureKind(StrEnum):
-    """Normalised classification of a provider failure.
-
-    Keeps quota accounting and fallback decisions independent of the concrete
-    exception type raised by any single provider adapter.
-    """
-
-    AUTHENTICATION = "authentication_failure"
-    RATE_LIMITED = "rate_limited"
-    QUOTA_EXHAUSTED = "quota_exhausted"
-    MODEL_UNAVAILABLE = "model_unavailable"
-    UNSUPPORTED_CAPABILITY = "unsupported_capability"
-    INVALID_STRUCTURED_OUTPUT = "invalid_structured_output"
-    PROVIDER_FAILURE = "provider_failure"
-    UNKNOWN_COST = "unknown_cost"
 
 
 @dataclass(frozen=True, slots=True)

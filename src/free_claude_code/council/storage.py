@@ -13,6 +13,13 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from free_claude_code.core.quota.exhaustion import (
+    exhausted_keys as _exhausted_keys,
+)
+from free_claude_code.core.quota.exhaustion import (
+    record_exhaustion as _record_exhaustion,
+)
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS model_stats (
     model_key TEXT NOT NULL,
@@ -232,20 +239,11 @@ class CouncilStore:
         Lets a later run on the same day skip a model already known to be out of
         quota, instead of spending a call to rediscover the 429.
         """
-        self._conn.execute(
-            "INSERT OR IGNORE INTO quota_exhaustion (model_key, provider, day) "
-            "VALUES (?, ?, ?)",
-            (model_key, provider, day),
-        )
-        self._conn.commit()
+        _record_exhaustion(self._conn, model_key, provider, day)
 
     def exhausted_keys(self, day: str) -> set[str]:
         """Model keys known to have exhausted their free quota on ``day``."""
-        rows = self._conn.execute(
-            "SELECT model_key FROM quota_exhaustion WHERE day = ?",
-            (day,),
-        ).fetchall()
-        return {row["model_key"] for row in rows}
+        return _exhausted_keys(self._conn, day)
 
     def usage_rows(self, day: str | None = None) -> list[UsageRow]:
         """Return usage rows, optionally filtered to a single ``day``."""

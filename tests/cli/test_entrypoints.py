@@ -180,6 +180,7 @@ def test_cli_scripts_are_registered() -> None:
     assert scripts["fcc-claude"] == "free_claude_code.cli.launchers.claude:launch"
     assert scripts["fcc-codex"] == "free_claude_code.cli.launchers.codex:launch"
     assert scripts["fcc-pi"] == "free_claude_code.cli.launchers.pi:launch"
+    assert scripts["fcc-opencode"] == "free_claude_code.cli.launchers.opencode:launch"
 
 
 @pytest.mark.parametrize("entrypoint_name", ["serve", "init"])

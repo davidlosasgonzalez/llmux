@@ -103,6 +103,20 @@ class Settings(BaseSettings):
     messaging_rate_window: float = Field(
         default=1.0, validation_alias="MESSAGING_RATE_WINDOW"
     )
+    # "claude" = ManagedClaudeSessionManager (Claude Code binary).
+    # "agent" = own-agent harness (no --dangerously-skip-permissions).
+    messaging_session_backend: str = Field(
+        default="claude", validation_alias="MESSAGING_SESSION_BACKEND"
+    )
+    messaging_agent_job_timeout_s: float = Field(
+        default=600.0, validation_alias="MESSAGING_AGENT_JOB_TIMEOUT_S"
+    )
+    messaging_agent_approval_timeout_s: float = Field(
+        default=120.0, validation_alias="MESSAGING_AGENT_APPROVAL_TIMEOUT_S"
+    )
+    messaging_agent_auto_approve: bool = Field(
+        default=False, validation_alias="MESSAGING_AGENT_AUTO_APPROVE"
+    )
 
     # ==================== NVIDIA NIM Config ====================
     nvidia_nim_api_key: str = ""
@@ -353,6 +367,25 @@ class Settings(BaseSettings):
     def validate_messaging_rate_window(cls, v: float) -> float:
         if v <= 0:
             raise ValueError("messaging_rate_window must be > 0")
+        return float(v)
+
+    @field_validator("messaging_session_backend")
+    @classmethod
+    def validate_messaging_session_backend(cls, v: str) -> str:
+        if v not in ("claude", "agent"):
+            raise ValueError(
+                f"messaging_session_backend must be 'claude' or 'agent', got {v!r}"
+            )
+        return v
+
+    @field_validator(
+        "messaging_agent_job_timeout_s",
+        "messaging_agent_approval_timeout_s",
+    )
+    @classmethod
+    def validate_messaging_agent_timeouts(cls, v: float) -> float:
+        if v <= 0:
+            raise ValueError("messaging agent timeouts must be > 0")
         return float(v)
 
     @field_validator("web_fetch_allowed_schemes")
