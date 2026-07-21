@@ -17,6 +17,7 @@ from free_claude_code.application.errors import ApplicationError, InvalidRequest
 from free_claude_code.application.execution import ProviderExecutor
 from free_claude_code.application.ports import ProviderResolver
 from free_claude_code.application.routing import ModelRouter
+from free_claude_code.config.paths import config_dir_path
 from free_claude_code.config.settings import Settings
 from free_claude_code.core.anthropic import MessagesRequest
 from free_claude_code.core.diagnostics import safe_exception_message
@@ -27,6 +28,7 @@ from free_claude_code.core.openai_responses import (
     openai_error_type_for_failure,
     openai_failure_payload,
 )
+from free_claude_code.core.quota import DailyExhaustionStore, QuotaTracker
 
 
 class ResponsesHandler:
@@ -49,6 +51,10 @@ class ResponsesHandler:
             provider_resolver,
             generation_id=generation_id,
             log_raw_payloads=settings.log_raw_api_payloads,
+            model_router=self._model_router,
+            model_fallbacks=settings.model_fallbacks,
+            quota=QuotaTracker(),
+            exhaustion=DailyExhaustionStore(config_dir_path() / "proxy_quota.db"),
         )
 
     async def create(

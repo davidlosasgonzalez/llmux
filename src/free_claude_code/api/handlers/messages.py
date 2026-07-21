@@ -35,6 +35,7 @@ from free_claude_code.application.errors import ApplicationError, InvalidRequest
 from free_claude_code.application.execution import ProviderExecutor, TokenCounter
 from free_claude_code.application.ports import ProviderResolver
 from free_claude_code.application.routing import ModelRouter, RoutedMessagesRequest
+from free_claude_code.config.paths import config_dir_path
 from free_claude_code.config.settings import Settings
 from free_claude_code.core.anthropic import (
     MessagesRequest,
@@ -47,6 +48,7 @@ from free_claude_code.core.anthropic import (
 )
 from free_claude_code.core.diagnostics import safe_exception_message
 from free_claude_code.core.failures import ExecutionFailure, find_execution_failure
+from free_claude_code.core.quota import DailyExhaustionStore, QuotaTracker
 from free_claude_code.core.trace import trace_event
 
 
@@ -85,6 +87,10 @@ class MessagesHandler:
             token_counter=token_counter,
             generation_id=generation_id,
             log_raw_payloads=settings.log_raw_api_payloads,
+            model_router=self._model_router,
+            model_fallbacks=settings.model_fallbacks,
+            quota=QuotaTracker(),
+            exhaustion=DailyExhaustionStore(config_dir_path() / "proxy_quota.db"),
         )
         self._message_intercepts: tuple[MessageIntercept, ...] = (
             self._intercept_web_server_tool,

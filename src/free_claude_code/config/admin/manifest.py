@@ -136,6 +136,17 @@ _NON_PROVIDER_FIELDS: tuple[ConfigFieldSpec, ...] = (
         description="Optional provider/model route for Haiku requests.",
     ),
     ConfigFieldSpec(
+        "MODEL_FALLBACKS",
+        "Model Fallbacks",
+        "models",
+        settings_attr="model_fallbacks",
+        default="",
+        description=(
+            "Comma-separated provider/model refs tried only before the first "
+            "SSE byte (429/quota/5xx). Never switches mid-stream."
+        ),
+    ),
+    ConfigFieldSpec(
         "ENABLE_MODEL_THINKING",
         "Enable Thinking",
         "thinking",

@@ -38,21 +38,34 @@ previsto** — la superficie de control es SSH, no messaging. No se extienden.
 
 ## Fase 5 — Integración OpenCode — ✅ (`4.12.0`)
 
-- [x] **B1 — Verificar config OpenCode vigente.** Validado contra OpenCode
-  `1.18.4` (`opencode debug config`). Snippet en `docs/own-agent.md`.
-  `baseURL` = `{proxy}/v1` + `@ai-sdk/anthropic`; MCP local
-  `type: local` + `command: [fcc-council, serve-mcp]`.
-- [x] **B2 — Launcher `fcc-opencode`.** Preflight proxy, escribe
-  `~/.fcc/opencode.json`, exporta `OPENCODE_CONFIG`, lanza binario.
-- [x] **B3 — MCP `free-llm-verdict` en OpenCode.** Registrado en la config
-  que genera el launcher.
-- [x] **B4 — Guía de despliegue en servidor.** `docs/deploy-server.md`.
-- [x] **B5 — Smoke E2E OpenCode→proxy.** `smoke/prereq/test_opencode_prereq_live.py`
-  (salta si no hay `opencode` / proxy).
-- [x] **B6 — CLI para la cola desatendida.** `fcc-agent jobs
-  enqueue|status|result` (+ `_run` worker) con persistencia en
-  `~/.fcc/agent_jobs/`.
+- [x] **B1–B6** — config OpenCode, `fcc-opencode`, MCP, deploy guide, smoke,
+  `fcc-agent jobs`.
+
+## Fase 6 — v1 servidor: continuidad + calidad — ✅ (`4.13.0`)
+
+- [x] **C1 — Política de modelos.** Eval + ganador
+  `open_router/moonshotai/kimi-k2.5` (`docs/evals/2026-07-21-c1-opencode-models.md`).
+- [x] **C2 — Fallback pre-commit.** `MODEL_FALLBACKS` +
+  `application/fallback.py` + `ProviderExecutor` (solo antes del primer
+  byte SSE). Admin field + `.env.example`.
+- [x] **C3 — Launcher multi-modelo.** `fcc-opencode` lista `MODEL` +
+  fallbacks.
+- [x] **C4 — Council sistemático.** `docs/opencode-agents.template.md` +
+  comando `/council` en config generada.
+- [x] **C5 — Arranque persistente.** `deploy/fcc-server.service` +
+  `docs/deploy-server.md`.
+- [x] **C6 — Cuotas SSH.** `fcc-council usage` + port-forward documentados.
+- [x] **C7 — Smoke continuidad.** `tests/application/test_fallback_continuity.py`
+  + checklist v1 en deploy guide.
+- [x] **C8 — A/B Council.** Decisión: Council en nicho, no default
+  (`docs/evals/2026-07-21-c8-council-ab.md`).
+- [x] **C9 — Subagente second-opinion.** Generado por launcher (otro modelo
+  de la cadena; docs OpenCode `agent` + `mode: subagent`).
+- [x] **C10 — Stats → fallbacks.** Procedimiento en `docs/deploy-server.md` §5.
+
+Fuera de v1 (consciente): RAG (A10), validación happy-path de tool calls en
+el proxy (v1.5), cambio de modelo mid-stream, messaging como canal.
 
 ## Nota de versionado
 
-Fase 5 → `4.12.0` (+ `uv lock`).
+Fase 6 → `4.13.0` (+ `uv lock`) por C2/C3/C9 (producción).

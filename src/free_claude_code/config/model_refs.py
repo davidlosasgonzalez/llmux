@@ -34,6 +34,12 @@ def parse_model_name(model_ref: str) -> str:
     return model_ref.split("/", 1)[1]
 
 
+def parse_model_fallbacks(raw: str) -> list[str]:
+    """Split a comma-separated ``MODEL_FALLBACKS`` setting into model refs."""
+
+    return [part.strip() for part in raw.split(",") if part.strip()]
+
+
 def configured_chat_model_refs(
     settings: ChatModelConfig,
 ) -> tuple[ConfiguredChatModelRef, ...]:
