@@ -19,7 +19,9 @@ ALLOWED_PACKAGE_DEPENDENCIES: dict[str, set[str]] = {
     "api": {"application", "config", "core"},
     "cli": {"config", "core"},
     "council": {"config", "core", "providers"},
+    "agent": {"cli", "config", "core"},
     "runtime": {
+        "agent",
         "api",
         "application",
         "cli",

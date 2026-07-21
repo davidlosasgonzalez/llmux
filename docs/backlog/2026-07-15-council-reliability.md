@@ -1,9 +1,8 @@
 # Backlog — Fiabilidad del Council (free-llm-verdict)
 
-> Origen: evaluación Opus vs MCP del 2026-07-15 (`docs/council-eval-findings.md`).
-> El bloque de fiabilidad (T1–T7) y los follow-ups internos se implementaron el
-> 2026-07-15 y están documentados en `docs/council.md`; el detalle histórico vive
-> en el git log. Este fichero lista solo lo que queda **pendiente**.
+> **Histórico / cerrado.** Origen: evaluación Opus vs MCP del 2026-07-15
+> (`docs/council-eval-findings.md`). T1–T7 y follow-ups están hechos; no hay
+> pendientes accionables aquí. Detalle vivo en `docs/council.md` y el git log.
 
 ## Hecho — backends de research
 
