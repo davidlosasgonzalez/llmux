@@ -186,7 +186,6 @@ def _write_initial_managed_config(home: Path, upstream: FakeOpenAIUpstream) -> N
                 f"LM_STUDIO_BASE_URL={upstream.base_url}",
                 "ANTHROPIC_AUTH_TOKEN=",
                 "ENABLE_MODEL_THINKING=false",
-                "MESSAGING_PLATFORM=none",
                 "",
             ]
         ),

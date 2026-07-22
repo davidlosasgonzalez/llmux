@@ -1,11 +1,9 @@
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from fastapi.testclient import TestClient
 
 from free_claude_code.api.dependencies import get_settings
-from free_claude_code.api.ports import ApiServices
-from free_claude_code.application.ports import StopResult
 from free_claude_code.config.settings import Settings
 from tests.api.support import create_test_app
 
@@ -150,37 +148,3 @@ def test_count_tokens_error_returns_500(client):
 
     assert response.status_code == 500
     assert "token error" in response.json()["detail"]
-
-
-def test_stop_cli_with_messaging_workflow(client):
-    session_control = MagicMock()
-    session_control.stop_all = AsyncMock(return_value=StopResult(cancelled_count=3))
-    services = app.state.services
-    app.state.services = ApiServices(
-        requests=services.requests,
-        admin=services.admin,
-        tasks=session_control,
-    )
-
-    response = client.post("/stop")
-
-    assert response.status_code == 200
-    assert response.json()["cancelled_count"] == 3
-    session_control.stop_all.assert_awaited_once()
-
-
-def test_stop_cli_fallback_to_manager(client):
-    session_control = MagicMock()
-    session_control.stop_all = AsyncMock(return_value=StopResult(source="cli_manager"))
-    services = app.state.services
-    app.state.services = ApiServices(
-        requests=services.requests,
-        admin=services.admin,
-        tasks=session_control,
-    )
-
-    response = client.post("/stop")
-
-    assert response.status_code == 200
-    assert response.json()["source"] == "cli_manager"
-    session_control.stop_all.assert_awaited_once()

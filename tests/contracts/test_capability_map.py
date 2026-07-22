@@ -12,14 +12,11 @@ EXPECTED_CAPABILITIES = {
     "config",
     "extensibility",
     "local_providers",
-    "messaging",
     "openrouter",
-    "persistence",
     "provider_routing",
     "provider_runtime",
     "request_behavior",
     "streaming_conversion",
-    "voice",
 }
 
 

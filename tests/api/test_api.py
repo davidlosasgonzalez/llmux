@@ -447,14 +447,3 @@ def test_count_tokens_endpoint(client: TestClient):
     assert response.status_code == 200
     assert "input_tokens" in response.json()
     assert response.headers["request-id"].startswith("req_")
-
-
-def test_stop_endpoint_no_workflow_no_cli_503(client: TestClient):
-    """POST /stop without messaging workflow or cli_manager returns 503."""
-    # Ensure no messaging workflow or cli_manager on app state
-    if hasattr(app.state, "messaging_workflow"):
-        delattr(app.state, "messaging_workflow")
-    if hasattr(app.state, "cli_manager"):
-        delattr(app.state, "cli_manager")
-    response = client.post("/stop")
-    assert response.status_code == 503

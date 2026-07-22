@@ -127,10 +127,6 @@ OPENAI_CHAT_PROFILES: dict[str, OpenAIChatProfile] = {
     "mistral_codestral": OpenAIChatProfile(
         OpenAIChatRequestPolicy(provider_name="CODESTRAL")
     ),
-    "opencode": OpenAIChatProfile(OpenAIChatRequestPolicy(provider_name="OPENCODE")),
-    "opencode_go": OpenAIChatProfile(
-        OpenAIChatRequestPolicy(provider_name="OPENCODE_GO")
-    ),
     "vercel": OpenAIChatProfile(
         OpenAIChatRequestPolicy(provider_name="VERCEL", include_extra_body=True)
     ),

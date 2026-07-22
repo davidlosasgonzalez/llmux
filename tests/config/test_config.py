@@ -19,7 +19,6 @@ from free_claude_code.config.model_refs import (
     parse_provider_type,
 )
 from free_claude_code.config.nim import NimSettings
-from free_claude_code.config.paths import messaging_state_dir_path
 
 
 class TestSettings:
@@ -53,8 +52,6 @@ class TestSettings:
         assert settings.enable_web_server_tools is False
         assert settings.log_raw_api_payloads is False
         assert settings.log_raw_sse_events is False
-        assert settings.debug_platform_edits is False
-        assert settings.debug_subagent_stack is False
         assert settings.open_admin_browser is True
 
     def test_open_admin_browser_loads_from_environment(self, monkeypatch):
@@ -76,7 +73,6 @@ class TestSettings:
 
         settings = Settings()
 
-        assert messaging_state_dir_path() == tmp_path / ".fcc" / "agent_workspace"
         assert not hasattr(settings, "claude_workspace")
 
     def test_server_log_path_uses_fcc_home(self, monkeypatch, tmp_path):
@@ -121,7 +117,6 @@ class TestSettings:
 
         settings = Settings()
 
-        assert messaging_state_dir_path() == tmp_path / ".fcc" / "agent_workspace"
         assert not hasattr(settings, "claude_workspace")
 
     def test_explicit_claude_workspace_is_ignored(self, monkeypatch, tmp_path):
@@ -136,7 +131,6 @@ class TestSettings:
 
         settings = Settings()
 
-        assert messaging_state_dir_path() == tmp_path / ".fcc" / "agent_workspace"
         assert not hasattr(settings, "claude_workspace")
 
     def test_explicit_claude_cli_bin_is_ignored(self, monkeypatch):
@@ -149,7 +143,6 @@ class TestSettings:
         settings = Settings()
 
         assert not hasattr(settings, "claude_cli_bin")
-        assert not hasattr(settings, "codex_cli_bin")
 
     def test_direct_claude_runtime_overrides_are_ignored(self, monkeypatch, tmp_path):
         """Constructor extras cannot add fixed Claude runtime settings."""
@@ -169,7 +162,6 @@ class TestSettings:
             )
         )
 
-        assert messaging_state_dir_path() == tmp_path / ".fcc" / "agent_workspace"
         assert not hasattr(settings, "claude_workspace")
         assert not hasattr(settings, "claude_cli_bin")
 
@@ -655,71 +647,12 @@ class TestNimSettingsValidators:
 class TestSettingsOptionalStr:
     """Test Settings parse_optional_str validator."""
 
-    def test_empty_telegram_token_to_none(self, monkeypatch):
+    def test_empty_model_classifier_to_none(self, monkeypatch):
         from free_claude_code.config.settings import Settings
 
-        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "")
+        monkeypatch.setenv("MODEL_CLASSIFIER", "")
         s = Settings()
-        assert s.telegram_bot_token is None
-
-    def test_valid_telegram_token_preserved(self, monkeypatch):
-        from free_claude_code.config.settings import Settings
-
-        monkeypatch.setenv("TELEGRAM_BOT_TOKEN", "abc123")
-        s = Settings()
-        assert s.telegram_bot_token == "abc123"
-
-    def test_empty_allowed_user_id_to_none(self, monkeypatch):
-        from free_claude_code.config.settings import Settings
-
-        monkeypatch.setenv("ALLOWED_TELEGRAM_USER_ID", "")
-        s = Settings()
-        assert s.allowed_telegram_user_id is None
-
-    def test_discord_bot_token_from_env(self, monkeypatch):
-        from free_claude_code.config.settings import Settings
-
-        monkeypatch.setenv("DISCORD_BOT_TOKEN", "discord_token_123")
-        s = Settings()
-        assert s.discord_bot_token == "discord_token_123"
-
-    def test_empty_discord_bot_token_to_none(self, monkeypatch):
-        from free_claude_code.config.settings import Settings
-
-        monkeypatch.setenv("DISCORD_BOT_TOKEN", "")
-        s = Settings()
-        assert s.discord_bot_token is None
-
-    def test_allowed_discord_channels_from_env(self, monkeypatch):
-        from free_claude_code.config.settings import Settings
-
-        monkeypatch.setenv("ALLOWED_DISCORD_CHANNELS", "111,222,333")
-        s = Settings()
-        assert s.allowed_discord_channels == "111,222,333"
-
-    def test_messaging_platform_from_env(self, monkeypatch):
-        from free_claude_code.config.settings import Settings
-
-        monkeypatch.setenv("MESSAGING_PLATFORM", "discord")
-        s = Settings()
-        assert s.messaging_platform == "discord"
-
-    def test_whisper_device_auto_rejected(self, monkeypatch):
-        """WHISPER_DEVICE=auto raises ValidationError (auto removed)."""
-        from free_claude_code.config.settings import Settings
-
-        monkeypatch.setenv("WHISPER_DEVICE", "auto")
-        with pytest.raises(ValidationError, match="whisper_device"):
-            Settings()
-
-    @pytest.mark.parametrize("device", ["cpu", "cuda"])
-    def test_whisper_device_valid(self, monkeypatch, device):
-        """Valid whisper_device values are accepted."""
-        from free_claude_code.config.settings import Settings
-
-        monkeypatch.setenv("WHISPER_DEVICE", device)
-        s = Settings()
-        assert s.whisper_device == device
+        assert s.model_classifier is None
 
 
 class TestPerModelMapping:
@@ -1082,7 +1015,6 @@ class TestPerModelMapping:
         from free_claude_code.config.settings import Settings
 
         monkeypatch.setenv("FCC_SMOKE_MODEL_NVIDIA_NIM", "nvidia_nim/smoke")
-        monkeypatch.setenv("WHISPER_MODEL", "openai/whisper-large-v3")
         s = Settings()
         s.model = "nvidia_nim/fallback"
         s.model_fable = "open_router/anthropic/claude-fable-5"

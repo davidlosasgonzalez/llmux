@@ -12,8 +12,6 @@ _EXPECTED_PROVIDER_ORDER: tuple[str, ...] = (
     "deepseek",
     "mistral",
     "mistral_codestral",
-    "opencode",
-    "opencode_go",
     "vercel",
     "huggingface",
     "cohere",
@@ -35,7 +33,7 @@ _EXPECTED_PROVIDER_ORDER: tuple[str, ...] = (
 
 
 def test_provider_catalog_key_order_matches_canonical_plan() -> None:
-    """NIM first; OpenCode pair stays adjacent; gateways precede native remotes."""
+    """NIM first; gateways precede native remotes."""
 
     assert tuple(PROVIDER_CATALOG.keys()) == _EXPECTED_PROVIDER_ORDER
     assert SUPPORTED_PROVIDER_IDS == _EXPECTED_PROVIDER_ORDER

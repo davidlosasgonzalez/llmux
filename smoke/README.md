@@ -1,13 +1,13 @@
 # Product E2E Smoke Tests
 
-`smoke/` is local-only. It can launch subprocesses, call real providers, touch
-local model servers, and optionally send/delete bot messages. Hermetic contracts
-belong under `tests/` and must stay green with plain `uv run pytest`.
+`smoke/` is local-only. It can launch subprocesses, call real providers, and
+touch local model servers. Hermetic contracts belong under `tests/` and must
+stay green with plain `uv run pytest`.
 
 ## Taxonomy
 
 - `smoke/prereq/`: liveness checks that prove the server, routes, auth, CLI
-  scripts, provider pings, local `/models`, and bot permissions are reachable.
+  scripts, provider pings, and local `/models` are reachable.
   These are prerequisites only.
 - `smoke/product/`: end-to-end product scenarios. Feature smoke coverage comes
   from these tests, not from route/header/provider pings.
@@ -49,17 +49,14 @@ configured, live product smoke fails as `missing_env` unless you explicitly set
 
 ## Targets
 
-Default targets do not send real bot messages or load voice backends:
-
 | Target | Product scenarios | Required environment |
 | --- | --- | --- |
-| `api` | messages, count_tokens full payload, errors, `/stop`, optimizations | configured provider only for streaming messages |
+| `api` | messages, count_tokens full payload, errors, optimizations | configured provider only for streaming messages |
 | `auth` | canonical bearer auth, conflicting legacy headers, invalid/missing auth | none; test sets an isolated token |
-| `cli` | `fcc-init`, server entrypoint, Claude CLI adaptive thinking, session cleanup | Claude CLI binary and provider only for real CLI |
+| `cli` | `fcc-init`, server entrypoint, Claude CLI adaptive thinking | Claude CLI binary and provider only for real CLI |
 | `clients` | VS Code and JetBrains protocol payloads | configured provider |
 | `config` | env precedence, removed-env migration, proxy/timeouts | none |
-| `extensibility` | provider runtime and platform factory construction | none |
-| `messaging` | fake Discord/Telegram full flow, literal clear scopes, trees, persistence, voice cancel | none |
+| `extensibility` | provider runtime construction | none |
 | `providers` | multi-turn text, adaptive thinking history, tools, disconnect, errors | configured providers, optional `FCC_SMOKE_MODEL_*` |
 | `tools` | forced tool_use and tool_result continuation | tool-capable configured provider |
 | `rate_limit` | disconnect cleanup and follow-up request | configured provider |
@@ -73,9 +70,6 @@ Heavy/side-effectful targets are opt-in:
 | --- | --- | --- |
 | `nvidia_nim_cli` | Claude Code CLI feature matrix across NIM models | `NVIDIA_NIM_API_KEY`, Claude CLI |
 | `openrouter_free_cli` | Claude Code CLI feature matrix across OpenRouter free models | `OPENROUTER_API_KEY`, Claude CLI |
-| `telegram` | getMe, send, edit, delete, optional manual inbound | token and chat/user ID |
-| `discord` | channel access, send, edit, delete, optional manual inbound | token and channel ID |
-| `voice` | generated WAV through local Whisper or NVIDIA NIM transcription | `VOICE_NOTE_ENABLED=true`, `FCC_SMOKE_RUN_VOICE=1` |
 
 ## Examples
 
@@ -94,13 +88,6 @@ uv run pytest smoke/prereq smoke/product -n 0 -s --tb=short
 
 ```powershell
 $env:FCC_LIVE_SMOKE = "1"
-$env:FCC_SMOKE_TARGETS = "telegram,discord,voice"
-$env:FCC_SMOKE_RUN_VOICE = "1"
-uv run pytest smoke/product -n 0 -s --tb=short
-```
-
-```powershell
-$env:FCC_LIVE_SMOKE = "1"
 $env:FCC_SMOKE_TARGETS = "nvidia_nim_cli"
 $env:FCC_SMOKE_NIM_MODELS = "z-ai/glm-5.2,moonshotai/kimi-k2.6,minimaxai/minimax-m2.7,nvidia/nemotron-3-super-120b-a12b,deepseek-ai/deepseek-v4-pro,deepseek-ai/deepseek-v4-flash"
 uv run pytest smoke/product -n 0 -s --tb=short
@@ -115,7 +102,7 @@ uv run pytest smoke/product -n 0 -s --tb=short
 
 ```powershell
 $env:FCC_LIVE_SMOKE = "1"
-$env:FCC_SMOKE_TARGETS = "messaging,config,extensibility"
+$env:FCC_SMOKE_TARGETS = "config,extensibility"
 uv run pytest smoke/product -n 0 -s --tb=short
 ```
 
@@ -131,7 +118,6 @@ uv run pytest smoke/product -n 0 -s --tb=short
   `FCC_SMOKE_MODEL_MISTRAL_CODESTRAL`,
   `FCC_SMOKE_MODEL_DEEPSEEK`, `FCC_SMOKE_MODEL_KIMI`,
   `FCC_SMOKE_MODEL_WAFER`, `FCC_SMOKE_MODEL_MINIMAX`,
-  `FCC_SMOKE_MODEL_OPENCODE`, `FCC_SMOKE_MODEL_OPENCODE_GO`,
   `FCC_SMOKE_MODEL_ZAI`, `FCC_SMOKE_MODEL_FIREWORKS`, `FCC_SMOKE_MODEL_CLOUDFLARE`,
   `FCC_SMOKE_MODEL_GEMINI`, `FCC_SMOKE_MODEL_GROQ`, `FCC_SMOKE_MODEL_CEREBRAS`,
   `FCC_SMOKE_MODEL_OLLAMA_CLOUD`, `FCC_SMOKE_MODEL_LMSTUDIO`,
@@ -150,10 +136,6 @@ uv run pytest smoke/product -n 0 -s --tb=short
   free CLI matrix models appended to the default or replacement set.
 - `FCC_SMOKE_TIMEOUT_S`: per-request/subprocess timeout, default `45`.
 - `FCC_SMOKE_CLAUDE_BIN`: Claude CLI executable name, default `claude`.
-- `FCC_SMOKE_TELEGRAM_CHAT_ID`: Telegram chat/user ID for send/edit/delete.
-- `FCC_SMOKE_DISCORD_CHANNEL_ID`: Discord channel ID for send/edit/delete.
-- `FCC_SMOKE_INTERACTIVE=1`: enables manual inbound Telegram/Discord checks.
-- `FCC_SMOKE_RUN_VOICE=1`: allows voice transcription backends to load/run.
 
 ## Windows / nested `uv run`
 
@@ -169,7 +151,7 @@ names contain `KEY`, `TOKEN`, `SECRET`, `WEBHOOK`, or `AUTH`.
 
 - `missing_env`: required credentials, binary, provider config, local provider
   server/model, or opt-in flag is absent.
-- `upstream_unavailable`: a real provider or bot API is not reachable.
+- `upstream_unavailable`: a real provider is not reachable.
 - `probe_timeout`: the smoke driver reached the target, but the CLI/probe did
   not complete within the smoke timeout.
 - `product_failure`: the app accepted the scenario but returned the wrong shape,

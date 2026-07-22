@@ -80,7 +80,9 @@ class MessagesHandler:
         generation_id: int | None = None,
     ) -> None:
         self._settings = settings
-        self._model_router = model_router or ModelRouter(settings)
+        self._model_router = model_router or ModelRouter(
+            settings, provider_resolver=provider_resolver
+        )
         self._token_counter = token_counter
         self._provider_executor = provider_executor or ProviderExecutor(
             provider_resolver,
@@ -104,7 +106,9 @@ class MessagesHandler:
         request_id = request_id or new_request_id()
         try:
             require_non_empty_messages(request_data.messages)
-            routed = self._model_router.resolve_messages_request(request_data)
+            routed = await self._model_router.aresolve_messages_request(
+                request_data, request_id=request_id
+            )
             routed = self._apply_message_routing_policies(routed)
             self._reject_unsupported_server_tools(routed)
 

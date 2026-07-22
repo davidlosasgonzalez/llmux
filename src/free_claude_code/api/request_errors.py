@@ -16,12 +16,8 @@ from free_claude_code.core.diagnostics import (
     redacted_exception_traceback,
     safe_exception_message,
 )
-from free_claude_code.core.openai_responses import (
-    openai_error_payload,
-    openai_error_type_for_failure,
-)
 
-WireApi = Literal["messages", "responses"]
+WireApi = Literal["messages"]
 
 
 def require_non_empty_messages(messages: list[Any]) -> None:
@@ -36,14 +32,6 @@ def ordinary_application_error_response(
     request_id: str,
 ) -> JSONResponse:
     """Serialize a deterministic application error without terminal headers."""
-    if wire_api == "responses":
-        return JSONResponse(
-            status_code=error.status_code,
-            content=openai_error_payload(
-                message=error.message,
-                error_type=openai_error_type_for_failure(error.kind),
-            ),
-        )
     return JSONResponse(
         status_code=error.status_code,
         content=anthropic_error_payload(

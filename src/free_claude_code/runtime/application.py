@@ -3,18 +3,12 @@
 import asyncio
 import inspect
 import logging
-import os
-import traceback
 from collections.abc import Awaitable, Callable, Mapping
 from typing import Any
 
 from loguru import logger
 
-import free_claude_code.cli.managed as cli_managed
-import free_claude_code.messaging.session as messaging_session
-import free_claude_code.messaging.workflow as messaging_workflow_module
 from free_claude_code.application.errors import ApplicationUnavailableError
-from free_claude_code.application.ports import StopResult
 from free_claude_code.config.admin.persistence import (
     PreparedAdminUpdate,
     commit_prepared_admin_update,
@@ -27,19 +21,8 @@ from free_claude_code.config.env_files import (
     process_env_key_is_effective,
 )
 from free_claude_code.config.model_refs import parse_provider_type
-from free_claude_code.config.paths import messaging_state_dir_path
-from free_claude_code.config.server_urls import local_admin_url, local_proxy_root_url
+from free_claude_code.config.server_urls import local_admin_url
 from free_claude_code.config.settings import Settings, get_settings
-from free_claude_code.messaging.managed_protocols import (
-    ManagedClaudeSessionManagerProtocol,
-)
-from free_claude_code.messaging.platforms import factory as messaging_platform_factory
-from free_claude_code.messaging.platforms.factory import MessagingPlatformOptions
-from free_claude_code.messaging.platforms.ports import (
-    MessagingPlatformComponents,
-    MessagingRuntime,
-)
-from free_claude_code.messaging.voice import Transcriber
 
 from .provider_manager import ProviderRuntimeManager
 
@@ -107,20 +90,12 @@ class ApplicationRuntime:
         self,
         provider_manager: ProviderRuntimeManager,
         *,
-        transcriber: Transcriber | None,
         restart_callback: RestartCallback | None = None,
     ) -> None:
         self.provider_manager = provider_manager
-        self._transcriber = transcriber
         self._restart_callback = restart_callback
         self._config_lock = asyncio.Lock()
         self._pending_fields: list[str] = []
-        self._messaging_runtime: MessagingRuntime | None = None
-        self._messaging_workflow: messaging_workflow_module.MessagingWorkflow | None = (
-            None
-        )
-        self._cli_manager: ManagedClaudeSessionManagerProtocol | None = None
-        self._approval_broker: Any | None = None
         self._started = False
         self._closed = False
         self._provider_manager_closed = False
@@ -135,11 +110,6 @@ class ApplicationRuntime:
         """Whether this runtime released its complete ownership graph."""
         return self._closed
 
-    @property
-    def approval_broker(self) -> Any | None:
-        """Remote tool-approval broker when MESSAGING_SESSION_BACKEND=agent."""
-        return self._approval_broker
-
     async def start(self) -> None:
         if self._started:
             return
@@ -148,7 +118,6 @@ class ApplicationRuntime:
             warn_if_process_auth_token(self.settings)
             await self._validate_configured_models_best_effort()
             self.provider_manager.start_model_list_refresh()
-            await self._start_messaging_if_configured()
             logging.getLogger("uvicorn.error").info(
                 "Admin UI: %s (local-only)",
                 local_admin_url(self.settings),
@@ -270,15 +239,6 @@ class ApplicationRuntime:
         if inspect.isawaitable(result):
             await result
 
-    async def stop_all(self) -> StopResult | None:
-        if self._messaging_workflow is not None:
-            outcome = await self._messaging_workflow.stop_all_tasks()
-            return StopResult(cancelled_count=outcome.cancelled_count)
-        if self._cli_manager is not None:
-            await self._cli_manager.stop_all()
-            return StopResult(source="cli_manager")
-        return None
-
     def _commit_admin_update(
         self,
         prepared: PreparedAdminUpdate,
@@ -311,138 +271,7 @@ class ApplicationRuntime:
                 exc.message,
             )
 
-    async def _start_messaging_if_configured(self) -> None:
-        try:
-            components = messaging_platform_factory.create_messaging_components(
-                self.settings.messaging_platform,
-                self._messaging_options(),
-            )
-            if components is not None:
-                await self._start_messaging_workflow(components)
-        except ImportError as exc:
-            cleaned = await self._cleanup_messaging()
-            if self.settings.log_api_error_tracebacks:
-                logger.warning("Messaging module import error: {}", exc)
-            else:
-                logger.warning(
-                    "Messaging module import error: exc_type={}",
-                    type(exc).__name__,
-                )
-            if not cleaned:
-                raise RuntimeError("Messaging startup cleanup incomplete") from exc
-        except Exception as exc:
-            cleaned = await self._cleanup_messaging()
-            if self.settings.log_api_error_tracebacks:
-                logger.error("Failed to start messaging platform: {}", exc)
-                logger.error(traceback.format_exc())
-            else:
-                logger.error(
-                    "Failed to start messaging platform: exc_type={}",
-                    type(exc).__name__,
-                )
-            if not cleaned:
-                raise RuntimeError("Messaging startup cleanup incomplete") from exc
-
-    def _messaging_options(self) -> MessagingPlatformOptions:
-        settings = self.settings
-        return MessagingPlatformOptions(
-            telegram_bot_token=settings.telegram_bot_token,
-            allowed_telegram_user_id=settings.allowed_telegram_user_id,
-            telegram_proxy_url=settings.telegram_proxy_url,
-            discord_bot_token=settings.discord_bot_token,
-            allowed_discord_channels=settings.allowed_discord_channels,
-            transcriber=self._transcriber,
-            messaging_rate_limit=settings.messaging_rate_limit,
-            messaging_rate_window=settings.messaging_rate_window,
-            log_raw_messaging_content=settings.log_raw_messaging_content,
-            log_messaging_error_details=settings.log_messaging_error_details,
-            log_api_error_tracebacks=settings.log_api_error_tracebacks,
-        )
-
-    async def _start_messaging_workflow(
-        self,
-        components: MessagingPlatformComponents,
-    ) -> None:
-        settings = self.settings
-        self._messaging_runtime = components.runtime
-        workspace = (
-            os.path.abspath(settings.allowed_dir)
-            if settings.allowed_dir
-            else os.getcwd()
-        )
-        os.makedirs(workspace, exist_ok=True)
-        data_path = os.path.abspath(messaging_state_dir_path())
-        os.makedirs(data_path, exist_ok=True)
-        allowed_dirs = [workspace] if settings.allowed_dir else []
-
-        if settings.messaging_session_backend == "agent":
-            from free_claude_code.agent.managed_adapter import (
-                AgentManagedSessionManager,
-            )
-            from free_claude_code.agent.remote_permissions import (
-                ApprovalBroker,
-                RemotePermissionGate,
-            )
-            from free_claude_code.config.paths import config_dir_path
-
-            broker = ApprovalBroker(
-                timeout_s=settings.messaging_agent_approval_timeout_s
-            )
-            permissions = RemotePermissionGate(
-                broker,
-                auto_approve=settings.messaging_agent_auto_approve,
-            )
-            self._approval_broker = broker
-            self._cli_manager = AgentManagedSessionManager(
-                workspace_path=workspace,
-                proxy_root_url=local_proxy_root_url(settings),
-                auth_token=settings.anthropic_auth_token,
-                model=settings.model,
-                permissions=permissions,
-                exhaustion_db=str(config_dir_path() / "agent_quota.db"),
-                job_timeout_s=settings.messaging_agent_job_timeout_s,
-            )
-            logger.info("messaging session backend: own-agent harness")
-        else:
-            self._approval_broker = None
-            self._cli_manager = cli_managed.ManagedClaudeSessionManager(
-                workspace_path=workspace,
-                proxy_root_url=local_proxy_root_url(settings),
-                allowed_dirs=allowed_dirs,
-                auth_token=settings.anthropic_auth_token,
-                log_raw_cli_diagnostics=settings.log_raw_cli_diagnostics,
-                log_messaging_error_details=settings.log_messaging_error_details,
-            )
-            logger.info("messaging session backend: Claude Code CLI")
-        session_store = messaging_session.SessionStore(
-            storage_path=os.path.join(data_path, "sessions.json"),
-            managed_message_cap=settings.max_message_log_entries_per_chat,
-        )
-        workflow = messaging_workflow_module.MessagingWorkflow(
-            platform_name=components.name,
-            outbound=components.outbound,
-            voice_cancellation=components.voice_cancellation,
-            cli_manager=self._cli_manager,
-            session_store=session_store,
-            debug_platform_edits=settings.debug_platform_edits,
-            debug_subagent_stack=settings.debug_subagent_stack,
-            log_raw_cli_diagnostics=settings.log_raw_cli_diagnostics,
-            log_messaging_error_details=settings.log_messaging_error_details,
-        )
-        self._messaging_workflow = workflow
-        workflow.restore()
-        components.runtime.on_message(workflow.handle_message)
-        await components.runtime.start()
-        await workflow.repair_restored_statuses()
-        if components.startup_notice is not None:
-            await workflow.publish_startup_notice(components.startup_notice)
-        logger.info("{} platform started with messaging workflow", components.name)
-
     async def _close_owned_resources(self) -> bool:
-        if not await self._cleanup_messaging():
-            return False
-        if not await self._cleanup_transcriber():
-            return False
         if self._provider_manager_closed:
             return True
         verbose = self.settings.log_api_error_tracebacks
@@ -452,72 +281,3 @@ class ApplicationRuntime:
             log_verbose_errors=verbose,
         )
         return self._provider_manager_closed
-
-    async def _cleanup_messaging(self) -> bool:
-        verbose = self.settings.log_api_error_tracebacks
-        workflow = self._messaging_workflow
-        runtime = self._messaging_runtime
-        cli_manager = self._cli_manager
-
-        if runtime is not None:
-            quiesced = await best_effort(
-                "messaging_runtime.quiesce",
-                runtime.quiesce(),
-                log_verbose_errors=verbose,
-            )
-            if not quiesced:
-                # Delivery must remain available until ingress is known stopped.
-                # Retaining the graph lets the next close retry this exact gate.
-                return False
-
-        if workflow is not None:
-            closed = await best_effort(
-                "messaging_workflow.close",
-                workflow.close(),
-                log_verbose_errors=verbose,
-            )
-            if not closed:
-                # Active workflow tasks may still need delivery, transcription,
-                # CLI sessions, and providers while a later close retries drain.
-                return False
-            if self._messaging_workflow is workflow:
-                self._messaging_workflow = None
-            if self._cli_manager is cli_manager:
-                self._cli_manager = None
-                self._approval_broker = None
-        elif cli_manager is not None:
-            drained = await best_effort(
-                "cli_manager.stop_all",
-                cli_manager.stop_all(),
-                log_verbose_errors=verbose,
-            )
-            if not drained:
-                return False
-            if self._cli_manager is cli_manager:
-                self._cli_manager = None
-                self._approval_broker = None
-
-        if runtime is not None:
-            closed = await best_effort(
-                "messaging_runtime.close",
-                runtime.close(),
-                log_verbose_errors=verbose,
-            )
-            if not closed:
-                return False
-            if self._messaging_runtime is runtime:
-                self._messaging_runtime = None
-        return True
-
-    async def _cleanup_transcriber(self) -> bool:
-        transcriber = self._transcriber
-        if transcriber is None:
-            return True
-        closed = await best_effort(
-            "transcriber.close",
-            transcriber.close(),
-            log_verbose_errors=self.settings.log_api_error_tracebacks,
-        )
-        if closed and self._transcriber is transcriber:
-            self._transcriber = None
-        return closed
