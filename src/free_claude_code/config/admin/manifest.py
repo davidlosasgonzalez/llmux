@@ -222,6 +222,19 @@ _NON_PROVIDER_FIELDS: tuple[ConfigFieldSpec, ...] = (
         default="5",
     ),
     ConfigFieldSpec(
+        "PROVIDER_UPSTREAM_MAX_RETRIES",
+        "Upstream Max Retries",
+        "runtime",
+        "number",
+        settings_attr="provider_upstream_max_retries",
+        default="4",
+        description=(
+            "Retries against the same provider on 429/5xx before failing. "
+            "Set 1 when MODEL_FALLBACKS is configured so requests fail over "
+            "to the next provider instead of waiting out long backoffs."
+        ),
+    ),
+    ConfigFieldSpec(
         "HTTP_READ_TIMEOUT",
         "HTTP Read Timeout",
         "runtime",

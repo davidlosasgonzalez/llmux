@@ -58,6 +58,7 @@ def build_provider_config(
         rate_limit=settings.provider_rate_limit,
         rate_window=settings.provider_rate_window,
         max_concurrency=settings.provider_max_concurrency,
+        upstream_max_retries=settings.provider_upstream_max_retries,
         http_read_timeout=settings.http_read_timeout,
         http_write_timeout=settings.http_write_timeout,
         http_connect_timeout=settings.http_connect_timeout,

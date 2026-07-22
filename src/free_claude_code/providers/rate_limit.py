@@ -44,6 +44,7 @@ class ProviderRateLimiter:
         rate_limit: int = 40,
         rate_window: float = 60.0,
         max_concurrency: int = 5,
+        upstream_max_retries: int = DEFAULT_UPSTREAM_MAX_RETRIES,
     ):
         if rate_limit <= 0:
             raise ValueError("rate_limit must be > 0")
@@ -51,10 +52,13 @@ class ProviderRateLimiter:
             raise ValueError("rate_window must be > 0")
         if max_concurrency <= 0:
             raise ValueError("max_concurrency must be > 0")
+        if upstream_max_retries < 0:
+            raise ValueError("upstream_max_retries must be >= 0")
 
         self._rate_limit = rate_limit
         self._rate_window = float(rate_window)
         self._max_concurrency = max_concurrency
+        self._upstream_max_retries = upstream_max_retries
         self._proactive_limiter = StrictSlidingWindowLimiter(
             self._rate_limit, self._rate_window
         )
@@ -135,7 +139,7 @@ class ProviderRateLimiter:
         fn: Callable[..., Any],
         *args: Any,
         provider_failure_override: ProviderFailureOverride | None = None,
-        max_retries: int = DEFAULT_UPSTREAM_MAX_RETRIES,
+        max_retries: int | None = None,
         base_delay: float = 2.0,
         max_delay: float = 60.0,
         jitter: float = 1.0,
@@ -153,7 +157,9 @@ class ProviderRateLimiter:
             fn: Async callable to execute.
             provider_failure_override: Optional provider-specific semantic
                 classifier applied before shared retry qualification.
-            max_retries: Maximum number of retry attempts after the first failure.
+            max_retries: Maximum number of retry attempts after the first
+                failure. ``None`` uses the limiter's configured
+                ``upstream_max_retries`` (``PROVIDER_UPSTREAM_MAX_RETRIES``).
             base_delay: Base delay in seconds for exponential backoff.
             max_delay: Maximum delay cap in seconds.
             jitter: Maximum random jitter in seconds added to each delay.
@@ -165,6 +171,8 @@ class ProviderRateLimiter:
             The last exception if all retries are exhausted.
         """
         last_exc: Exception | None = None
+        if max_retries is None:
+            max_retries = self._upstream_max_retries
         total_attempts = 1 + max_retries
 
         for attempt in range(total_attempts):

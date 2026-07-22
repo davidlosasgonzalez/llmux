@@ -141,6 +141,7 @@ def create_provider(provider_id: str, settings: Settings) -> BaseProvider:
         rate_limit=config.rate_limit or 40,
         rate_window=config.rate_window or 60.0,
         max_concurrency=config.max_concurrency,
+        upstream_max_retries=config.upstream_max_retries,
     )
     factory = _SPECIAL_PROVIDER_FACTORIES.get(provider_id)
     if factory is not None:
