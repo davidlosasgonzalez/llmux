@@ -87,7 +87,7 @@ def _candidate_models(settings: Settings) -> list[_CandidateModel]:
 
 
 def _menu_line(candidate: _CandidateModel) -> str:
-    limit = daily_limit(candidate.provider_id)
+    limit = daily_limit(candidate.provider_id, candidate.model_id)
     prior = capability_prior(
         candidate.model_id,
         family_of(candidate.model_id),
@@ -136,11 +136,17 @@ def _classifier_system_prompt(menu: str) -> str:
         "request:\n\n"
         f"{menu}\n\n"
         "Weigh, yourself, all of the following before choosing: the model's real "
-        "reasoning/coding capability, how fast its free quota burns relative to "
-        "the task (budget_class=high_throughput is safe to use freely; "
-        "budget_class=scarce has a small daily cap and should be reserved for "
-        "tasks that truly need its extra capability), and whether the model's "
-        "specialty (reasoning/coder) fits the request.\n\n"
+        "reasoning/coding capability, how fast its quota or cost burns relative "
+        "to the task (budget_class=high_throughput is safe to use freely; "
+        "budget_class=paid is cheap pay-per-token with no daily cap — prefer it "
+        "over free options for coding or multi-step work whenever its "
+        "capability fits; budget_class=scarce has a small daily cap and should "
+        "be reserved for tasks that truly need its extra capability), and "
+        "whether the model's specialty (reasoning/coder) fits the request.\n\n"
+        "Rough guide: trivial or conversational requests -> the fastest cheap "
+        "model; ordinary coding/edit/tool work -> a coder model with "
+        "budget_class=paid or high_throughput; deep multi-step reasoning, "
+        "architecture, or debugging -> the highest-capability model.\n\n"
         "Your entire reply must be ONLY the chosen entry's `provider/model_id`, "
         "copied exactly as written in the menu, on a single line — nothing "
         "before it, nothing after it. No explanation, no code, no punctuation, "

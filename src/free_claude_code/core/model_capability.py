@@ -16,11 +16,13 @@ _SIZE_RE = re.compile(r"(\d+(?:\.\d+)?)\s*b\b")
 # Coarse reputation for models whose id carries no parameter count (e.g. gemini,
 # glm). Keyed by family or a name token; higher = stronger default.
 _FAMILY_BASE: dict[str, float] = {
+    "kimi": 0.86,
     "deepseek": 0.85,
     "nemotron": 0.82,
     "gpt-oss": 0.82,
     "glm": 0.80,
     "qwen": 0.78,
+    "minimax": 0.78,
     "mistral": 0.70,
     "llama": 0.68,
     "gemma": 0.60,
