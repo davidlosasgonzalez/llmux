@@ -2,11 +2,12 @@
 
 Tools: ``evaluate``, ``list_models``, ``get_config``, ``check_providers`` and
 ``get_usage``. The server binds to stdio only — it is never exposed on a
-network socket. The ``mcp`` dependency is imported lazily so the base package
-does not require it.
+network socket.
 """
 
 from typing import Any
+
+from mcp.server.fastmcp import FastMCP
 
 from free_claude_code.config.logging_config import configure_logging
 from free_claude_code.config.paths import verdict_mcp_log_path
@@ -128,16 +129,8 @@ async def _status() -> dict[str, Any]:
     }
 
 
-def build_server() -> Any:
+def build_server() -> FastMCP:
     """Construct the FastMCP server with all verdict tools registered."""
-    try:
-        from mcp.server.fastmcp import FastMCP
-    except ImportError as exc:  # pragma: no cover - depends on optional extra
-        raise RuntimeError(
-            "The 'mcp' package is required for the MCP server. Install the extra:"
-            " uv pip install 'free-claude-code[verdict]'"
-        ) from exc
-
     server = FastMCP("free-llm-verdict")
 
     @server.tool()
