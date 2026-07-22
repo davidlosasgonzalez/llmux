@@ -293,3 +293,25 @@ def test_extract_prompt_context_empty_without_user_text():
     )
 
     assert extract_prompt_context(request) == ""
+
+
+@pytest.mark.asyncio
+async def test_menu_marks_open_router_paid_slugs_as_paid():
+    settings = _settings()
+    settings.model_opus = "open_router/moonshotai/kimi-k2.5"
+    settings.open_router_api_key = "sk-or-test"
+    provider = FakeProvider(
+        reply=_sse_text_response("open_router/moonshotai/kimi-k2.5")
+    )
+
+    chosen = await choose_auto_model(
+        settings,
+        lambda provider_id: provider,
+        prompt_context="design a database schema",
+        request_id="req-menu",
+    )
+
+    assert chosen == "open_router/moonshotai/kimi-k2.5"
+    system_prompt = provider.stream_calls[0].system
+    assert "open_router/moonshotai/kimi-k2.5 | budget_class=paid" in system_prompt
+    assert "budget_class=paid is cheap pay-per-token" in system_prompt

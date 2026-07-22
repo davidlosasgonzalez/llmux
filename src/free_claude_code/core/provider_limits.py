@@ -20,6 +20,7 @@ from dataclasses import dataclass
 
 HIGH_THROUGHPUT = "high_throughput"
 SCARCE = "scarce"
+PAID = "paid"
 UNKNOWN = "unknown"
 
 
@@ -96,7 +97,23 @@ _LIMITS: dict[str, DailyLimit] = {
 }
 
 
-def daily_limit(provider: str) -> DailyLimit:
+# OpenRouter's scarce free tier applies only to ``:free``-suffixed model slugs.
+# Paid slugs on a credited key bill per token with no fixed daily cap, so the
+# router must not treat them as scarce or it will under-route to them.
+_OPEN_ROUTER_PAID = DailyLimit(
+    "open_router",
+    PAID,
+    note="Pay-per-token on purchased credits; no fixed RPD. Very cheap per call.",
+)
+
+
+def daily_limit(provider: str, model_id: str | None = None) -> DailyLimit:
+    if (
+        provider == "open_router"
+        and model_id is not None
+        and not model_id.endswith(":free")
+    ):
+        return _OPEN_ROUTER_PAID
     known = _LIMITS.get(provider)
     if known is not None:
         return known
