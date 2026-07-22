@@ -313,5 +313,6 @@ async def test_menu_marks_open_router_paid_slugs_as_paid():
 
     assert chosen == "open_router/moonshotai/kimi-k2.5"
     system_prompt = provider.stream_calls[0].system
+    assert isinstance(system_prompt, str)
     assert "open_router/moonshotai/kimi-k2.5 | budget_class=paid" in system_prompt
     assert "budget_class=paid is cheap pay-per-token" in system_prompt
