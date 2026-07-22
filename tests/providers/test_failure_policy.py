@@ -271,7 +271,7 @@ def test_auth_failure_preserves_model_error_body_instead_of_masking_it() -> None
 
     failure = classify_provider_failure(
         error,
-        provider_name="OPENCODE_GO",
+        provider_name="VERCEL",
         read_timeout_s=60.0,
         request_id="req_model",
         mark_rate_limited=Mock(),

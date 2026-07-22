@@ -1,21 +1,19 @@
-# Deploy — servidor + OpenCode + SSH (v1)
+# Deploy — servidor + Claude Code + SSH (v2)
 
 Checklist para controlar un proyecto en un servidor vía Termius → SSH → tmux,
-con FCC como proxy y OpenCode como TUI diaria.
+con FCC como proxy y Claude Code como TUI diaria.
 
 ## 1. Base
 
 1. Instalar [uv](https://docs.astral.sh/uv/) y Python 3.14:
    `uv python install 3.14.0`
 2. Clonar este repo (o instalar el paquete) en el servidor.
-3. `uv sync` / install script; comprobar `fcc-server --help`, `fcc-agent --version`.
+3. `uv sync` / install script; comprobar `fcc-server --help`, `fcc-claude --help`.
 4. Copiar `.env.example` → `~/.fcc/.env` y rellenar API keys.
 5. Fijar política de modelos (C1):
    - `MODEL=open_router/moonshotai/kimi-k2.5` (o el ganador del último eval)
    - `MODEL_FALLBACKS=open_router/deepseek/deepseek-v3.2,cerebras/gpt-oss-120b`
-6. Instalar OpenCode: `curl -fsSL https://opencode.ai/install | bash`
-7. (Opcional) Copiar `docs/opencode-agents.template.md` → `AGENTS.md` del
-   proyecto o `~/.config/opencode/AGENTS.md`.
+6. Instalar Claude Code: `curl -fsSL https://claude.ai/install.sh | bash`
 
 ## 2. Proxy FCC (persistente)
 
@@ -72,25 +70,29 @@ Dos lecciones pagadas con horas de debugging — no las repitas:
 - El `.env` para systemd no debe llevar comillas en los valores
   (`EnvironmentFile` las pasa literales al proceso).
 
-## 3. OpenCode
+## 3. Claude Code
 
 ```bash
 cd /path/to/project
-fcc-opencode          # escribe ~/.fcc/opencode.json (modelos + MCP + /verdict)
-fcc-opencode run --dir . --auto "responde solo: pong"
+fcc-claude            # lanza Claude Code contra el proxy local
+fcc-claude -p "responde solo: pong"
 ```
 
-El launcher incluye:
+El launcher comprueba que el proxy está vivo e inyecta `ANTHROPIC_BASE_URL` y
+`ANTHROPIC_AUTH_TOKEN` según la config del Admin UI. El picker nativo `/model`
+de Claude Code lista los modelos que FCC expone.
 
-- modelos `MODEL` + `MODEL_FALLBACKS` para cambio manual en la TUI
-- MCP `free-llm-verdict`
-- comando `/verdict`
-- subagente `@second-opinion` (otro modelo de la cadena)
+Para segundas opiniones multi-modelo, registrar el MCP de Verdict en Claude
+Code (stdio):
+
+```bash
+claude mcp add free-llm-verdict -- fcc-verdict serve-mcp
+```
 
 ## 4. Flujo remoto (Termius)
 
 1. SSH al servidor.
-2. Trabajo: `cd proyecto && fcc-opencode`.
+2. Trabajo: `cd proyecto && fcc-claude`.
 3. Admin UI desde el portátil:
    `ssh -L 8082:127.0.0.1:8082 user@server` → abrir `http://127.0.0.1:8082/admin`
 4. Cuotas por SSH:
@@ -99,12 +101,10 @@ El launcher incluye:
 fcc-verdict usage
 ```
 
-5. Jobs desatendidos:
+5. Diagnóstico de una petición concreta:
 
 ```bash
-JOB=$(fcc-agent jobs enqueue "refactor X y corre tests")
-fcc-agent jobs status "$JOB"
-fcc-agent jobs result "$JOB"
+fcc-trace --last
 ```
 
 ## 5. Ordenar fallbacks con stats del Verdict (C10)
@@ -122,21 +122,18 @@ Procedimiento manual:
 2. Excluir `github_models/*` (tope ~4k tokens/request).
 3. Poner el mejor como `MODEL`, el resto (2–3) en `MODEL_FALLBACKS` separados
    por comas.
-4. Contrastar con el último eval C1 (`docs/evals/…` o
-   `uv run python smoke/scripts/eval_opencode_models.py`).
-5. Reiniciar `fcc-server` / relanzar `fcc-opencode` para regenerar config.
+4. Contrastar con el último eval C1 (`docs/evals/…`).
+5. Reiniciar `fcc-server` para aplicar la config.
 
-## 6. Checklist v1 (reproducir de cero)
+## 6. Checklist v2 (reproducir de cero)
 
 - [ ] `~/.fcc/.env` con keys + `MODEL` + `MODEL_FALLBACKS`
 - [ ] `systemctl --user status fcc-server` active (o tmux)
 - [ ] `curl /health` OK tras reboot / re-login (linger)
 - [ ] `fcc-verdict usage` imprime tabla (aunque esté vacía)
-- [ ] `fcc-opencode models fcc` lista default + fallbacks
-- [ ] `fcc-opencode run --dir . --auto "pong"` completa
+- [ ] `fcc-claude -p "pong"` completa contra el proxy
 - [ ] Drill fallback: forzar 429 en primario (key inválida temporal) →
       responde el secundario; logs `precommit_fallback.serving`
 - [ ] `/verdict` o MCP `evaluate` en una pregunta de diseño
-- [ ] `@second-opinion` produce crítica con otro modelo
-- [ ] `fcc-agent jobs enqueue|status|result` en un job trivial
+- [ ] `fcc-trace --last` resume el turno con el modelo servido
 - [ ] Validación en `~/Documents/advisor` (local) antes del VPS

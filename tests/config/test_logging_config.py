@@ -68,17 +68,6 @@ def test_configure_logging_skips_when_already_configured(tmp_path):
     )
 
 
-def test_telegram_bot_token_redacted_in_message_field(tmp_path) -> None:
-    log_file = str(tmp_path / "redact.log")
-    configure_logging(log_file, force=True, verbose_third_party=False)
-    token = "123456:ABCDEF-ghij-klm"
-    logger.info("Calling {}", f"https://api.telegram.org/bot{token}/getMe")
-    logger.complete()
-    text = Path(log_file).read_text(encoding="utf-8")
-    assert token not in text
-    assert "bot<redacted>/" in text or "redacted" in text
-
-
 def test_bearer_substring_redacted_in_log_file(tmp_path) -> None:
     log_file = str(tmp_path / "bearer.log")
     configure_logging(log_file, force=True, verbose_third_party=False)

@@ -160,32 +160,6 @@ async def test_create_message_unexpected_error_terminal_json_ignores_status_code
     assert '"message":"no"' in payload
 
 
-def test_parse_cli_event_error_logs_metadata_by_default():
-    """CLI parser must not log raw error text unless LOG_RAW_CLI_DIAGNOSTICS is on."""
-    from free_claude_code.messaging.event_parser import parse_cli_event
-
-    secret = "user-secret-parser-leak-xyz"
-    with patch("free_claude_code.messaging.event_parser.logger.info") as log_info:
-        parse_cli_event(
-            {"type": "error", "error": {"message": secret}}, log_raw_cli=False
-        )
-    flat = " ".join(str(c) for c in log_info.call_args_list)
-    assert secret not in flat
-    assert "message_chars" in flat
-
-
-def test_parse_cli_event_error_logs_text_when_log_raw_cli_enabled():
-    from free_claude_code.messaging.event_parser import parse_cli_event
-
-    secret = "visible-cli-parser-msg"
-    with patch("free_claude_code.messaging.event_parser.logger.info") as log_info:
-        parse_cli_event(
-            {"type": "error", "error": {"message": secret}}, log_raw_cli=True
-        )
-    flat = " ".join(str(c) for c in log_info.call_args_list)
-    assert secret in flat
-
-
 def test_count_tokens_unexpected_error_default_logs_exclude_exception_text():
     settings = Settings()
     assert settings.log_api_error_tracebacks is False

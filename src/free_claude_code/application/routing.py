@@ -4,7 +4,12 @@ from dataclasses import dataclass
 
 from loguru import logger
 
+from free_claude_code.application.auto_router import (
+    choose_auto_model,
+    extract_prompt_context,
+)
 from free_claude_code.application.errors import UnknownProviderError
+from free_claude_code.application.ports import ProviderResolver
 from free_claude_code.config.model_refs import parse_model_name, parse_provider_type
 from free_claude_code.config.provider_catalog import (
     PROVIDER_CATALOG,
@@ -39,37 +44,88 @@ class RoutedTokenCountRequest:
 class ModelRouter:
     """Resolve incoming Claude model names to configured provider/model pairs."""
 
-    def __init__(self, settings: Settings):
+    def __init__(
+        self, settings: Settings, *, provider_resolver: ProviderResolver | None = None
+    ):
         self._settings = settings
+        # Only used by aresolve_messages_request() when MODEL_ROUTING_MODE=auto;
+        # unset in the (default) static path and in call sites that never route
+        # dynamically (e.g. token counting).
+        self._provider_resolver = provider_resolver
 
     def resolve(self, claude_model_name: str) -> ResolvedModel:
+        direct = self._resolve_direct(claude_model_name)
+        if direct is not None:
+            return direct
+        provider_model_ref = self._resolve_model_ref(claude_model_name)
+        return self._finalize(claude_model_name, provider_model_ref)
+
+    async def aresolve_messages_request(
+        self, request: MessagesRequest, *, request_id: str
+    ) -> RoutedMessagesRequest:
+        """Like :meth:`resolve_messages_request`, but tries auto-routing first.
+
+        A direct ``provider/model`` request always wins outright (the caller
+        already named an exact target). Otherwise, when
+        ``MODEL_ROUTING_MODE=auto`` and a provider resolver was supplied, a
+        classifier model picks among the operator's configured chat models.
+        Any auto-routing failure falls back to the exact static resolution —
+        this must never be able to break message routing.
+        """
+        direct = self._resolve_direct(request.model)
+        if (
+            direct is not None
+            or self._settings.model_routing_mode != "auto"
+            or self._provider_resolver is None
+        ):
+            return self.resolve_messages_request(request)
+
+        chosen_ref = await choose_auto_model(
+            self._settings,
+            self._provider_resolver,
+            prompt_context=extract_prompt_context(request),
+            request_id=request_id,
+        )
+        if chosen_ref is None:
+            return self.resolve_messages_request(request)
+
+        resolved = self._finalize(request.model, chosen_ref)
+        routed = request.model_copy(deep=True)
+        routed.model = resolved.provider_model
+        return RoutedMessagesRequest(request=routed, resolved=resolved)
+
+    def _resolve_direct(self, claude_model_name: str) -> ResolvedModel | None:
         (
             direct_provider_id,
             direct_provider_model,
             force_thinking_enabled,
         ) = self._direct_provider_model(claude_model_name)
-        if direct_provider_id is not None and direct_provider_model is not None:
-            thinking_enabled = (
-                force_thinking_enabled
-                if force_thinking_enabled is not None
-                else self._resolve_thinking(direct_provider_model)
-            )
-            logger.debug(
-                "MODEL DIRECT: '{}' -> provider='{}' model='{}' thinking={}",
-                claude_model_name,
-                direct_provider_id,
-                direct_provider_model,
-                thinking_enabled,
-            )
-            return ResolvedModel(
-                original_model=claude_model_name,
-                provider_id=direct_provider_id,
-                provider_model=direct_provider_model,
-                provider_model_ref=claude_model_name,
-                thinking_enabled=thinking_enabled,
-            )
+        if direct_provider_id is None or direct_provider_model is None:
+            return None
 
-        provider_model_ref = self._resolve_model_ref(claude_model_name)
+        thinking_enabled = (
+            force_thinking_enabled
+            if force_thinking_enabled is not None
+            else self._resolve_thinking(direct_provider_model)
+        )
+        logger.debug(
+            "MODEL DIRECT: '{}' -> provider='{}' model='{}' thinking={}",
+            claude_model_name,
+            direct_provider_id,
+            direct_provider_model,
+            thinking_enabled,
+        )
+        return ResolvedModel(
+            original_model=claude_model_name,
+            provider_id=direct_provider_id,
+            provider_model=direct_provider_model,
+            provider_model_ref=claude_model_name,
+            thinking_enabled=thinking_enabled,
+        )
+
+    def _finalize(
+        self, claude_model_name: str, provider_model_ref: str
+    ) -> ResolvedModel:
         thinking_enabled = self._resolve_thinking(claude_model_name)
         provider_id = parse_provider_type(provider_model_ref)
         self._validate_provider_id(provider_id)

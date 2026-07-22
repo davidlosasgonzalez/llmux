@@ -4,7 +4,6 @@ import pytest
 
 from free_claude_code.config.provider_catalog import PROVIDER_CATALOG
 from free_claude_code.config.settings import Settings
-from free_claude_code.messaging.platforms.factory import create_messaging_components
 from free_claude_code.providers.runtime import build_provider_config
 from smoke.lib.child_process import (
     cmd_free_claude_code_serve,
@@ -164,13 +163,6 @@ def test_provider_runtime_config_e2e() -> None:
 def _settings_init_key(field_name: str) -> str:
     alias = Settings.model_fields[field_name].validation_alias
     return alias if isinstance(alias, str) else field_name
-
-
-@pytest.mark.smoke_target("extensibility")
-def test_platform_factory_e2e() -> None:
-    assert create_messaging_components("not-a-platform") is None
-    assert create_messaging_components("telegram") is None
-    assert create_messaging_components("discord") is None
 
 
 @pytest.mark.smoke_target("cli")

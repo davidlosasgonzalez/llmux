@@ -56,7 +56,6 @@ def test_configured_provider_models_stream_successfully(
             smoke_config,
             env_overrides={
                 "MODEL": provider_model.full_model,
-                "MESSAGING_PLATFORM": "none",
             },
             name=f"provider-{provider_model.provider}",
         ) as server:
@@ -90,7 +89,6 @@ def test_client_disconnect_mid_stream_does_not_crash_server(
         smoke_config,
         env_overrides={
             "MODEL": provider_model.full_model,
-            "MESSAGING_PLATFORM": "none",
         },
         name="disconnect",
     ) as server:

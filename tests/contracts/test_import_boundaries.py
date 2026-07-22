@@ -14,21 +14,16 @@ ALLOWED_PACKAGE_DEPENDENCIES: dict[str, set[str]] = {
     "config": set(),
     "core": set(),
     "application": {"config", "core"},
-    "messaging": {"core"},
     "providers": {"application", "config", "core"},
     "api": {"application", "config", "core"},
     "cli": {"config", "core"},
     "verdict": {"config", "core", "providers"},
-    "agent": {"cli", "config", "core"},
     "observability": {"config"},
     "runtime": {
-        "agent",
         "api",
         "application",
-        "cli",
         "config",
         "core",
-        "messaging",
         "providers",
     },
 }
@@ -44,17 +39,10 @@ IMPORT_EXCEPTIONS: dict[tuple[str, str], str] = {
 }
 
 FACADE_ONLY_BOUNDARIES = {
-    "free_claude_code.core.openai_responses",
-    "free_claude_code.messaging.trees",
     "free_claude_code.providers.openai_chat",
 }
 
-OPTIONAL_IMPORT_OWNERS = {
-    "librosa": "free_claude_code.messaging.transcription",
-    "torch": "free_claude_code.messaging.transcription",
-    "transformers": "free_claude_code.messaging.transcription",
-    "riva": "free_claude_code.providers.nvidia_nim.voice",
-}
+OPTIONAL_IMPORT_OWNERS: dict[str, str] = {}
 
 
 @dataclass(frozen=True, slots=True)
@@ -517,40 +505,6 @@ def test_runtime_imports_without_optional_voice_dependencies() -> None:
     )
 
     assert completed.returncode == 0, completed.stderr or completed.stdout
-
-
-def test_supported_messaging_facade_is_explicit() -> None:
-    import free_claude_code.messaging as facade
-    from free_claude_code.messaging.managed_protocols import (
-        ManagedClaudeSessionManagerProtocol,
-        ManagedClaudeSessionProtocol,
-    )
-    from free_claude_code.messaging.models import IncomingMessage, MessageScope
-    from free_claude_code.messaging.platforms.ports import OutboundMessenger
-
-    expected = {
-        "IncomingMessage": IncomingMessage,
-        "ManagedClaudeSessionManagerProtocol": ManagedClaudeSessionManagerProtocol,
-        "ManagedClaudeSessionProtocol": ManagedClaudeSessionProtocol,
-        "MessageScope": MessageScope,
-        "OutboundMessenger": OutboundMessenger,
-    }
-
-    assert set(facade.__all__) == set(expected)
-    assert all(getattr(facade, name) is value for name, value in expected.items())
-
-
-def test_message_tree_mutability_stays_behind_its_facade() -> None:
-    import free_claude_code.messaging.trees as facade
-
-    for internal_owner in {
-        "MessageNode",
-        "MessageTree",
-        "TreeQueueProcessor",
-        "TreeRepository",
-    }:
-        assert internal_owner not in facade.__all__
-        assert not hasattr(facade, internal_owner)
 
 
 def _module_paths(package_root: Path) -> dict[str, Path]:

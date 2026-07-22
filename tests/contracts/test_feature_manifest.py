@@ -2,7 +2,6 @@ import re
 from pathlib import Path
 
 from free_claude_code.config.provider_catalog import PROVIDER_CATALOG
-from free_claude_code.messaging.platforms.factory import create_messaging_components
 from free_claude_code.providers.base import BaseProvider
 from free_claude_code.providers.cloudflare import CloudflareProvider
 from free_claude_code.providers.deepseek import DeepSeekProvider
@@ -106,8 +105,6 @@ def test_provider_and_platform_registries_include_advertised_builtins() -> None:
     assert issubclass(OpenAIChatProvider, BaseProvider)
     for provider_class in specialized_provider_classes.values():
         assert issubclass(provider_class, BaseProvider)
-
-    assert create_messaging_components("not-a-platform") is None
 
 
 def _collect_test_names(root: Path) -> set[str]:

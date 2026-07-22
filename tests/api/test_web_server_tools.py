@@ -36,7 +36,6 @@ from free_claude_code.core.anthropic.stream_contracts import (
     text_content,
 )
 from free_claude_code.core.version import package_version
-from free_claude_code.messaging.event_parser import parse_cli_event
 
 _STRICT_EGRESS = WebFetchEgressPolicy(
     allow_private_network_targets=False,
@@ -394,14 +393,6 @@ async def test_streams_web_search_server_tool_result(monkeypatch):
     ]
     assert text_deltas, "summary must be streamed as text_delta"
     assert "example.com" in text_content(events)
-    cli_text: list[str] = []
-    for ev in events:
-        cli_text.extend(
-            str(p.get("text", ""))
-            for p in parse_cli_event(ev.data)
-            if p.get("type") == "text_delta"
-        )
-    assert "example.com" in "".join(cli_text)
     deltas = [e for e in events if e.event == "message_delta"]
     assert deltas[-1].data["usage"]["server_tool_use"] == {"web_search_requests": 1}
 
@@ -619,14 +610,6 @@ async def test_streams_web_fetch_server_tool_result(monkeypatch):
         for e in events
     )
     assert "Article body" in text_content(events)
-    cli_text: list[str] = []
-    for ev in events:
-        cli_text.extend(
-            str(p.get("text", ""))
-            for p in parse_cli_event(ev.data)
-            if p.get("type") == "text_delta"
-        )
-    assert "Article body" in "".join(cli_text)
     deltas = [e for e in events if e.event == "message_delta"]
     assert deltas[-1].data["usage"]["server_tool_use"] == {"web_fetch_requests": 1}
 
@@ -675,14 +658,6 @@ async def test_streams_web_fetch_error_summary_generic_by_default(monkeypatch):
         and e.data.get("delta", {}).get("type") == "text_delta"
         for e in err_events
     )
-    cli_err_text: list[str] = []
-    for ev in err_events:
-        cli_err_text.extend(
-            str(p.get("text", ""))
-            for p in parse_cli_event(ev.data)
-            if p.get("type") == "text_delta"
-        )
-    assert "Web tool request failed." in "".join(cli_err_text)
     log_blob = " ".join(str(a) for c in log_warn.call_args_list for a in c.args)
     assert secret not in log_blob
     assert "example.com" in log_blob

@@ -111,8 +111,6 @@ archivada bajo A3 y se resolvió ahí (T2).
   usa el formateador ruff (py314). `ruff format --check` la acepta en todo el
   repo. No hay bug de portabilidad ni "barrido a `except (X, Y):`" que hacer:
   la recomendación original estaba equivocada y queda retirada.
-- **Sub-punto legítimo pendiente (independiente de la sintaxis):**
-  `messaging/voice.py:310` hace `except asyncio.CancelledError, Exception:` y
-  `continue` — tragarse `CancelledError` en `_consume_results` es sospechoso
-  (la cancelación normalmente debe propagarse). Revisar aparte; no forma parte
-  del trabajo de fiabilidad del verdict.
+- **Sub-punto que quedó obsoleto:** el hallazgo sobre `messaging/voice.py`
+  (tragarse `CancelledError` en `_consume_results`) dejó de aplicar cuando el
+  módulo `messaging/` se eliminó del proyecto en la limpieza 6.0.0.

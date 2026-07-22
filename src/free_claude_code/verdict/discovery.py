@@ -9,8 +9,9 @@ without network access.
 import time
 from collections.abc import Awaitable, Callable
 
-from free_claude_code.config.provider_catalog import PROVIDER_CATALOG
+from free_claude_code.config.provider_credentials import provider_has_credential
 from free_claude_code.config.settings import Settings
+from free_claude_code.core.model_capability import family_of, is_reasoning_model
 
 from .models import (
     CostStatus,
@@ -28,28 +29,6 @@ from .provider_policy import (
 
 # provider_id -> async function returning that provider's raw model ids.
 ModelLister = Callable[[str], Awaitable[list[str]]]
-
-# Coarse family inference so the selector can enforce diversity. Ordered so more
-# specific tokens win (gpt-oss before gpt, gemma before gemini prefix clashes).
-_FAMILY_TOKENS: tuple[tuple[str, str], ...] = (
-    ("gpt-oss", "gpt-oss"),
-    ("nemotron", "nemotron"),
-    ("deepseek", "deepseek"),
-    ("qwen", "qwen"),
-    ("llama", "llama"),
-    ("gemma", "gemma"),
-    ("gemini", "gemini"),
-    ("mistral", "mistral"),
-    ("mixtral", "mistral"),
-    ("devstral", "mistral"),
-    ("codestral", "mistral"),
-    ("glm", "glm"),
-    ("kimi", "kimi"),
-    ("minimax", "minimax"),
-    ("command", "cohere-command"),
-    ("phi", "phi"),
-    ("yi", "yi"),
-)
 
 # Model-name hints that a model can drive tool calls; used only as a soft signal.
 _TOOL_HINTS: tuple[str, ...] = (
@@ -104,38 +83,10 @@ def is_chat_model(model_id: str) -> bool:
     return not any(token in lowered for token in _NON_CHAT_TOKENS)
 
 
-def family_of(model_id: str) -> str:
-    lowered = model_id.lower()
-    for token, family in _FAMILY_TOKENS:
-        if token in lowered:
-            return family
-    return "unknown"
-
-
-def provider_has_credential(provider: str, settings: Settings) -> bool:
-    """True when ``settings`` carries a usable credential/endpoint for provider."""
-    descriptor = PROVIDER_CATALOG.get(provider)
-    if descriptor is None:
-        return False
-    if descriptor.static_credential:
-        return True
-    if descriptor.credential_attr:
-        value = getattr(settings, descriptor.credential_attr, "")
-        if isinstance(value, str) and value.strip():
-            return True
-    if descriptor.local and descriptor.base_url_attr:
-        value = getattr(settings, descriptor.base_url_attr, "")
-        return bool(isinstance(value, str) and value.strip())
-    return False
-
-
 def _build_ref(provider: str, model_id: str, cost: CostStatus) -> ModelRef:
     lowered = model_id.lower()
     supports_tools = any(hint in lowered for hint in _TOOL_HINTS)
-    supports_reasoning = any(
-        token in lowered
-        for token in ("reason", "think", "r1", "o1", "deepseek", "nemotron")
-    )
+    supports_reasoning = is_reasoning_model(model_id)
     return ModelRef(
         provider=provider,
         model_id=model_id,

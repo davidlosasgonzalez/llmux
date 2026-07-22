@@ -1,32 +1,22 @@
 #!/bin/sh
 set -eu
 
-REPO_ARCHIVE_URL="https://github.com/Alishahryar1/free-claude-code/archive/refs/heads/main.zip"
+REPO_ARCHIVE_URL="https://github.com/davidlosasgonzalez/llm-verdict/archive/refs/heads/main.zip"
 PYTHON_VERSION="3.14.0"
 MIN_UV_VERSION="0.11.0"
 CLAUDE_INSTALL_URL="https://claude.ai/install.sh"
-CODEX_INSTALL_URL="https://chatgpt.com/codex/install.sh"
-PI_INSTALL_URL="https://pi.dev/install.sh"
 UV_INSTALL_URL="https://astral.sh/uv/install.sh"
 
 dry_run=0
-voice_nim=0
-voice_local=0
-voice_all=0
-torch_backend=""
 temporary_script=""
 
 show_usage() {
     cat <<'USAGE'
 Usage: install.sh [options]
 
-Installs Claude Code, Codex, and Pi if missing, ensures a compatible uv, and installs or updates Free Claude Code.
+Installs Claude Code if missing, ensures a compatible uv, and installs or updates Free Claude Code.
 
 Options:
-  --voice-nim              Install NVIDIA NIM voice transcription support.
-  --voice-local            Install local Whisper voice transcription support.
-  --voice-all              Install all voice transcription backends.
-  --torch-backend VALUE    Use a uv PyTorch backend, such as cu130. Requires local voice.
   --dry-run                Print commands without running them.
   --help                   Show this help text.
 USAGE
@@ -103,24 +93,10 @@ add_known_bin_directories() {
     if [ -n "${HOME:-}" ]; then
         add_path_entry "$HOME/.local/bin"
         add_path_entry "$HOME/.cargo/bin"
-        add_path_entry "${XDG_DATA_HOME:-$HOME/.local/share}/pi-node/current/bin"
     fi
 
     export PATH
     hash -r 2>/dev/null || true
-}
-
-add_pi_bin_directories() {
-    [ "$dry_run" -eq 0 ] || return 0
-    add_known_bin_directories
-    if command -v npm >/dev/null 2>&1; then
-        pi_npm_prefix=$(npm prefix -g 2>/dev/null || npm config get prefix 2>/dev/null || true)
-        if [ -n "$pi_npm_prefix" ]; then
-            add_path_entry "$pi_npm_prefix/bin"
-            export PATH
-            hash -r 2>/dev/null || true
-        fi
-    fi
 }
 
 require_command() {
@@ -133,17 +109,10 @@ download_and_run() {
     url=$1
     interpreter=$2
     label=$3
-    non_interactive=${4:-0}
 
     if [ "$dry_run" -eq 1 ]; then
         print_command curl -fsSL "$url" -o "<temporary-script>"
-        if [ "$non_interactive" -eq 1 ]; then
-            printf '+ CODEX_NON_INTERACTIVE=1 '
-            quote_arg "$interpreter"
-            printf ' <temporary-script>\n'
-        else
-            print_command "$interpreter" "<temporary-script>"
-        fi
+        print_command "$interpreter" "<temporary-script>"
         return 0
     fi
 
@@ -160,26 +129,12 @@ download_and_run() {
         fail "The downloaded $label installer was empty."
     fi
 
-    if [ "$non_interactive" -eq 1 ]; then
-        printf '+ CODEX_NON_INTERACTIVE=1 '
-        quote_arg "$interpreter"
-        printf ' '
-        quote_arg "$temporary_script"
-        printf '\n'
-        if CODEX_NON_INTERACTIVE=1 "$interpreter" "$temporary_script"; then
-            :
-        else
-            status=$?
-            fail "$label installation failed with exit code $status."
-        fi
+    print_command "$interpreter" "$temporary_script"
+    if "$interpreter" "$temporary_script"; then
+        :
     else
-        print_command "$interpreter" "$temporary_script"
-        if "$interpreter" "$temporary_script"; then
-            :
-        else
-            status=$?
-            fail "$label installation failed with exit code $status."
-        fi
+        status=$?
+        fail "$label installation failed with exit code $status."
     fi
 
     rm -f "$temporary_script"
@@ -199,31 +154,6 @@ verify_command() {
     run "$command_path" --version
 }
 
-pi_command_is_compatible() {
-    pi_command_path=$(command -v pi 2>/dev/null) || return 1
-    pi_help=$("$pi_command_path" --help 2>/dev/null) || return 1
-    case "$pi_help" in
-        *--extension*) ;;
-        *) return 1 ;;
-    esac
-    case "$pi_help" in
-        *--models*) return 0 ;;
-        *) return 1 ;;
-    esac
-}
-
-verify_pi_command() {
-    if [ "$dry_run" -eq 1 ]; then
-        printf '+ pi --help (verify --extension and --models support)\n'
-        print_command pi --version
-        return 0
-    fi
-
-    pi_command_path=$(command -v pi 2>/dev/null) || fail "Pi was installed, but 'pi' is not available on PATH."
-    pi_command_is_compatible || fail "The 'pi' command at $pi_command_path is not a compatible Pi Coding Agent."
-    run "$pi_command_path" --version
-}
-
 ensure_claude() {
     if command -v claude >/dev/null 2>&1; then
         printf 'Claude Code already found on PATH; verifying it.\n'
@@ -233,33 +163,6 @@ ensure_claude() {
     fi
 
     verify_command claude "Claude Code"
-}
-
-ensure_codex() {
-    if command -v codex >/dev/null 2>&1; then
-        printf 'Codex already found on PATH; verifying it.\n'
-    else
-        download_and_run "$CODEX_INSTALL_URL" sh "Codex" 1
-        add_known_bin_directories
-    fi
-
-    verify_command codex "Codex"
-}
-
-ensure_pi() {
-    if [ "$dry_run" -eq 1 ] && command -v pi >/dev/null 2>&1; then
-        printf 'Pi already found on PATH; verifying it.\n'
-    elif pi_command_is_compatible; then
-        printf 'Pi already found on PATH; verifying it.\n'
-    else
-        if existing_pi_path=$(command -v pi 2>/dev/null); then
-            printf "The existing 'pi' command at %s is not Pi Coding Agent; installing Pi.\n" "$existing_pi_path"
-        fi
-        download_and_run "$PI_INSTALL_URL" sh "Pi"
-        add_pi_bin_directories
-    fi
-
-    verify_pi_command
 }
 
 current_uv_version() {
@@ -355,25 +258,6 @@ ensure_uv() {
 parse_args() {
     while [ "$#" -gt 0 ]; do
         case "$1" in
-            --voice-nim)
-                voice_nim=1
-                ;;
-            --voice-local)
-                voice_local=1
-                ;;
-            --voice-all)
-                voice_all=1
-                ;;
-            --torch-backend)
-                shift
-                [ "$#" -gt 0 ] || fail "--torch-backend requires a value."
-                torch_backend=$1
-                [ -n "$torch_backend" ] || fail "--torch-backend requires a non-empty value."
-                ;;
-            --torch-backend=*)
-                torch_backend=${1#*=}
-                [ -n "$torch_backend" ] || fail "--torch-backend requires a non-empty value."
-                ;;
             --dry-run)
                 dry_run=1
                 ;;
@@ -390,45 +274,8 @@ parse_args() {
     done
 }
 
-validate_args() {
-    include_local=$voice_local
-    if [ "$voice_all" -eq 1 ]; then
-        include_local=1
-    fi
-
-    if [ -n "$torch_backend" ] && [ "$include_local" -ne 1 ]; then
-        fail "--torch-backend requires --voice-local or --voice-all."
-    fi
-}
-
-package_spec() {
-    include_nim=$voice_nim
-    include_local=$voice_local
-
-    if [ "$voice_all" -eq 1 ]; then
-        include_nim=1
-        include_local=1
-    fi
-
-    if [ "$include_nim" -eq 1 ] && [ "$include_local" -eq 1 ]; then
-        printf 'free-claude-code[voice,voice_local] @ %s' "$REPO_ARCHIVE_URL"
-    elif [ "$include_nim" -eq 1 ]; then
-        printf 'free-claude-code[voice] @ %s' "$REPO_ARCHIVE_URL"
-    elif [ "$include_local" -eq 1 ]; then
-        printf 'free-claude-code[voice_local] @ %s' "$REPO_ARCHIVE_URL"
-    else
-        printf 'free-claude-code @ %s' "$REPO_ARCHIVE_URL"
-    fi
-}
-
 install_free_claude_code() {
-    spec=$(package_spec)
-
-    if [ -n "$torch_backend" ]; then
-        run uv tool install --force --refresh-package free-claude-code --python "$PYTHON_VERSION" --torch-backend "$torch_backend" "$spec"
-    else
-        run uv tool install --force --refresh-package free-claude-code --python "$PYTHON_VERSION" "$spec"
-    fi
+    run uv tool install --force --refresh-package free-claude-code --python "$PYTHON_VERSION" "free-claude-code @ $REPO_ARCHIVE_URL"
 }
 
 configure_and_verify_free_claude_code() {
@@ -436,7 +283,7 @@ configure_and_verify_free_claude_code() {
 
     if [ "$dry_run" -eq 1 ]; then
         print_command uv tool dir --bin
-        printf '+ verify fcc-server, fcc-claude, fcc-codex, and fcc-pi in the uv tool bin directory\n'
+        printf '+ verify fcc-server and fcc-claude in the uv tool bin directory\n'
         print_command fcc-server --version
         return 0
     fi
@@ -454,7 +301,7 @@ configure_and_verify_free_claude_code() {
     export PATH
     hash -r 2>/dev/null || true
 
-    for command_name in fcc-server fcc-claude fcc-codex fcc-pi; do
+    for command_name in fcc-server fcc-claude; do
         [ -x "$tool_bin/$command_name" ] || fail "Free Claude Code installation did not create $tool_bin/$command_name."
     done
 
@@ -462,7 +309,6 @@ configure_and_verify_free_claude_code() {
 }
 
 parse_args "$@"
-validate_args
 add_known_bin_directories
 
 step "Checking installation prerequisites"
@@ -473,12 +319,6 @@ require_command mktemp
 
 step "Ensuring Claude Code is installed"
 ensure_claude
-
-step "Ensuring Codex is installed"
-ensure_codex
-
-step "Ensuring Pi is installed"
-ensure_pi
 
 step "Ensuring uv $MIN_UV_VERSION or newer is installed"
 ensure_uv
@@ -494,6 +334,4 @@ if [ "$dry_run" -eq 1 ]; then
 else
     printf '\nFree Claude Code is installed and verified. Start the proxy with: fcc-server\n'
     printf 'Run Claude Code with: fcc-claude\n'
-    printf 'Run Codex with: fcc-codex\n'
-    printf 'Run Pi with: fcc-pi\n'
 fi

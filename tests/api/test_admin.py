@@ -29,7 +29,6 @@ def _clear_process_config(monkeypatch) -> None:
         "OPENROUTER_API_KEY",
         "OLLAMA_API_KEY",
         "ANTHROPIC_AUTH_TOKEN",
-        "TELEGRAM_PROXY_URL",
         "FCC_ENV_FILE",
         "CLOUDFLARE_API_TOKEN",
         "CLOUDFLARE_ACCOUNT_ID",
@@ -38,8 +37,6 @@ def _clear_process_config(monkeypatch) -> None:
         "HOST",
         "PORT",
         "FCC_OPEN_BROWSER",
-        "VOICE_NOTE_ENABLED",
-        "WHISPER_DEVICE",
         "LOG_FILE",
         "ZAI_BASE_URL",
         "CLAUDE_WORKSPACE",
@@ -124,7 +121,6 @@ def test_admin_config_masks_secrets_and_exposes_manifest(monkeypatch, tmp_path):
     assert "GEMINI_API_KEY" in keys
     assert "GROQ_API_KEY" in keys
     assert "SAMBANOVA_API_KEY" in keys
-    assert "TELEGRAM_PROXY_URL" in keys
     assert "CEREBRAS_API_KEY" in keys
     assert "OLLAMA_API_KEY" in keys
     assert "FCC_OPEN_BROWSER" in keys
@@ -138,10 +134,10 @@ def test_admin_config_masks_secrets_and_exposes_manifest(monkeypatch, tmp_path):
     assert auth_field["secret"] is True
     assert auth_field["value"] == MASKED_SECRET
     assert auth_field["source"] == "template"
-    telegram_proxy_field = next(
-        field for field in body["fields"] if field["key"] == "TELEGRAM_PROXY_URL"
+    provider_proxy_field = next(
+        field for field in body["fields"] if field["key"] == "OPENROUTER_PROXY"
     )
-    assert telegram_proxy_field["secret"] is True
+    assert provider_proxy_field["secret"] is True
     open_browser_field = next(
         field for field in body["fields"] if field["key"] == "FCC_OPEN_BROWSER"
     )
@@ -153,13 +149,8 @@ def test_admin_config_masks_secrets_and_exposes_manifest(monkeypatch, tmp_path):
     }
     assert {
         "ANTHROPIC_AUTH_TOKEN",
-        "DEBUG_PLATFORM_EDITS",
-        "DEBUG_SUBAGENT_STACK",
         "LOG_RAW_API_PAYLOADS",
         "LOG_API_ERROR_TRACEBACKS",
-        "LOG_RAW_MESSAGING_CONTENT",
-        "LOG_RAW_CLI_DIAGNOSTICS",
-        "LOG_MESSAGING_ERROR_DETAILS",
     } <= restart_required
 
 
@@ -204,7 +195,7 @@ def test_admin_apply_persists_open_browser_for_next_launch(monkeypatch, tmp_path
     assert "FCC_OPEN_BROWSER=false" in managed_env.read_text(encoding="utf-8")
 
 
-def test_admin_apply_masks_telegram_proxy_credentials(monkeypatch, tmp_path):
+def test_admin_apply_masks_provider_proxy_credentials(monkeypatch, tmp_path):
     _set_home(monkeypatch, tmp_path)
     _clear_process_config(monkeypatch)
     app = create_test_app()
@@ -212,17 +203,17 @@ def test_admin_apply_masks_telegram_proxy_credentials(monkeypatch, tmp_path):
 
     response = _local_client(app).post(
         "/admin/api/config/apply",
-        json={"values": {"TELEGRAM_PROXY_URL": proxy_url}},
+        json={"values": {"OPENROUTER_PROXY": proxy_url}},
     )
 
     assert response.status_code == 200
     body = response.json()
     assert body["applied"] is True
-    assert "TELEGRAM_PROXY_URL=********" in body["env_preview"]
+    assert "OPENROUTER_PROXY=********" in body["env_preview"]
     assert proxy_url not in body["env_preview"]
     env_file = tmp_path / ".fcc" / ".env"
     text = env_file.read_text(encoding="utf-8")
-    assert f"TELEGRAM_PROXY_URL={proxy_url}" in text
+    assert f"OPENROUTER_PROXY={proxy_url}" in text
 
 
 def test_admin_validate_rejects_bad_model_shape(monkeypatch, tmp_path):
@@ -455,63 +446,11 @@ def test_admin_apply_writes_huggingface_key_and_masks_preview(monkeypatch, tmp_p
 
 
 @pytest.mark.parametrize(
-    ("device", "credential_key"),
-    [
-        ("nvidia_nim", "NVIDIA_NIM_API_KEY"),
-        ("cpu", "HUGGINGFACE_API_KEY"),
-    ],
-)
-def test_admin_key_change_requires_restart_for_active_voice_backend(
-    monkeypatch,
-    tmp_path,
-    device,
-    credential_key,
-):
-    _set_home(monkeypatch, tmp_path)
-    _clear_process_config(monkeypatch)
-    env_file = tmp_path / ".fcc" / ".env"
-    env_file.parent.mkdir(parents=True)
-    env_file.write_text(
-        "\n".join(
-            [
-                "VOICE_NOTE_ENABLED=true",
-                f"WHISPER_DEVICE={device}",
-                f"{credential_key}=old-key",
-                "",
-            ]
-        ),
-        encoding="utf-8",
-    )
-    app = create_test_app()
-
-    response = _local_client(app).post(
-        "/admin/api/config/apply",
-        json={"values": {credential_key: "new-key"}},
-    )
-
-    assert response.status_code == 200
-    body = response.json()
-    assert body["applied"] is True
-    assert body["pending_fields"] == [credential_key]
-    assert body["restart"] == {
-        "required": True,
-        "automatic": False,
-        "admin_url": None,
-        "fields": [credential_key],
-    }
-
-
-@pytest.mark.parametrize(
     ("key", "initial", "updated"),
     [
         ("ANTHROPIC_AUTH_TOKEN", "old-token", "new-token"),
-        ("DEBUG_PLATFORM_EDITS", "true", "false"),
-        ("DEBUG_SUBAGENT_STACK", "true", "false"),
         ("LOG_RAW_API_PAYLOADS", "true", "false"),
         ("LOG_API_ERROR_TRACEBACKS", "true", "false"),
-        ("LOG_RAW_MESSAGING_CONTENT", "true", "false"),
-        ("LOG_RAW_CLI_DIAGNOSTICS", "true", "false"),
-        ("LOG_MESSAGING_ERROR_DETAILS", "true", "false"),
     ],
 )
 def test_admin_constructor_captured_setting_requires_restart(

@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for helping improve Free Claude Code. Keep changes focused, test the behavior you change, and preserve the public Claude Code and Codex workflows.
+Thanks for helping improve Free Claude Code. Keep changes focused, test the behavior you change, and preserve the public Claude Code workflow.
 
 ## Before Opening A Pull Request
 
@@ -8,7 +8,7 @@ Thanks for helping improve Free Claude Code. Keep changes focused, test the beha
 - Do not open Docker integration pull requests.
 - For bugs, include every model mapping, the active model when the failure occurred, the complete error, and reproducible steps.
 - Add focused tests for behavior changes and relevant edge cases.
-- Read [ARCHITECTURE.md](ARCHITECTURE.md) before changing package boundaries, providers, protocol conversion, launchers, or messaging.
+- Read [ARCHITECTURE.md](ARCHITECTURE.md) before changing package boundaries, providers, protocol conversion, or the launcher.
 
 ## Development Setup
 

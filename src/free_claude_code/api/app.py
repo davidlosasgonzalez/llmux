@@ -14,7 +14,6 @@ from free_claude_code.core.diagnostics import (
     redacted_exception_traceback,
     safe_exception_message,
 )
-from free_claude_code.core.openai_responses import openai_error_payload
 from free_claude_code.core.trace import (
     extract_claude_session_id_from_headers,
     trace_event,
@@ -70,9 +69,7 @@ def create_app(services: ApiServices) -> FastAPI:
         """Serialize defensive application failures in the selected wire protocol."""
         return ordinary_application_error_response(
             exc,
-            wire_api=(
-                "responses" if request.url.path == "/v1/responses" else "messages"
-            ),
+            wire_api="messages",
             request_id=get_request_id(request),
         )
 
@@ -99,14 +96,11 @@ def create_app(services: ApiServices) -> FastAPI:
                     type(exc).__name__,
                 )
             message = safe_exception_message(exc)
-            if request.url.path == "/v1/responses":
-                content = openai_error_payload(message=message, error_type="api_error")
-            else:
-                content = anthropic_error_payload(
-                    error_type="api_error",
-                    message=message,
-                    request_id=request_id,
-                )
+            content = anthropic_error_payload(
+                error_type="api_error",
+                message=message,
+                request_id=request_id,
+            )
             response = JSONResponse(status_code=500, content=content)
         attach_request_id_headers(
             response,

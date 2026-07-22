@@ -8,7 +8,6 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from free_claude_code.api.handlers import (
     MessagesHandler,
-    ResponsesHandler,
     TokenCountHandler,
 )
 from free_claude_code.application.errors import InvalidRequestError
@@ -20,7 +19,6 @@ from free_claude_code.core.anthropic.models import (
 )
 from free_claude_code.core.anthropic.streaming import format_sse_event
 from free_claude_code.core.failures import ExecutionFailure, FailureKind
-from free_claude_code.core.openai_responses import OpenAIResponsesRequest
 
 _CLASSIFIER_SYSTEM = (
     "You are a security monitor. Respond with <block>yes</block> or <block>no</block>."
@@ -489,56 +487,6 @@ async def test_messages_handler_optimization_intercepts_before_provider_executio
         assert await handler.create(request) is optimized
 
     provider_resolver.assert_not_called()
-
-
-@pytest.mark.asyncio
-async def test_responses_handler_bypasses_message_only_optimizations() -> None:
-    provider = FakeProvider()
-    handler = ResponsesHandler(Settings(), provider_resolver=lambda _: provider)
-
-    with patch(
-        "free_claude_code.api.handlers.messages.try_optimizations",
-        side_effect=AssertionError("Responses must not use message optimizations"),
-    ):
-        response = await handler.create(
-            OpenAIResponsesRequest(
-                model="nvidia_nim/test-model",
-                input="quota check",
-            )
-        )
-
-    assert isinstance(response, StreamingResponse)
-    body = await _streaming_body_text(response)
-    assert "response.completed" in body
-    assert provider.requests[0].messages[0].content == "quota check"
-
-
-@pytest.mark.asyncio
-async def test_responses_handler_does_not_apply_safety_classifier_policy() -> None:
-    provider = FakeProvider()
-    handler = ResponsesHandler(Settings(), provider_resolver=lambda _: provider)
-
-    with patch("free_claude_code.api.handlers.messages.trace_event") as trace_mock:
-        response = await handler.create(
-            OpenAIResponsesRequest(
-                model="nvidia_nim/test-model",
-                input=_CLASSIFIER_USER,
-                instructions=_CLASSIFIER_SYSTEM,
-            )
-        )
-
-        assert isinstance(response, StreamingResponse)
-        await _streaming_body_text(response)
-
-    assert provider.preflight_calls[0][1] is True
-    assert provider.stream_kwargs[0]["thinking_enabled"] is True
-    assert (
-        _trace_events(
-            trace_mock,
-            "free_claude_code.api.optimization.safety_classifier_no_thinking",
-        )
-        == []
-    )
 
 
 def test_token_count_handler_routes_and_counts_tokens() -> None:

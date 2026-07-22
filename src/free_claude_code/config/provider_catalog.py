@@ -25,8 +25,6 @@ LMSTUDIO_DEFAULT_BASE = "http://localhost:1234/v1"
 LLAMACPP_DEFAULT_BASE = "http://localhost:8080/v1"
 OLLAMA_DEFAULT_BASE = "http://localhost:11434"
 OLLAMA_CLOUD_DEFAULT_BASE = "https://ollama.com/v1"
-OPENCODE_DEFAULT_BASE = "https://opencode.ai/zen/v1"
-OPENCODE_GO_DEFAULT_BASE = "https://opencode.ai/zen/go/v1"
 VERCEL_AI_GATEWAY_DEFAULT_BASE = "https://ai-gateway.vercel.sh/v1"
 HUGGINGFACE_DEFAULT_BASE = "https://router.huggingface.co/v1"
 COHERE_DEFAULT_BASE = "https://api.cohere.ai/compatibility/v1"
@@ -109,24 +107,6 @@ PROVIDER_CATALOG: dict[str, ProviderDescriptor] = {
         credential_attr="codestral_api_key",
         default_base_url=CODESTRAL_DEFAULT_BASE,
         proxy_attr="codestral_proxy",
-    ),
-    "opencode": ProviderDescriptor(
-        provider_id="opencode",
-        display_name="OpenCode Zen",
-        credential_env="OPENCODE_API_KEY",
-        credential_url="https://opencode.ai/auth",
-        credential_attr="opencode_api_key",
-        default_base_url=OPENCODE_DEFAULT_BASE,
-        proxy_attr="opencode_proxy",
-    ),
-    "opencode_go": ProviderDescriptor(
-        provider_id="opencode_go",
-        display_name="OpenCode Go",
-        credential_env="OPENCODE_API_KEY",
-        credential_url="https://opencode.ai/auth",
-        credential_attr="opencode_api_key",
-        default_base_url=OPENCODE_GO_DEFAULT_BASE,
-        proxy_attr="opencode_go_proxy",
     ),
     "vercel": ProviderDescriptor(
         provider_id="vercel",
@@ -282,7 +262,7 @@ PROVIDER_CATALOG: dict[str, ProviderDescriptor] = {
 }
 
 # Key order:
-# NVIDIA NIM first (README default), DeepSeek fourth, OpenCode gateways adjacent,
+# NVIDIA NIM first (README default), DeepSeek fourth,
 # Vercel / Hugging Face / Cohere / GitHub Models follow gateway-style remotes,
 # then cloud gateways, Ollama Cloud, and local providers per project plan
 # (github.com/cheahjs/free-llm-api-resources Free Providers TOC as rough guide

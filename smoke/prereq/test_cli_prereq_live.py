@@ -38,7 +38,6 @@ def test_free_claude_code_entrypoint_starts_server(smoke_config: SmokeConfig) ->
     with start_server(
         smoke_config,
         command=cmd_free_claude_code_serve(),
-        env_overrides={"MESSAGING_PLATFORM": "none"},
         name="entrypoint",
     ) as server:
         assert server.process.poll() is None
@@ -56,7 +55,7 @@ def test_claude_cli_prompt_when_available(
 
     with start_server(
         smoke_config,
-        env_overrides={"MODEL": models[0].full_model, "MESSAGING_PLATFORM": "none"},
+        env_overrides={"MODEL": models[0].full_model},
         name="claude-cli",
     ) as server:
         env = build_claude_proxy_env(

@@ -29,7 +29,7 @@ DEFAULT_TARGETS = frozenset(
         "tools",
     }
 )
-SIDE_EFFECT_TARGETS = frozenset({"discord", "telegram", "voice"})
+SIDE_EFFECT_TARGETS: frozenset[str] = frozenset()
 OPT_IN_TARGETS = frozenset({"nvidia_nim_cli", "openrouter_free_cli"})
 ALL_TARGETS = DEFAULT_TARGETS | SIDE_EFFECT_TARGETS | OPT_IN_TARGETS
 TARGET_ALIASES = {
@@ -55,8 +55,6 @@ PROVIDER_SMOKE_DEFAULT_MODELS: dict[str, str] = {
     "ollama": "ollama/llama3.1",
     "wafer": "wafer/DeepSeek-V4-Pro",
     "minimax": "minimax/MiniMax-M3",
-    "opencode": "opencode/gpt-5.3-codex",
-    "opencode_go": "opencode_go/minimax-m2.7",
     "vercel": "vercel/openai/gpt-5.5",
     "huggingface": "huggingface/openai/gpt-oss-120b:fastest",
     "cohere": "cohere/command-a-plus-05-2026",
@@ -108,15 +106,6 @@ TARGET_REQUIRED_ENV: dict[str, tuple[str, ...]] = {
         "OPENROUTER_API_KEY",
         "FCC_SMOKE_CLAUDE_BIN or claude on PATH",
     ),
-    "telegram": (
-        "TELEGRAM_BOT_TOKEN",
-        "ALLOWED_TELEGRAM_USER_ID or FCC_SMOKE_TELEGRAM_CHAT_ID",
-    ),
-    "discord": (
-        "DISCORD_BOT_TOKEN",
-        "ALLOWED_DISCORD_CHANNELS or FCC_SMOKE_DISCORD_CHANNEL_ID",
-    ),
-    "voice": ("VOICE_NOTE_ENABLED=true", "FCC_SMOKE_RUN_VOICE=1"),
 }
 
 
@@ -276,10 +265,6 @@ class SmokeConfig:
             return bool(self.settings.minimax_api_key.strip())
         if provider == "fireworks":
             return bool(self.settings.fireworks_api_key.strip())
-        if provider == "opencode":
-            return bool(self.settings.opencode_api_key.strip())
-        if provider == "opencode_go":
-            return bool(self.settings.opencode_api_key.strip())
         if provider == "vercel":
             return bool(self.settings.vercel_ai_gateway_api_key.strip())
         if provider == "huggingface":

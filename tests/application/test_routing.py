@@ -1,3 +1,5 @@
+import json
+from collections.abc import AsyncIterator
 from unittest.mock import patch
 
 import pytest
@@ -253,3 +255,128 @@ def test_model_router_preserves_typed_error_for_unknown_mapped_provider(settings
     assert str(exc_info.value) == (
         f"Unknown provider_type: 'unknown'. Supported: '{supported}'"
     )
+
+
+def _classifier_sse(text: str) -> str:
+    events = (
+        ("message_start", {"type": "message_start", "message": {"role": "assistant"}}),
+        (
+            "content_block_start",
+            {
+                "type": "content_block_start",
+                "index": 0,
+                "content_block": {"type": "text", "text": ""},
+            },
+        ),
+        (
+            "content_block_delta",
+            {
+                "type": "content_block_delta",
+                "index": 0,
+                "delta": {"type": "text_delta", "text": text},
+            },
+        ),
+        ("message_stop", {"type": "message_stop"}),
+    )
+    return "".join(
+        f"event: {name}\ndata: {json.dumps(payload)}\n\n" for name, payload in events
+    )
+
+
+class _FakeClassifierProvider:
+    def __init__(self, reply: str) -> None:
+        self._reply = reply
+        self.calls = 0
+
+    def preflight_stream(
+        self, request: MessagesRequest, *, thinking_enabled: bool
+    ) -> None:
+        pass
+
+    async def stream_response(
+        self,
+        request: MessagesRequest,
+        *,
+        input_tokens: int,
+        request_id: str,
+        thinking_enabled: bool,
+    ) -> AsyncIterator[str]:
+        self.calls += 1
+        yield self._reply
+
+
+@pytest.mark.asyncio
+async def test_aresolve_messages_request_uses_static_path_by_default(settings):
+    settings.model_sonnet = "lmstudio/qwen2.5-7b"
+    provider = _FakeClassifierProvider(_classifier_sse("lmstudio/qwen2.5-7b"))
+    router = ModelRouter(settings, provider_resolver=lambda _pid: provider)
+    request = MessagesRequest(
+        model="claude-sonnet-4-20250514",
+        max_tokens=100,
+        messages=[Message(role="user", content="hello")],
+    )
+
+    routed = await router.aresolve_messages_request(request, request_id="req-1")
+
+    assert routed.resolved.provider_model_ref == "lmstudio/qwen2.5-7b"
+    # model_routing_mode defaults to "static": the classifier must never be called.
+    assert provider.calls == 0
+
+
+@pytest.mark.asyncio
+async def test_aresolve_messages_request_routes_dynamically_in_auto_mode(settings):
+    settings.model = "lmstudio/model-a"
+    settings.model_sonnet = "llamacpp/model-b"
+    settings.model_routing_mode = "auto"
+    settings.model_classifier = "ollama/classifier-model"
+    provider = _FakeClassifierProvider(_classifier_sse("llamacpp/model-b"))
+    router = ModelRouter(settings, provider_resolver=lambda _pid: provider)
+    request = MessagesRequest(
+        model="claude-sonnet-4-20250514",
+        max_tokens=100,
+        messages=[Message(role="user", content="please write a python function")],
+    )
+
+    routed = await router.aresolve_messages_request(request, request_id="req-1")
+
+    assert routed.resolved.provider_model_ref == "llamacpp/model-b"
+    assert routed.request.model == "model-b"
+    assert provider.calls == 1
+
+
+@pytest.mark.asyncio
+async def test_aresolve_messages_request_falls_back_when_classifier_unset(settings):
+    settings.model = "lmstudio/model-a"
+    settings.model_routing_mode = "auto"
+    settings.model_classifier = None
+    provider = _FakeClassifierProvider(_classifier_sse("lmstudio/model-a"))
+    router = ModelRouter(settings, provider_resolver=lambda _pid: provider)
+    request = MessagesRequest(
+        model="claude-sonnet-4-20250514",
+        max_tokens=100,
+        messages=[Message(role="user", content="hello")],
+    )
+
+    routed = await router.aresolve_messages_request(request, request_id="req-1")
+
+    assert routed.resolved.provider_model_ref == "lmstudio/model-a"
+    assert provider.calls == 0
+
+
+@pytest.mark.asyncio
+async def test_aresolve_messages_request_skips_auto_routing_for_direct_model(settings):
+    settings.model_routing_mode = "auto"
+    settings.model_classifier = "ollama/classifier-model"
+    provider = _FakeClassifierProvider(_classifier_sse("deepseek/deepseek-chat"))
+    router = ModelRouter(settings, provider_resolver=lambda _pid: provider)
+    request = MessagesRequest(
+        model="deepseek/deepseek-chat",
+        max_tokens=100,
+        messages=[Message(role="user", content="hello")],
+    )
+
+    routed = await router.aresolve_messages_request(request, request_id="req-1")
+
+    assert routed.resolved.provider_model_ref == "deepseek/deepseek-chat"
+    # A direct provider/model request already names its target explicitly.
+    assert provider.calls == 0

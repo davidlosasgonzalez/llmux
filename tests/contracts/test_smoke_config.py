@@ -36,7 +36,6 @@ def _settings(**overrides):
         "kimi_api_key": "",
         "wafer_api_key": "",
         "minimax_api_key": "",
-        "opencode_api_key": "",
         "vercel_ai_gateway_api_key": "",
         "huggingface_api_key": "",
         "cohere_api_key": "",
