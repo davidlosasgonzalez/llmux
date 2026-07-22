@@ -2,10 +2,10 @@
 
 Ground truth for **which free models each key gives us**, **their limits**, and
 **how that dictates which model plays which role**. Feeds the capability priors
-in `council/capability.py` and the routing rules in
-[`council-refinement-design.md`](council-refinement-design.md).
+in `verdict/capability.py` and the routing rules in
+[`verdict-refinement-design.md`](verdict-refinement-design.md).
 
-_Model catalogues are live-discovered (`fcc-council models --free-only`); limits
+_Model catalogues are live-discovered (`fcc-verdict models --free-only`); limits
 are researched from provider docs and **change often — re-verify periodically.**
 Last researched: 2026-07-15._
 

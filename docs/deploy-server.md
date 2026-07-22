@@ -76,7 +76,7 @@ Dos lecciones pagadas con horas de debugging — no las repitas:
 
 ```bash
 cd /path/to/project
-fcc-opencode          # escribe ~/.fcc/opencode.json (modelos + MCP + /council)
+fcc-opencode          # escribe ~/.fcc/opencode.json (modelos + MCP + /verdict)
 fcc-opencode run --dir . --auto "responde solo: pong"
 ```
 
@@ -84,7 +84,7 @@ El launcher incluye:
 
 - modelos `MODEL` + `MODEL_FALLBACKS` para cambio manual en la TUI
 - MCP `free-llm-verdict`
-- comando `/council`
+- comando `/verdict`
 - subagente `@second-opinion` (otro modelo de la cadena)
 
 ## 4. Flujo remoto (Termius)
@@ -96,7 +96,7 @@ El launcher incluye:
 4. Cuotas por SSH:
 
 ```bash
-fcc-council usage
+fcc-verdict usage
 ```
 
 5. Jobs desatendidos:
@@ -107,13 +107,13 @@ fcc-agent jobs status "$JOB"
 fcc-agent jobs result "$JOB"
 ```
 
-## 5. Ordenar fallbacks con stats del Council (C10)
+## 5. Ordenar fallbacks con stats del Verdict (C10)
 
 Tras varias deliberaciones:
 
 ```bash
-fcc-council usage --output json
-# o inspeccionar ~/.fcc/council.db model_stats
+fcc-verdict usage --output json
+# o inspeccionar ~/.fcc/verdict.db model_stats
 ```
 
 Procedimiento manual:
@@ -131,12 +131,12 @@ Procedimiento manual:
 - [ ] `~/.fcc/.env` con keys + `MODEL` + `MODEL_FALLBACKS`
 - [ ] `systemctl --user status fcc-server` active (o tmux)
 - [ ] `curl /health` OK tras reboot / re-login (linger)
-- [ ] `fcc-council usage` imprime tabla (aunque esté vacía)
+- [ ] `fcc-verdict usage` imprime tabla (aunque esté vacía)
 - [ ] `fcc-opencode models fcc` lista default + fallbacks
 - [ ] `fcc-opencode run --dir . --auto "pong"` completa
 - [ ] Drill fallback: forzar 429 en primario (key inválida temporal) →
       responde el secundario; logs `precommit_fallback.serving`
-- [ ] `/council` o MCP `evaluate` en una pregunta de diseño
+- [ ] `/verdict` o MCP `evaluate` en una pregunta de diseño
 - [ ] `@second-opinion` produce crítica con otro modelo
 - [ ] `fcc-agent jobs enqueue|status|result` en un job trivial
 - [ ] Validación en `~/Documents/advisor` (local) antes del VPS

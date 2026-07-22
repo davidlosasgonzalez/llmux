@@ -242,7 +242,7 @@ def run_opencode_task(
             proxy_root_url=proxy_root,
             auth_token=auth_token,
             model=model,
-            council_command=["false"],  # keep eval free of Council MCP noise
+            verdict_command=["false"],  # keep eval free of Verdict MCP noise
             config_dir=root / "cfg",
         )
         # Drop MCP; cap output tokens (Groq qwen rejects >16384).
@@ -450,7 +450,7 @@ def main(argv: list[str] | None = None) -> int:
             proxy_root_url=proxy_root,
             auth_token=settings.anthropic_auth_token,
             model=winner,
-            council_command=["fcc-council", "serve-mcp"],
+            verdict_command=["fcc-verdict", "serve-mcp"],
         )
 
     return 0

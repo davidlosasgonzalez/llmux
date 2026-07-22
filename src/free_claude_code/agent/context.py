@@ -3,7 +3,7 @@
 import json
 from typing import Any
 
-# Same heuristic as council research budgets (~4 chars/token).
+# Same heuristic as verdict research budgets (~4 chars/token).
 _CHARS_PER_TOKEN = 4
 
 # Soft default: leave room for system + tools + model output.

@@ -50,15 +50,15 @@ previsto** — la superficie de control es SSH, no messaging. No se extienden.
   byte SSE). Admin field + `.env.example`.
 - [x] **C3 — Launcher multi-modelo.** `fcc-opencode` lista `MODEL` +
   fallbacks.
-- [x] **C4 — Council sistemático.** `docs/opencode-agents.template.md` +
-  comando `/council` en config generada.
+- [x] **C4 — Verdict sistemático.** `docs/opencode-agents.template.md` +
+  comando `/verdict` en config generada.
 - [x] **C5 — Arranque persistente.** `deploy/fcc-server.service` +
   `docs/deploy-server.md`.
-- [x] **C6 — Cuotas SSH.** `fcc-council usage` + port-forward documentados.
+- [x] **C6 — Cuotas SSH.** `fcc-verdict usage` + port-forward documentados.
 - [x] **C7 — Smoke continuidad.** `tests/application/test_fallback_continuity.py`
   + checklist v1 en deploy guide.
-- [x] **C8 — A/B Council.** Decisión: Council en nicho, no default
-  (`docs/evals/2026-07-21-c8-council-ab.md`).
+- [x] **C8 — A/B Verdict.** Decisión: Verdict en nicho, no default
+  (`docs/evals/2026-07-21-c8-verdict-ab.md`).
 - [x] **C9 — Subagente second-opinion.** Generado por launcher (otro modelo
   de la cadena; docs OpenCode `agent` + `mode: subagent`).
 - [x] **C10 — Stats → fallbacks.** Procedimiento en `docs/deploy-server.md` §5.
@@ -84,7 +84,7 @@ el proxy (v1.5), cambio de modelo mid-stream, messaging como canal.
 - [ ] **C13 — Auto-doctor (diagnóstico asistido por LLM, human-in-the-loop).**
   Ante un patrón de fallo recurrente detectado por `fcc-trace`/quota (p. ej.
   turno con >80% rate-limit, o cadena de fallback agotada), correr el
-  análisis con el Council y **emitir un informe** de qué pasó + ajuste de
+  análisis con el Verdict y **emitir un informe** de qué pasó + ajuste de
   config sugerido. **Línea roja:** puede proponer y, como mucho, aplicar
   cambios de **config acotada y reversible** (reordenar `MODEL_FALLBACKS`,
   degradar un modelo) con allowlist y log de cada acción; **nunca** editar
