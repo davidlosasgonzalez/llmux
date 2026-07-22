@@ -31,9 +31,10 @@ curl -fsS http://127.0.0.1:8082/health
 
 Alternativa rápida: `tmux new -s fcc` → `fcc-server`.
 
-### 2b. Variante system-mode (root, checkout por rsync)
+### 2b. Variante system-mode (root, clone en /opt)
 
-Para un VPS donde el repo llega por rsync a `/opt/free-claude-code` y el
+Para un VPS donde `/opt/free-claude-code` es un clone de
+`github.com/davidlosasgonzalez/llm-verdict` (deploy key de solo lectura) y el
 servicio corre como root (verificada en producción, 2026-07-22):
 
 ```ini
@@ -69,6 +70,18 @@ Dos lecciones pagadas con horas de debugging — no las repitas:
   fixes de config que "no surten efecto").
 - El `.env` para systemd no debe llevar comillas en los valores
   (`EnvironmentFile` las pasa literales al proceso).
+
+Actualización del servidor (tras cada push a `main`):
+
+```bash
+cd /opt/free-claude-code
+git pull --ff-only
+export PATH="$HOME/.local/bin:$PATH"   # uv no está en PATH en shell no interactiva
+uv sync
+systemctl restart fcc-server.service
+sleep 5 && curl -fsS http://127.0.0.1:8082/health
+# Verificación real, nunca solo /health: una petición E2E + fcc-trace --last
+```
 
 ## 3. Claude Code
 
