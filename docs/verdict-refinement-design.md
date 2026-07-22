@@ -8,9 +8,9 @@ user-facing manual is [`verdict.md`](verdict.md).
 
 ## 1. How our use differs from upstream
 
-**Upstream `free-claude-code`** is a *proxy*: it lets **one** coding agent (Claude
-Code / Codex / Pi) run on free or local models, with routing, streaming and tool
-calling. One model answers each request.
+**The FCC proxy** lets **one** coding agent (Claude Code) run on free or local
+models, with routing, streaming and tool calling. One model answers each
+request.
 
 **Our use is a refinement flow.** One query is:
 

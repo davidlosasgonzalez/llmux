@@ -30,10 +30,6 @@ _CONTEXT_KEYS = (
     "http_path",
 )
 
-_TELEGRAM_BOT_RE = re.compile(
-    r"(https?://api\.telegram\.org/)bot([0-9]+:[A-Za-z0-9_-]+)(/?)",
-    re.IGNORECASE,
-)
 # Authorization: Bearer <token> (HTTP client / proxy debug lines)
 _AUTH_BEARER_RE = re.compile(
     r"(\bAuthorization\s*:\s*Bearer\s+)([^\s'\"]+)",
@@ -43,8 +39,7 @@ _AUTH_BEARER_RE = re.compile(
 
 def _redact_sensitive_substrings(message: str) -> str:
     """Remove obvious API tokens and secrets before JSON log line emission."""
-    text = _TELEGRAM_BOT_RE.sub(r"\1bot<redacted>\3", message)
-    return _AUTH_BEARER_RE.sub(r"\1<redacted>", text)
+    return _AUTH_BEARER_RE.sub(r"\1<redacted>", message)
 
 
 def _serialize_with_context(record) -> str:
@@ -116,7 +111,7 @@ def configure_logging(
     Idempotent: skips if already configured (e.g. hot reload).
     Use force=True to reconfigure (e.g. in tests with a different log path).
 
-    When ``verbose_third_party`` is false, noisy HTTP and Telegram loggers are capped
+    When ``verbose_third_party`` is false, noisy HTTP loggers are capped
     at WARNING unless explicitly configured otherwise.
 
     ``truncate`` clears the log file on configure; set to False for long-lived
@@ -144,6 +139,7 @@ def configure_logging(
         encoding="utf-8",
         mode="a",
         rotation="50 MB",
+        retention="1 year",
         enqueue=True,
     )
 
@@ -157,8 +153,6 @@ def configure_logging(
         "httpcore",
         "httpcore.http11",
         "httpcore.connection",
-        "telegram",
-        "telegram.ext",
     )
     for name in third_party:
         logging.getLogger(name).setLevel(

@@ -1,7 +1,6 @@
 """Typed capabilities consumed by application use cases."""
 
 from collections.abc import AsyncIterator, Callable
-from dataclasses import dataclass
 from typing import Protocol
 
 from free_claude_code.config.settings import Settings
@@ -61,17 +60,3 @@ class RequestRuntimePort(Protocol):
     ) -> bool | None: ...
 
     def cached_prefixed_model_infos(self) -> tuple[ProviderModelInfo, ...]: ...
-
-
-@dataclass(frozen=True, slots=True)
-class StopResult:
-    """Implementation-neutral result retaining the existing ``/stop`` variants."""
-
-    cancelled_count: int | None = None
-    source: str | None = None
-
-
-class TaskController(Protocol):
-    """Stop managed work without exposing messaging or CLI resources."""
-
-    async def stop_all(self) -> StopResult | None: ...

@@ -49,7 +49,7 @@ def _local_provider_messages_e2e(
     with SmokeServerDriver(
         smoke_config,
         name=f"product-{provider}-messages",
-        env_overrides={"MODEL": f"{provider}/{model_id}", "MESSAGING_PLATFORM": "none"},
+        env_overrides={"MODEL": f"{provider}/{model_id}"},
     ).run() as server:
         turn = ConversationDriver(server, smoke_config).ask(
             "Reply with one short sentence."

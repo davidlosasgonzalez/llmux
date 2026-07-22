@@ -12,16 +12,14 @@ from free_claude_code.application.errors import (
     InvalidRequestError,
 )
 from free_claude_code.config.settings import Settings
-from free_claude_code.messaging.transcription import TranscriptionService
 from free_claude_code.providers.nvidia_nim.client import NvidiaNimProvider
-from free_claude_code.providers.nvidia_nim.voice import NvidiaNimTranscriber
 from free_claude_code.runtime.application import (
     ApplicationRuntime,
     startup_failure_message,
     warn_if_process_auth_token,
 )
 from free_claude_code.runtime.asgi import RuntimeASGIApp
-from free_claude_code.runtime.bootstrap import _create_transcriber, build_asgi_app
+from free_claude_code.runtime.bootstrap import build_asgi_app
 from free_claude_code.runtime.provider_manager import ProviderRuntimeManager
 from tests.api.support import create_test_app
 
@@ -63,12 +61,11 @@ def test_warn_if_process_auth_token_skips_explicit_dotenv_config(monkeypatch, tm
 @pytest.mark.asyncio
 async def test_runtime_startup_logs_admin_url_without_printed_server_banner():
     settings = _settings(
-        messaging_platform="none",
         host="127.0.0.1",
         port=9099,
     )
     manager = ProviderRuntimeManager(settings)
-    runtime = ApplicationRuntime(manager, transcriber=None)
+    runtime = ApplicationRuntime(manager)
     uvicorn_logger = MagicMock()
 
     with (
@@ -76,10 +73,6 @@ async def test_runtime_startup_logs_admin_url_without_printed_server_banner():
         patch.object(manager, "validate_configured_models", new=AsyncMock()),
         patch.object(manager, "start_model_list_refresh") as start_refresh,
         patch.object(manager, "close", new=AsyncMock()),
-        patch(
-            "free_claude_code.runtime.application.messaging_platform_factory.create_messaging_components",
-            return_value=None,
-        ),
         patch.object(logging, "getLogger", return_value=uvicorn_logger) as get_logger,
     ):
         await runtime.start()
@@ -167,19 +160,15 @@ def test_general_exception_default_log_excludes_exception_message():
 
 @pytest.mark.asyncio
 async def test_model_validation_failure_does_not_block_runtime_startup():
-    settings = _settings(messaging_platform="none")
+    settings = _settings()
     manager = ProviderRuntimeManager(settings)
-    runtime = ApplicationRuntime(manager, transcriber=None)
+    runtime = ApplicationRuntime(manager)
     validation = AsyncMock(side_effect=ApplicationUnavailableError("bad model"))
 
     with (
         patch.object(manager, "validate_configured_models", new=validation),
         patch.object(manager, "start_model_list_refresh") as start_refresh,
         patch.object(manager, "close", new=AsyncMock()),
-        patch(
-            "free_claude_code.runtime.application.messaging_platform_factory.create_messaging_components",
-            return_value=None,
-        ),
     ):
         await runtime.start()
         await runtime.close()
@@ -309,6 +298,7 @@ def test_bootstrap_configures_default_log_and_publishes_only_services(tmp_path):
     configure.assert_called_once_with(
         Path(log_path),
         verbose_third_party=settings.log_raw_api_payloads,
+        truncate=False,
     )
     api_app = cast(FastAPI, asgi_app.app)
     assert set(api_app.state._state) == {"services"}
@@ -324,24 +314,9 @@ def test_bootstrap_honors_process_log_file_override(monkeypatch, tmp_path):
     assert configure.call_args.args[0] == log_path
 
 
-def test_bootstrap_constructs_fresh_runtime_owned_transcribers() -> None:
-    settings = _settings(voice_note_enabled=True, whisper_device="cpu")
-
-    first = _create_transcriber(settings)
-    second = _create_transcriber(settings)
-
-    assert isinstance(first, TranscriptionService)
-    assert isinstance(second, TranscriptionService)
-    assert first is not second
-
-
 @pytest.mark.asyncio
 async def test_bootstrap_constructs_isolated_runtime_resource_graphs() -> None:
-    settings = _settings(
-        model="nvidia_nim/test-model",
-        voice_note_enabled=True,
-        whisper_device="cpu",
-    )
+    settings = _settings(model="nvidia_nim/test-model")
 
     with patch("free_claude_code.runtime.bootstrap.configure_logging"):
         first = build_asgi_app(settings)
@@ -356,24 +331,8 @@ async def test_bootstrap_constructs_isolated_runtime_resource_graphs() -> None:
         assert isinstance(first_provider, NvidiaNimProvider)
         assert isinstance(second_provider, NvidiaNimProvider)
         assert first_provider._rate_limiter is not second_provider._rate_limiter
-        assert first.runtime._transcriber is not second.runtime._transcriber
     finally:
         await first_lease.release()
         await second_lease.release()
         await first.runtime.close()
         await second.runtime.close()
-
-
-def test_bootstrap_selects_nvidia_transcriber_without_loading_riva() -> None:
-    settings = _settings(
-        voice_note_enabled=True,
-        whisper_device="nvidia_nim",
-        whisper_model="openai/whisper-large-v3",
-        nvidia_nim_api_key="nvapi-test",
-    )
-
-    assert isinstance(_create_transcriber(settings), NvidiaNimTranscriber)
-
-
-def test_bootstrap_disables_transcription_as_one_owned_resource() -> None:
-    assert _create_transcriber(_settings(voice_note_enabled=False)) is None

@@ -8,7 +8,7 @@ from free_claude_code.config.settings import Settings
 _PROVIDER_FIELD_OVERRIDES: dict[str, dict[str, Any]] = {
     "NVIDIA_NIM_API_KEY": {
         "label": "NVIDIA NIM API Key",
-        "description": "Used by NVIDIA NIM chat and optional NIM voice transcription.",
+        "description": "Used by NVIDIA NIM chat.",
     },
     "MISTRAL_API_KEY": {
         "label": "Mistral API Key",
@@ -23,13 +23,6 @@ _PROVIDER_FIELD_OVERRIDES: dict[str, dict[str, Any]] = {
             "La Plateforme ``MISTRAL_API_KEY``. See Mistral docs for coding/FIM domains."
         ),
     },
-    "OPENCODE_API_KEY": {
-        "label": "OpenCode API Key",
-        "description": (
-            "OpenCode Zen curated gateway (opencode.ai/zen/v1) and OpenCode Go subscription "
-            "gateway (opencode.ai/zen/go/v1); single key from opencode.ai/auth."
-        ),
-    },
     "AI_GATEWAY_API_KEY": {
         "label": "Vercel AI Gateway API Key",
         "description": (
@@ -39,10 +32,7 @@ _PROVIDER_FIELD_OVERRIDES: dict[str, dict[str, Any]] = {
     },
     "HUGGINGFACE_API_KEY": {
         "label": "Hugging Face API Key",
-        "description": (
-            "Hugging Face token with Inference Providers permission; also used "
-            "for local Whisper model downloads when voice notes need gated models."
-        ),
+        "description": ("Hugging Face token with Inference Providers permission."),
     },
     "COHERE_API_KEY": {
         "label": "Cohere API Key",

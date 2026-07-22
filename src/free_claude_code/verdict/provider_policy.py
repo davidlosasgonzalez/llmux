@@ -195,20 +195,6 @@ _POLICY: dict[str, ProviderFreeAccess] = {
         default_enabled=False,
         free_daily="AI Gateway billed usage.",
     ),
-    "opencode": ProviderFreeAccess(
-        provider="opencode",
-        tier=TIER_PAID,
-        requires_card=True,
-        default_enabled=False,
-        free_daily="Opencode Zen is paid.",
-    ),
-    "opencode_go": ProviderFreeAccess(
-        provider="opencode_go",
-        tier=TIER_PAID,
-        requires_card=True,
-        default_enabled=False,
-        free_daily="Opencode Go is paid.",
-    ),
     "mistral_codestral": ProviderFreeAccess(
         provider="mistral_codestral",
         tier=TIER_PAID,

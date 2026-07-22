@@ -34,7 +34,6 @@ def test_nvidia_nim_cli_matrix_e2e(smoke_config: SmokeConfig, tmp_path: Path) ->
             name=f"product-nvidia-nim-cli-{_slug(provider_model.model_name)}",
             env_overrides={
                 "MODEL": provider_model.full_model,
-                "MESSAGING_PLATFORM": "none",
                 "ENABLE_MODEL_THINKING": "true",
                 "LOG_RAW_API_PAYLOADS": "true",
                 "LOG_RAW_SSE_EVENTS": "true",

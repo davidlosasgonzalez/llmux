@@ -31,7 +31,7 @@ PreStartErrorResponse = Callable[[BaseException], Response]
 TerminalFrameEmitter = Callable[[BaseException], str]
 TerminalFailureObserver = Callable[[BaseException], None]
 ReleaseResponseResource = Callable[[], Awaitable[None]]
-WireApi = Literal["messages", "responses"]
+WireApi = Literal["messages"]
 
 
 class EmptyStreamError(RuntimeError):
@@ -367,20 +367,4 @@ def _trace_anthropic_terminal_failure(
             else "api_error"
         ),
         error=exc,
-    )
-
-
-async def openai_responses_sse_streaming_response(
-    body: AsyncIterator[str],
-    *,
-    headers: Mapping[str, str],
-    pre_start_error_response: PreStartErrorResponse,
-) -> Response:
-    """Return a streaming response for OpenAI Responses-style SSE."""
-    return await _first_chunk_streaming_response(
-        body,
-        headers=headers,
-        pre_start_error_response=pre_start_error_response,
-        terminal_frame=None,
-        terminal_failure_observer=None,
     )

@@ -1,8 +1,4 @@
 param(
-    [switch] $VoiceNim,
-    [switch] $VoiceLocal,
-    [switch] $VoiceAll,
-    [string] $TorchBackend = "",
     [switch] $DryRun,
     [switch] $Help,
     [Parameter(ValueFromRemainingArguments = $true)]
@@ -13,25 +9,19 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $ProgressPreference = "SilentlyContinue"
 
-$RepoArchiveUrl = "https://github.com/Alishahryar1/free-claude-code/archive/refs/heads/main.zip"
+$RepoArchiveUrl = "https://github.com/davidlosasgonzalez/llm-verdict/archive/refs/heads/main.zip"
 $PythonVersion = "3.14.0"
 $MinUvVersion = "0.11.0"
 $ClaudeInstallUrl = "https://claude.ai/install.ps1"
-$CodexInstallUrl = "https://chatgpt.com/codex/install.ps1"
-$PiInstallUrl = "https://pi.dev/install.ps1"
 $UvInstallUrl = "https://astral.sh/uv/install.ps1"
 
 function Show-Usage {
     @"
 Usage: install.ps1 [options]
 
-Installs Claude Code, Codex, and Pi if missing, ensures a compatible uv, and installs or updates Free Claude Code.
+Installs Claude Code if missing, ensures a compatible uv, and installs or updates Free Claude Code.
 
 Options:
-  -VoiceNim              Install NVIDIA NIM voice transcription support.
-  -VoiceLocal            Install local Whisper voice transcription support.
-  -VoiceAll              Install all voice transcription backends.
-  -TorchBackend VALUE    Use a uv PyTorch backend, such as cu130. Requires local voice.
   -DryRun                Print commands without running them.
   -Help                  Show this help text.
 "@
@@ -157,46 +147,20 @@ function Add-KnownBinDirectories {
     if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
         Add-PathEntry (Join-Path $env:USERPROFILE ".local\bin")
     }
-    if (-not [string]::IsNullOrWhiteSpace($env:LOCALAPPDATA)) {
-        Add-PathEntry (Join-Path $env:LOCALAPPDATA "Programs\OpenAI\Codex\bin")
-        Add-PathEntry (Join-Path $env:LOCALAPPDATA "pi-node\current")
-    }
     if (-not [string]::IsNullOrWhiteSpace($env:APPDATA)) {
         Add-PathEntry (Join-Path $env:APPDATA "npm")
-    }
-}
-
-function Add-PiBinDirectories {
-    if ($DryRun) {
-        return
-    }
-
-    Add-KnownBinDirectories
-    $npm = Get-ApplicationCommand "npm"
-    if (-not $npm) {
-        return
-    }
-
-    $prefix = (& $npm.Source prefix -g 2>$null | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($prefix)) {
-        $prefix = (& $npm.Source config get prefix 2>$null | Out-String).Trim()
-    }
-    if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($prefix)) {
-        Add-PathEntry $prefix
     }
 }
 
 function Invoke-DownloadedPowerShellInstaller {
     param(
         [string] $Url,
-        [string] $Name,
-        [switch] $NonInteractive
+        [string] $Name
     )
 
     if ($DryRun) {
         Write-Host "+ irm $Url -OutFile <temporary-script>"
-        $prefix = if ($NonInteractive) { "CODEX_NON_INTERACTIVE=1 " } else { "" }
-        Write-Host "+ ${prefix}powershell -NoProfile -ExecutionPolicy Bypass -File <temporary-script>"
+        Write-Host "+ powershell -NoProfile -ExecutionPolicy Bypass -File <temporary-script>"
         return
     }
 
@@ -209,29 +173,13 @@ function Invoke-DownloadedPowerShellInstaller {
         }
 
         $powerShellPath = Get-PowerShellExecutable
-
-        $hadNonInteractive = Test-Path Env:CODEX_NON_INTERACTIVE
-        $previousNonInteractive = $env:CODEX_NON_INTERACTIVE
-        try {
-            if ($NonInteractive) {
-                $env:CODEX_NON_INTERACTIVE = "1"
-            }
-            Invoke-NativeCommand -FilePath $powerShellPath -Arguments @(
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-File",
-                $temporaryScript
-            )
-        }
-        finally {
-            if ($hadNonInteractive) {
-                $env:CODEX_NON_INTERACTIVE = $previousNonInteractive
-            }
-            else {
-                Remove-Item Env:CODEX_NON_INTERACTIVE -ErrorAction SilentlyContinue
-            }
-        }
+        Invoke-NativeCommand -FilePath $powerShellPath -Arguments @(
+            "-NoProfile",
+            "-ExecutionPolicy",
+            "Bypass",
+            "-File",
+            $temporaryScript
+        )
     }
     finally {
         Remove-Item -LiteralPath $temporaryScript -Force -ErrorAction SilentlyContinue
@@ -256,39 +204,6 @@ function Confirm-Application {
     Invoke-NativeCommand -FilePath $command.Source -Arguments @("--version")
 }
 
-function Test-PiApplication {
-    param($Command)
-
-    try {
-        $helpOutput = (& $Command.Source --help 2>$null | Out-String)
-    }
-    catch {
-        return $false
-    }
-    return (
-        $LASTEXITCODE -eq 0 -and
-        $helpOutput.Contains("--extension") -and
-        $helpOutput.Contains("--models")
-    )
-}
-
-function Confirm-PiApplication {
-    if ($DryRun) {
-        Write-Host "+ pi --help (verify --extension and --models support)"
-        Write-Host "+ pi --version"
-        return
-    }
-
-    $command = Get-ApplicationCommand "pi"
-    if (-not $command) {
-        throw "Pi was installed, but 'pi' is not available on PATH."
-    }
-    if (-not (Test-PiApplication $command)) {
-        throw "The 'pi' command at '$($command.Source)' is not a compatible Pi Coding Agent."
-    }
-    Invoke-NativeCommand -FilePath $command.Source -Arguments @("--version")
-}
-
 function Ensure-ClaudeCode {
     if (Get-ApplicationCommand "claude") {
         Write-Host "Claude Code already found on PATH; verifying it."
@@ -299,34 +214,6 @@ function Ensure-ClaudeCode {
     }
 
     Confirm-Application -CommandName "claude" -DisplayName "Claude Code"
-}
-
-function Ensure-Codex {
-    if (Get-ApplicationCommand "codex") {
-        Write-Host "Codex already found on PATH; verifying it."
-    }
-    else {
-        Invoke-DownloadedPowerShellInstaller -Url $CodexInstallUrl -Name "Codex" -NonInteractive
-        Add-KnownBinDirectories
-    }
-
-    Confirm-Application -CommandName "codex" -DisplayName "Codex"
-}
-
-function Ensure-Pi {
-    $existingPi = Get-ApplicationCommand "pi"
-    if ($existingPi -and ($DryRun -or (Test-PiApplication $existingPi))) {
-        Write-Host "Pi already found on PATH; verifying it."
-    }
-    else {
-        if ($existingPi) {
-            Write-Host "The existing 'pi' command at '$($existingPi.Source)' is not Pi Coding Agent; installing Pi."
-        }
-        Invoke-DownloadedPowerShellInstaller -Url $PiInstallUrl -Name "Pi"
-        Add-PiBinDirectories
-    }
-
-    Confirm-PiApplication
 }
 
 function Convert-UvVersionOutput {
@@ -420,29 +307,7 @@ function Ensure-Uv {
     Confirm-Uv
 }
 
-function Get-PackageSpec {
-    $includeNim = $VoiceNim
-    $includeLocal = $VoiceLocal
-
-    if ($VoiceAll) {
-        $includeNim = $true
-        $includeLocal = $true
-    }
-
-    if ($includeNim -and $includeLocal) {
-        return "free-claude-code[voice,voice_local] @ $RepoArchiveUrl"
-    }
-    if ($includeNim) {
-        return "free-claude-code[voice] @ $RepoArchiveUrl"
-    }
-    if ($includeLocal) {
-        return "free-claude-code[voice_local] @ $RepoArchiveUrl"
-    }
-    return "free-claude-code @ $RepoArchiveUrl"
-}
-
 function Install-FreeClaudeCode {
-    $packageSpec = Get-PackageSpec
     $arguments = @(
         "tool",
         "install",
@@ -450,12 +315,9 @@ function Install-FreeClaudeCode {
         "--refresh-package",
         "free-claude-code",
         "--python",
-        $PythonVersion
+        $PythonVersion,
+        "free-claude-code @ $RepoArchiveUrl"
     )
-    if (-not [string]::IsNullOrWhiteSpace($TorchBackend)) {
-        $arguments += @("--torch-backend", $TorchBackend)
-    }
-    $arguments += $packageSpec
 
     $uvPath = "uv"
     if (-not $DryRun) {
@@ -472,7 +334,7 @@ function Configure-AndConfirmFreeClaudeCode {
     if ($DryRun) {
         Write-Host "+ uv tool update-shell"
         Write-Host "+ uv tool dir --bin"
-        Write-Host "+ verify fcc-server, fcc-claude, fcc-codex, and fcc-pi in the uv tool bin directory"
+        Write-Host "+ verify fcc-server and fcc-claude in the uv tool bin directory"
         Write-Host "+ fcc-server --version"
         return
     }
@@ -493,7 +355,7 @@ function Configure-AndConfirmFreeClaudeCode {
         [IO.Path]::AltDirectorySeparatorChar
     )
     $installedCommands = @{}
-    foreach ($commandName in @("fcc-server", "fcc-claude", "fcc-codex", "fcc-pi")) {
+    foreach ($commandName in @("fcc-server", "fcc-claude")) {
         $command = Get-ApplicationCommand $commandName
         if (-not $command) {
             throw "Free Claude Code installation did not create '$commandName'."
@@ -521,20 +383,10 @@ if ($RemainingArgs.Count -gt 0) {
     throw "Unknown option: $($RemainingArgs -join ' ')"
 }
 
-if ((-not [string]::IsNullOrWhiteSpace($TorchBackend)) -and (-not ($VoiceLocal -or $VoiceAll))) {
-    throw "-TorchBackend requires -VoiceLocal or -VoiceAll."
-}
-
 Add-KnownBinDirectories
 
 Write-Step "Ensuring Claude Code is installed"
 Ensure-ClaudeCode
-
-Write-Step "Ensuring Codex is installed"
-Ensure-Codex
-
-Write-Step "Ensuring Pi is installed"
-Ensure-Pi
 
 Write-Step "Ensuring uv $MinUvVersion or newer is installed"
 Ensure-Uv
@@ -552,6 +404,4 @@ if ($DryRun) {
 else {
     Write-Host "Free Claude Code is installed and verified. Start the proxy with: fcc-server"
     Write-Host "Run Claude Code with: fcc-claude"
-    Write-Host "Run Codex with: fcc-codex"
-    Write-Host "Run Pi with: fcc-pi"
 }

@@ -6,7 +6,6 @@ import pytest
 from free_claude_code.application.routing import ModelRouter
 from free_claude_code.core.anthropic.stream_contracts import (
     SSEEvent,
-    parse_sse_lines,
 )
 from smoke.lib.config import ProviderModel, SmokeConfig, auth_headers
 from smoke.lib.e2e import (
@@ -146,7 +145,7 @@ def test_provider_error_e2e(smoke_config: SmokeConfig) -> None:
         SmokeServerDriver(
             smoke_config,
             name=f"product-provider-error-{provider_model.provider}",
-            env_overrides={"MODEL": broken_model, "MESSAGING_PLATFORM": "none"},
+            env_overrides={"MODEL": broken_model},
         ).run() as server,
         httpx.Client(timeout=smoke_config.timeout_s) as client,
     ):
@@ -170,40 +169,6 @@ def test_provider_error_e2e(smoke_config: SmokeConfig) -> None:
     assert payload["request_id"] == response.headers["request-id"]
 
 
-def test_provider_codex_responses_text_e2e(
-    smoke_config: SmokeConfig, provider_model: ProviderModel
-) -> None:
-    try:
-        with (
-            _server_for_provider(
-                smoke_config, provider_model, "codex-responses"
-            ) as server,
-            httpx.stream(
-                "POST",
-                f"{server.base_url}/v1/responses",
-                headers=_openai_auth_headers(smoke_config),
-                json={
-                    "model": provider_model.full_model,
-                    "input": smoke_config.prompt,
-                    "max_output_tokens": 128,
-                    "stream": True,
-                },
-                timeout=smoke_config.timeout_s,
-            ) as response,
-        ):
-            assert response.status_code == 200, response.read()
-            events = parse_sse_lines(response.iter_lines())
-    except Exception as exc:
-        skip_if_upstream_unavailable_exception(exc)
-        raise
-
-    skip_if_upstream_unavailable_events(events)
-    names = [event.event for event in events]
-    assert names[0] == "response.created", names
-    assert names[-1] == "response.completed", names
-    assert any(event.event == "response.output_text.delta" for event in events), names
-
-
 def test_openrouter_native_e2e(smoke_config: SmokeConfig) -> None:
     models = [
         model
@@ -219,7 +184,6 @@ def test_openrouter_native_e2e(smoke_config: SmokeConfig) -> None:
         name="product-openrouter-native",
         env_overrides={
             "MODEL": provider_model.full_model,
-            "MESSAGING_PLATFORM": "none",
         },
     ).run() as server:
         turn = ConversationDriver(server, smoke_config).stream(
@@ -576,7 +540,6 @@ def _server_for_provider(
         name=f"product-provider-{provider_model.provider}-{name}",
         env_overrides={
             "MODEL": provider_model.full_model,
-            "MESSAGING_PLATFORM": "none",
         },
     ).run()
 

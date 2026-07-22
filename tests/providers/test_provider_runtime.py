@@ -52,7 +52,6 @@ def _make_settings(**overrides):
     mock.deepseek_api_key = "test_deepseek_key"
     mock.wafer_api_key = "test_wafer_key"
     mock.minimax_api_key = "test_minimax_key"
-    mock.opencode_api_key = "test_opencode_key"
     mock.vercel_ai_gateway_api_key = "test_vercel_key"
     mock.huggingface_api_key = "test_huggingface_key"
     mock.cohere_api_key = "test_cohere_key"
@@ -72,8 +71,6 @@ def _make_settings(**overrides):
     mock.kimi_api_key = "test_kimi_key"
     mock.wafer_proxy = ""
     mock.minimax_proxy = ""
-    mock.opencode_proxy = ""
-    mock.opencode_go_proxy = ""
     mock.vercel_ai_gateway_proxy = ""
     mock.huggingface_proxy = ""
     mock.cohere_proxy = ""
@@ -232,32 +229,6 @@ def test_create_cloudflare_provider_uses_account_scoped_base_url():
     )
 
 
-def test_opencode_go_provider_config_uses_correct_base_url_and_name():
-    with patch("httpx.AsyncClient"):
-        provider = create_provider("opencode_go", _make_settings())
-
-    assert isinstance(provider, OpenAIChatProvider)
-    assert provider._base_url == "https://opencode.ai/zen/go/v1"
-    assert provider._provider_name == "OPENCODE_GO"
-    assert provider._api_key == "test_opencode_key"
-
-
-def test_opencode_go_catalog_uses_opencode_api_key() -> None:
-    desc = PROVIDER_CATALOG["opencode_go"]
-
-    assert desc.credential_env == "OPENCODE_API_KEY"
-    assert desc.credential_attr == "opencode_api_key"
-
-
-def test_build_provider_config_opencode_go_uses_opencode_api_key() -> None:
-    descriptor = PROVIDER_CATALOG["opencode_go"]
-    settings = _make_settings(opencode_api_key="shared-opencode-token")
-
-    config = build_provider_config(descriptor, settings)
-
-    assert config.api_key == "shared-opencode-token"
-
-
 def test_vercel_descriptor_uses_openai_chat_gateway() -> None:
     descriptor = PROVIDER_CATALOG["vercel"]
 
@@ -382,8 +353,6 @@ def test_create_provider_instantiates_each_builtin():
         "ollama": OpenAIChatProvider,
         "ollama_cloud": OpenAIChatProvider,
         "wafer": OpenAIChatProvider,
-        "opencode": OpenAIChatProvider,
-        "opencode_go": OpenAIChatProvider,
         "vercel": OpenAIChatProvider,
         "huggingface": OpenAIChatProvider,
         "cohere": OpenAIChatProvider,

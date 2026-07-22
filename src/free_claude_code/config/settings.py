@@ -40,10 +40,6 @@ class Settings(BaseSettings):
     # ==================== MiniMax Config ====================
     minimax_api_key: str = Field(default="", validation_alias="MINIMAX_API_KEY")
 
-    # ==================== OpenCode Zen / OpenCode Go ====================
-    # Same key from opencode.ai/auth; zen uses prefix ``opencode/``, Go uses ``opencode_go/``.
-    opencode_api_key: str = Field(default="", validation_alias="OPENCODE_API_KEY")
-
     # ==================== Vercel AI Gateway ====================
     vercel_ai_gateway_api_key: str = Field(
         default="", validation_alias="AI_GATEWAY_API_KEY"
@@ -92,32 +88,6 @@ class Settings(BaseSettings):
         default="", validation_alias="BRAVE_SEARCH_API_KEY"
     )
 
-    # ==================== Messaging Platform Selection ====================
-    # Valid: "telegram" | "discord" | "none"
-    messaging_platform: str = Field(
-        default="discord", validation_alias="MESSAGING_PLATFORM"
-    )
-    messaging_rate_limit: int = Field(
-        default=1, validation_alias="MESSAGING_RATE_LIMIT"
-    )
-    messaging_rate_window: float = Field(
-        default=1.0, validation_alias="MESSAGING_RATE_WINDOW"
-    )
-    # "claude" = ManagedClaudeSessionManager (Claude Code binary).
-    # "agent" = own-agent harness (no --dangerously-skip-permissions).
-    messaging_session_backend: str = Field(
-        default="claude", validation_alias="MESSAGING_SESSION_BACKEND"
-    )
-    messaging_agent_job_timeout_s: float = Field(
-        default=600.0, validation_alias="MESSAGING_AGENT_JOB_TIMEOUT_S"
-    )
-    messaging_agent_approval_timeout_s: float = Field(
-        default=120.0, validation_alias="MESSAGING_AGENT_APPROVAL_TIMEOUT_S"
-    )
-    messaging_agent_auto_approve: bool = Field(
-        default=False, validation_alias="MESSAGING_AGENT_AUTO_APPROVE"
-    )
-
     # ==================== NVIDIA NIM Config ====================
     nvidia_nim_api_key: str = ""
 
@@ -156,6 +126,17 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("MODEL_FALLBACKS", "model_fallbacks"),
     )
 
+    # Valid: "static" (default, unchanged substring routing) | "auto" (a
+    # classifier model picks among the configured MODEL/MODEL_* refs per request).
+    model_routing_mode: str = Field(
+        default="static", validation_alias="MODEL_ROUTING_MODE"
+    )
+    # Classifier model used only when model_routing_mode == "auto". If unset in
+    # auto mode, routing falls back to static (logs a warning, never crashes).
+    model_classifier: str | None = Field(
+        default=None, validation_alias="MODEL_CLASSIFIER"
+    )
+
     # ==================== Per-Provider Proxy ====================
     nvidia_nim_proxy: str = Field(default="", validation_alias="NVIDIA_NIM_PROXY")
     open_router_proxy: str = Field(default="", validation_alias="OPENROUTER_PROXY")
@@ -166,8 +147,6 @@ class Settings(BaseSettings):
     kimi_proxy: str = Field(default="", validation_alias="KIMI_PROXY")
     wafer_proxy: str = Field(default="", validation_alias="WAFER_PROXY")
     minimax_proxy: str = Field(default="", validation_alias="MINIMAX_PROXY")
-    opencode_proxy: str = Field(default="", validation_alias="OPENCODE_PROXY")
-    opencode_go_proxy: str = Field(default="", validation_alias="OPENCODE_GO_PROXY")
     vercel_ai_gateway_proxy: str = Field(
         default="", validation_alias="VERCEL_AI_GATEWAY_PROXY"
     )
@@ -190,9 +169,6 @@ class Settings(BaseSettings):
     )
     provider_max_concurrency: int = Field(
         default=5, validation_alias="PROVIDER_MAX_CONCURRENCY"
-    )
-    provider_upstream_max_retries: int = Field(
-        default=4, ge=0, validation_alias="PROVIDER_UPSTREAM_MAX_RETRIES"
     )
     provider_upstream_max_retries: int = Field(
         default=4, ge=0, validation_alias="PROVIDER_UPSTREAM_MAX_RETRIES"
@@ -260,54 +236,8 @@ class Settings(BaseSettings):
     log_api_error_tracebacks: bool = Field(
         default=False, validation_alias="LOG_API_ERROR_TRACEBACKS"
     )
-    # When false (default), messaging logs omit text/transcription previews (metadata only).
-    log_raw_messaging_content: bool = Field(
-        default=False, validation_alias="LOG_RAW_MESSAGING_CONTENT"
-    )
-    # When true, log full Claude CLI stderr, non-JSON lines, and parser error text.
-    log_raw_cli_diagnostics: bool = Field(
-        default=False, validation_alias="LOG_RAW_CLI_DIAGNOSTICS"
-    )
-    # When true, log exception text / CLI error strings in messaging (may leak user content).
-    log_messaging_error_details: bool = Field(
-        default=False, validation_alias="LOG_MESSAGING_ERROR_DETAILS"
-    )
-    debug_platform_edits: bool = Field(
-        default=False, validation_alias="DEBUG_PLATFORM_EDITS"
-    )
-    debug_subagent_stack: bool = Field(
-        default=False, validation_alias="DEBUG_SUBAGENT_STACK"
-    )
-
     # ==================== NIM Settings ====================
     nim: NimSettings = Field(default_factory=NimSettings)
-
-    # ==================== Voice Note Transcription ====================
-    voice_note_enabled: bool = Field(
-        default=True, validation_alias="VOICE_NOTE_ENABLED"
-    )
-    # Device: "cpu" | "cuda" | "nvidia_nim"
-    # - "cpu"/"cuda": local Whisper (requires voice_local extra: uv sync --extra voice_local)
-    # - "nvidia_nim": NVIDIA NIM Whisper API (requires voice extra: uv sync --extra voice)
-    whisper_device: str = Field(default="cpu", validation_alias="WHISPER_DEVICE")
-    # Whisper model ID or short name (for local Whisper) or NVIDIA NIM model (for nvidia_nim)
-    # Local Whisper: "tiny", "base", "small", "medium", "large-v2", "large-v3", "large-v3-turbo"
-    # NVIDIA NIM: "nvidia/parakeet-ctc-1.1b-asr", "openai/whisper-large-v3", etc.
-    whisper_model: str = Field(default="base", validation_alias="WHISPER_MODEL")
-    # ==================== Bot Wrapper Config ====================
-    telegram_bot_token: str | None = None
-    allowed_telegram_user_id: str | None = None
-    telegram_proxy_url: str = Field(default="", validation_alias="TELEGRAM_PROXY_URL")
-    discord_bot_token: str | None = Field(
-        default=None, validation_alias="DISCORD_BOT_TOKEN"
-    )
-    allowed_discord_channels: str | None = Field(
-        default=None, validation_alias="ALLOWED_DISCORD_CHANNELS"
-    )
-    allowed_dir: str = ""
-    max_message_log_entries_per_chat: int | None = Field(
-        default=None, validation_alias="MAX_MESSAGE_LOG_ENTRIES_PER_CHAT"
-    )
 
     # ==================== Server ====================
     host: str = "0.0.0.0"
@@ -321,14 +251,11 @@ class Settings(BaseSettings):
 
     # Handle empty strings for optional string fields
     @field_validator(
-        "telegram_bot_token",
-        "allowed_telegram_user_id",
-        "discord_bot_token",
-        "allowed_discord_channels",
         "model_fable",
         "model_opus",
         "model_sonnet",
         "model_haiku",
+        "model_classifier",
         "enable_fable_thinking",
         "enable_opus_thinking",
         "enable_sonnet_thinking",
@@ -341,63 +268,14 @@ class Settings(BaseSettings):
             return None
         return v
 
-    @field_validator("max_message_log_entries_per_chat", mode="before")
+    @field_validator("model_routing_mode")
     @classmethod
-    def parse_optional_log_cap(cls, v: Any) -> Any:
-        if v == "" or v is None:
-            return None
-        return v
-
-    @field_validator("whisper_device")
-    @classmethod
-    def validate_whisper_device(cls, v: str) -> str:
-        if v not in ("cpu", "cuda", "nvidia_nim"):
+    def validate_model_routing_mode(cls, v: str) -> str:
+        if v not in ("static", "auto"):
             raise ValueError(
-                f"whisper_device must be 'cpu', 'cuda', or 'nvidia_nim', got {v!r}"
+                f"model_routing_mode must be 'static' or 'auto', got {v!r}"
             )
         return v
-
-    @field_validator("messaging_platform")
-    @classmethod
-    def validate_messaging_platform(cls, v: str) -> str:
-        if v not in ("telegram", "discord", "none"):
-            raise ValueError(
-                f"messaging_platform must be 'telegram', 'discord', or 'none', got {v!r}"
-            )
-        return v
-
-    @field_validator("messaging_rate_limit")
-    @classmethod
-    def validate_messaging_rate_limit(cls, v: int) -> int:
-        if v <= 0:
-            raise ValueError("messaging_rate_limit must be > 0")
-        return v
-
-    @field_validator("messaging_rate_window")
-    @classmethod
-    def validate_messaging_rate_window(cls, v: float) -> float:
-        if v <= 0:
-            raise ValueError("messaging_rate_window must be > 0")
-        return float(v)
-
-    @field_validator("messaging_session_backend")
-    @classmethod
-    def validate_messaging_session_backend(cls, v: str) -> str:
-        if v not in ("claude", "agent"):
-            raise ValueError(
-                f"messaging_session_backend must be 'claude' or 'agent', got {v!r}"
-            )
-        return v
-
-    @field_validator(
-        "messaging_agent_job_timeout_s",
-        "messaging_agent_approval_timeout_s",
-    )
-    @classmethod
-    def validate_messaging_agent_timeouts(cls, v: float) -> float:
-        if v <= 0:
-            raise ValueError("messaging agent timeouts must be > 0")
-        return float(v)
 
     @field_validator("web_fetch_allowed_schemes")
     @classmethod
@@ -413,7 +291,12 @@ class Settings(BaseSettings):
         return ",".join(schemes)
 
     @field_validator(
-        "model", "model_fable", "model_opus", "model_sonnet", "model_haiku"
+        "model",
+        "model_fable",
+        "model_opus",
+        "model_sonnet",
+        "model_haiku",
+        "model_classifier",
     )
     @classmethod
     def validate_model_format(cls, v: str | None) -> str | None:
@@ -430,19 +313,6 @@ class Settings(BaseSettings):
             supported = ", ".join(f"'{p}'" for p in SUPPORTED_PROVIDER_IDS)
             raise ValueError(f"Invalid provider: '{provider}'. Supported: {supported}")
         return v
-
-    @model_validator(mode="after")
-    def check_nvidia_nim_api_key(self) -> Settings:
-        if (
-            self.voice_note_enabled
-            and self.whisper_device == "nvidia_nim"
-            and not self.nvidia_nim_api_key.strip()
-        ):
-            raise ValueError(
-                "NVIDIA_NIM_API_KEY is required when WHISPER_DEVICE is 'nvidia_nim'. "
-                "Set it in your .env file."
-            )
-        return self
 
     @model_validator(mode="after")
     def prefer_dotenv_anthropic_auth_token(self) -> Settings:

@@ -4,8 +4,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "free-claude-code"
-version = "5.0.1"
-description = "Local proxy connecting coding agents to OpenAI-compatible AI providers"
+version = "6.0.0"
+description = "Local proxy connecting Claude Code to OpenAI-compatible AI providers"
 readme = "README.md"
 requires-python = ">=3.14.0"
 dependencies = [
@@ -16,8 +16,6 @@ dependencies = [
     "pydantic>=2.13.4",
     "python-dotenv>=1.2.2",
     "tiktoken>=0.13.0",
-    "python-telegram-bot>=22.8",
-    "discord.py>=2.7.1",
     "pydantic-settings>=2.14.2",
     "openai>=2.44.0",
     "loguru>=0.7.0",
@@ -31,27 +29,12 @@ fcc-server = "free_claude_code.cli.entrypoints:serve"
 free-claude-code = "free_claude_code.cli.entrypoints:serve"
 fcc-init = "free_claude_code.cli.entrypoints:init"
 fcc-claude = "free_claude_code.cli.launchers.claude:launch"
-fcc-codex = "free_claude_code.cli.launchers.codex:launch"
-fcc-pi = "free_claude_code.cli.launchers.pi:launch"
 fcc-verdict = "free_claude_code.verdict.cli:main"
-fcc-agent = "free_claude_code.agent.cli:main"
-fcc-opencode = "free_claude_code.cli.launchers.opencode:launch"
 fcc-trace = "free_claude_code.observability.cli:main"
 
 [project.optional-dependencies]
 verdict = [
     "mcp>=1.2.0",
-]
-voice = [
-    "grpcio>=1.81.1",
-    "grpcio-tools>=1.81.1",
-    "nvidia-riva-client>=2.26.0",
-]
-voice_local = [
-    "torch>=2.12.1",
-    "transformers>=5.13.0",
-    "accelerate>=1.14.0",
-    "librosa>=0.10.0",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -62,14 +45,6 @@ packages = ["src/free_claude_code"]
 
 [tool.uv]
 required-version = ">=0.11.0"
-
-[tool.uv.sources]
-torch = { index = "pytorch-cu130" }
-
-[[tool.uv.index]]
-name = "pytorch-cu130"
-url = "https://download.pytorch.org/whl/cu130"
-explicit = true
 
 [dependency-groups]
 dev = [
@@ -121,10 +96,8 @@ markers = [
     "live: opt-in local smoke tests that can touch real services",
     "interactive: smoke tests requiring manual user interaction",
     "provider: live provider checks",
-    "messaging: live messaging platform checks",
     "cli: CLI integration checks",
     "clients: client compatibility checks",
-    "voice: voice transcription checks",
     "contract: deterministic feature contract checks",
     "smoke_target(name): route a smoke test behind FCC_SMOKE_TARGETS",
     "xdist_group(name): group smoke provider items under pytest-xdist --dist=loadgroup",
@@ -132,8 +105,3 @@ markers = [
 
 [tool.ty.environment]
 python-version = "3.14"
-
-[tool.ty.analysis]
-# Optional voice_local extra: torch, transformers, librosa for local whisper transcription
-# Optional voice extra: nvidia-riva-client for nvidia_nim transcription provider
-allowed-unresolved-imports = ["torch", "transformers", "librosa", "riva.client"]

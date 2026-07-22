@@ -15,7 +15,7 @@ valued over speed — an evaluation may take several minutes.
 > per-phase agent choices, the recommended amount of refinement, the fallback
 > matrix, and the pending changes to apply.
 
-Verdict does **not** replace `fcc-server`, `fcc-claude`, `fcc-codex`, `fcc-pi`,
+Verdict does **not** replace `fcc-server` or `fcc-claude`,
 the proxy, the model routing, streaming or tool calling. It is a separate layer
 that reuses the existing provider stack (`create_provider`, `stream_response`,
 the Anthropic SSE aggregator, `ProviderRegistry`/catalogue).
@@ -77,7 +77,7 @@ what Verdict is built on.
 | A (primary) | `groq`, `nvidia_nim`, `cerebras`, `gemini` | enabled |
 | B (secondary) | `mistral`, `open_router`, `github_models`, `cloudflare`, `cohere` | opt-in |
 | Disabled (unvalidated but plausibly free) | `huggingface`, `sambanova`, `ollama_cloud` | off |
-| Paid (needs money/card) | `deepseek`, `fireworks`, `kimi`, `minimax`, `wafer`, `zai`, `vercel`, `opencode`, `opencode_go`, `mistral_codestral` | never in free mode |
+| Paid (needs money/card) | `deepseek`, `fireworks`, `kimi`, `minimax`, `wafer`, `zai`, `vercel`, `mistral_codestral` | never in free mode |
 | Local | `lmstudio`, `llamacpp`, `ollama` | when running |
 
 A DeepSeek model **is** allowed when served by a validated-free provider such as

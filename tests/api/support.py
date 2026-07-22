@@ -33,14 +33,12 @@ def create_test_app(
         )
     runtime = ApplicationRuntime(
         manager,
-        transcriber=None,
         restart_callback=restart_callback,
     )
     return create_app(
         ApiServices(
             requests=manager,
             admin=runtime,
-            tasks=runtime,
         )
     )
 

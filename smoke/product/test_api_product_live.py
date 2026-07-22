@@ -22,7 +22,6 @@ def test_api_basic_conversation_e2e(smoke_config: SmokeConfig) -> None:
         name="product-api-basic",
         env_overrides={
             "MODEL": provider_model.full_model,
-            "MESSAGING_PLATFORM": "none",
         },
     ).run() as server:
         turn = ConversationDriver(server, smoke_config).ask(
@@ -188,13 +187,3 @@ def test_api_error_shape_e2e(
     payload = response.json()
     assert payload["type"] == "error"
     assert payload["error"]["type"] == "invalid_request_error"
-
-
-def test_api_stop_e2e(smoke_server, smoke_headers: dict[str, str]) -> None:
-    response = httpx.post(
-        f"{smoke_server.base_url}/stop",
-        headers=smoke_headers,
-        timeout=5,
-    )
-    assert response.status_code == 503
-    assert response.json()["detail"] == "Messaging system not initialized"

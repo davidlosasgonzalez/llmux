@@ -1,42 +1,10 @@
 """Safe default logging tests for the application runtime owner."""
 
 import logging
-from unittest.mock import patch
 
 import pytest
 
-from free_claude_code.config.settings import Settings
-from free_claude_code.runtime.application import ApplicationRuntime, best_effort
-from free_claude_code.runtime.provider_manager import ProviderRuntimeManager
-
-
-@pytest.mark.asyncio
-async def test_messaging_start_failure_default_logs_exclude_traceback(caplog):
-    settings = Settings().model_copy(
-        update={
-            "messaging_platform": "telegram",
-            "telegram_bot_token": "t",
-            "allowed_telegram_user_id": "1",
-            "log_api_error_tracebacks": False,
-        }
-    )
-    runtime = ApplicationRuntime(
-        ProviderRuntimeManager(settings),
-        transcriber=None,
-    )
-
-    with (
-        patch(
-            "free_claude_code.runtime.application.messaging_platform_factory.create_messaging_components",
-            side_effect=RuntimeError("SECRET_RUNTIME_DETAIL"),
-        ),
-        caplog.at_level(logging.ERROR),
-    ):
-        await runtime._start_messaging_if_configured()
-
-    blob = " | ".join(record.getMessage() for record in caplog.records)
-    assert "SECRET_RUNTIME_DETAIL" not in blob
-    assert "exc_type=RuntimeError" in blob
+from free_claude_code.runtime.application import best_effort
 
 
 @pytest.mark.asyncio
