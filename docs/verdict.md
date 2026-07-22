@@ -144,10 +144,7 @@ redacted and truncated.
 ## Install the MCP server and skill
 
 ```bash
-# 1. Install the optional dependency for the MCP server
-uv pip install 'free-claude-code[verdict]'
-
-# 2. Register the MCP server with Claude Code
+# Register the MCP server with Claude Code (mcp ships with the base package)
 claude mcp add fcc-verdict -- fcc-verdict serve-mcp
 
 # 3. Install the deep-verdict skill (explicit; backs up any existing one)

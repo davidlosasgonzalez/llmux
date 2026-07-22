@@ -195,8 +195,7 @@ Discovery → free-only gate → capability+budget selection
 Setup (one-time):
 
 ```bash
-uv pip install 'free-claude-code[verdict]'      # brings the mcp dependency
-claude mcp add fcc-verdict -- fcc-verdict serve-mcp
+claude mcp add fcc-verdict -- fcc-verdict serve-mcp  # mcp ships with the base package
 fcc-verdict install-claude-skill                # optional: the deep-verdict skill
 ```
 
