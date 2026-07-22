@@ -8,6 +8,9 @@ CLAUDE_CODE_AUTO_COMPACT_WINDOW = "190000"
 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC = "1"
 CLAUDE_BINARY_NAME = "claude"
 
+# Subscription credentials that would let Claude Code bypass the proxy.
+_STRIPPED_CLAUDE_ENV_KEYS = frozenset({"CLAUDE_CODE_OAUTH_TOKEN"})
+
 
 def build_claude_proxy_env(
     *,
@@ -20,7 +23,7 @@ def build_claude_proxy_env(
     env = {
         key: value
         for key, value in base_env.items()
-        if not key.startswith("ANTHROPIC_")
+        if not key.startswith("ANTHROPIC_") and key not in _STRIPPED_CLAUDE_ENV_KEYS
     }
     env["ANTHROPIC_BASE_URL"] = proxy_root_url
     env["ANTHROPIC_AUTH_TOKEN"] = proxy_auth_token(auth_token)

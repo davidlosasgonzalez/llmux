@@ -464,6 +464,7 @@ def test_claude_child_env_targets_current_proxy_config() -> None:
             "ANTHROPIC_BASE_URL": "https://api.anthropic.com",
             "ANTHROPIC_AUTH_TOKEN": "old-token",
             "ANTHROPIC_API_KEY": "official-key",
+            "CLAUDE_CODE_OAUTH_TOKEN": "sk-ant-oat-subscription",
             "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "0",
         },
     )
@@ -476,6 +477,7 @@ def test_claude_child_env_targets_current_proxy_config() -> None:
     assert env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] == "1"
     assert "ANTHROPIC_API_URL" not in env
     assert "ANTHROPIC_API_KEY" not in env
+    assert "CLAUDE_CODE_OAUTH_TOKEN" not in env
 
 
 def test_claude_child_env_uses_sentinel_for_blank_configured_auth_token() -> None:
