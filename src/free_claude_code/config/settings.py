@@ -191,6 +191,12 @@ class Settings(BaseSettings):
     provider_max_concurrency: int = Field(
         default=5, validation_alias="PROVIDER_MAX_CONCURRENCY"
     )
+    provider_upstream_max_retries: int = Field(
+        default=4, ge=0, validation_alias="PROVIDER_UPSTREAM_MAX_RETRIES"
+    )
+    provider_upstream_max_retries: int = Field(
+        default=4, ge=0, validation_alias="PROVIDER_UPSTREAM_MAX_RETRIES"
+    )
     enable_model_thinking: bool = Field(
         default=True, validation_alias="ENABLE_MODEL_THINKING"
     )

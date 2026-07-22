@@ -73,12 +73,14 @@ el proxy (v1.5), cambio de modelo mid-stream, messaging como canal.
   y explica dónde se fue el tiempo (rate-limit wait/blocks, 429s, retries,
   modelo, fallbacks, outcome). Reveló: turno de 34s = 96% rate-limit,
   13× 429 de Cerebras free.
-- [ ] **C12 — Saltar antes ante 429 de free tier.** Que el fallback a otro
-  proveedor se dispare sin agotar los backoffs reactivos largos (hasta 16s)
-  del mismo proveedor. Es la cura real de "tareas sencillas tardan mucho".
-  Medir antes/después con `fcc-trace`. Toca `providers/rate_limit.py` /
-  `application/fallback.py`. MINOR. Acepta: turno equivalente al de hoy baja
-  de ~34s a <10s con `rate_limit_fraction` < 0.3.
+- [x] **C12 — Saltar antes ante 429 de free tier.** ✅ (`4.15.0`).
+  `PROVIDER_UPSTREAM_MAX_RETRIES` (default 4 = sin cambio; **1 en nuestros
+  `.env`** con `MODEL_FALLBACKS` activo): un 429 falla rápido y el
+  pre-commit fallback salta de proveedor en vez de esperar backoffs de
+  hasta 16s. Wired settings → ProviderConfig → ProviderRateLimiter; campo
+  Admin + `.env.example` + tests (`tests/providers/test_upstream_retry_budget.py`).
+  Verificar con `fcc-trace` (`rate_limit_fraction` < 0.3) en el próximo
+  episodio real de 429s.
 - [ ] **C13 — Auto-doctor (diagnóstico asistido por LLM, human-in-the-loop).**
   Ante un patrón de fallo recurrente detectado por `fcc-trace`/quota (p. ej.
   turno con >80% rate-limit, o cadena de fallback agotada), correr el

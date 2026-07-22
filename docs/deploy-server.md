@@ -33,6 +33,45 @@ curl -fsS http://127.0.0.1:8082/health
 
 Alternativa rápida: `tmux new -s fcc` → `fcc-server`.
 
+### 2b. Variante system-mode (root, checkout por rsync)
+
+Para un VPS donde el repo llega por rsync a `/opt/free-claude-code` y el
+servicio corre como root (verificada en producción, 2026-07-22):
+
+```ini
+# /etc/systemd/system/fcc-server.service
+[Unit]
+Description=Free Claude Code proxy (fcc-server)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/free-claude-code
+EnvironmentFile=/root/.fcc/.env
+ExecStart=/opt/free-claude-code/.venv/bin/fcc-server
+Restart=on-failure
+RestartSec=3
+Environment=HOME=/root
+StandardOutput=append:/root/.fcc/logs/systemd-server.log
+StandardError=append:/root/.fcc/logs/systemd-server.log
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Dos lecciones pagadas con horas de debugging — no las repitas:
+
+- **`EnvironmentFile=` es obligatorio.** Settings no carga `~/.fcc/.env` en
+  este contexto; sin él, el proxy arranca "healthy" pero responde
+  `X_API_KEY is not set` a cada petición.
+- **`ExecStart` directo al binario del venv, nunca `uv run`.** `uv run` como
+  proceso principal deja un hijo huérfano escuchando el puerto que sobrevive
+  a `systemctl restart` (síntoma: `MainPID=0` con el servicio "active" y
+  fixes de config que "no surten efecto").
+- El `.env` para systemd no debe llevar comillas en los valores
+  (`EnvironmentFile` las pasa literales al proceso).
+
 ## 3. OpenCode
 
 ```bash
