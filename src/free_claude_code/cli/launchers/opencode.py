@@ -47,7 +47,7 @@ def launch(argv: Sequence[str] | None = None) -> None:
         auth_token=settings.anthropic_auth_token,
         model=resolve_opencode_model(settings),
         fallback_models=parse_model_fallbacks(settings.model_fallbacks),
-        council_command=resolve_council_command(),
+        verdict_command=resolve_verdict_command(),
     )
     args = list(sys.argv[1:] if argv is None else argv)
     run_client_process(
@@ -68,13 +68,13 @@ def resolve_opencode_model(settings: Settings) -> str:
     return (settings.model or "claude-sonnet-4-5").strip() or "claude-sonnet-4-5"
 
 
-def resolve_council_command() -> list[str]:
-    """Return argv that starts the Council MCP server over stdio."""
+def resolve_verdict_command() -> list[str]:
+    """Return argv that starts the Verdict MCP server over stdio."""
 
-    council = shutil.which("fcc-council")
-    if council is not None:
-        return [council, "serve-mcp"]
-    return [sys.executable, "-m", "free_claude_code.council.cli", "serve-mcp"]
+    verdict = shutil.which("fcc-verdict")
+    if verdict is not None:
+        return [verdict, "serve-mcp"]
+    return [sys.executable, "-m", "free_claude_code.verdict.cli", "serve-mcp"]
 
 
 def anthropic_compatible_base_url(proxy_root_url: str) -> str:
@@ -91,11 +91,11 @@ def build_opencode_config_dict(
     proxy_root_url: str,
     auth_token: str,
     model: str,
-    council_command: Sequence[str],
+    verdict_command: Sequence[str],
     fallback_models: Sequence[str] = (),
     reviewer_model: str | None = None,
 ) -> dict[str, object]:
-    """Return OpenCode config that routes through FCC and registers Council MCP."""
+    """Return OpenCode config that routes through FCC and registers Verdict MCP."""
 
     model_id = model.strip() or "claude-sonnet-4-5"
     models: dict[str, object] = {
@@ -138,16 +138,16 @@ def build_opencode_config_dict(
         "mcp": {
             "free-llm-verdict": {
                 "type": "local",
-                "command": list(council_command),
+                "command": list(verdict_command),
                 "enabled": True,
             }
         },
         "agent": agents,
         "command": {
-            "council": {
-                "description": "Run free multi-model council deliberation via MCP",
+            "verdict": {
+                "description": "Run free multi-model verdict deliberation via MCP",
                 "template": (
-                    "Run a free-only council deliberation on: $ARGUMENTS\n"
+                    "Run a free-only verdict deliberation on: $ARGUMENTS\n"
                     "Use the free-llm-verdict MCP tool `evaluate` with depth quick "
                     "(research on when facts matter). Return the verdict and key dissent."
                 ),
@@ -179,7 +179,7 @@ def write_opencode_config(
     proxy_root_url: str,
     auth_token: str,
     model: str,
-    council_command: Sequence[str],
+    verdict_command: Sequence[str],
     fallback_models: Sequence[str] = (),
     config_dir: Path | None = None,
 ) -> Path:
@@ -192,7 +192,7 @@ def write_opencode_config(
         proxy_root_url=proxy_root_url,
         auth_token=auth_token,
         model=model,
-        council_command=council_command,
+        verdict_command=verdict_command,
         fallback_models=fallback_models,
     )
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")

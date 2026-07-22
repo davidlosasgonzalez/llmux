@@ -6,7 +6,7 @@
 
 ## Visión
 
-Hoy FCC es un proxy multi-proveedor + Council MCP que otros agentes (Claude
+Hoy FCC es un proxy multi-proveedor + Verdict MCP que otros agentes (Claude
 Code, Codex, Pi) consumen. El objetivo es un agente de código autónomo
 completo sobre modelos gratuitos, sin depender de herramientas comerciales
 (Claude Code, Cursor).
@@ -27,7 +27,7 @@ más del propio proxy (`POST /v1/messages`), igual que hoy lo es Claude Code.
 - **Capa de modelos**: proxy Anthropic Messages + OpenAI Responses, 25
   proveedores, streaming, tool use, vision, thinking, routing por tiers
   (`api/`, `core/`, `providers/`, `application/`).
-- **Deliberación**: FCC Council (`council/`) — descubrimiento y scoring de
+- **Deliberación**: FCC Verdict (`verdict/`) — descubrimiento y scoring de
   modelos, memoria de cuotas, web research, refinamiento adversarial.
 - **Superficie remota**: puente Telegram/Discord con voz, árboles de sesión
   y colas FIFO por conversación (`messaging/`). Tras el giro a SSH queda en
@@ -43,7 +43,7 @@ más del propio proxy (`POST /v1/messages`), igual que hoy lo es Claude Code.
    es determinista de un salto; los reintentos golpean el mismo proveedor
    (`providers/rate_limit.py`). La inteligencia de cuotas (SQLite de
    agotamiento diario, circuit breaker, scoring) existe pero solo dentro
-   del Council.
+   del Verdict.
 3. **Las sesiones remotas gestionadas corren `--dangerously-skip-permissions`**
    (`cli/managed/claude.py`); no existe flujo de aprobación remota de
    permisos.
@@ -74,23 +74,23 @@ más del propio proxy (`POST /v1/messages`), igual que hoy lo es Claude Code.
 - Recuperación primaria: **búsqueda agéntica** (grep/glob/read como tools),
   el mismo enfoque de Claude Code/Cursor actuales.
 - Compactación de historial al acercarse a la ventana del modelo;
-  reutilizar la lógica de context-fit del Council para elegir modelos donde
+  reutilizar la lógica de context-fit del Verdict para elegir modelos donde
   quepa la conversación.
 - RAG vectorial (Ollama + ChromaDB): **decisión diferida** — solo si la
   búsqueda agéntica se queda corta en repos grandes. No es fundacional;
   añadirlo de entrada son 4 dependencias pesadas para un problema
   probablemente inexistente.
 
-## Papel del Council
+## Papel del Verdict
 
 Fuera del camino por-tool-call. El harness / OpenCode puede invocarlo como
 revisor opcional en pasos difíciles (planificación, bugs que resisten 2
-intentos, revisión de diseño) vía MCP `free-llm-verdict` o `/council`.
+intentos, revisión de diseño) vía MCP `free-llm-verdict` o `/verdict`.
 
-**Decisión C8 (2026-07-21):** Council permanece en ese nicho; no es el path
+**Decisión C8 (2026-07-21):** Verdict permanece en ese nicho; no es el path
 por defecto. La segunda opinión barata la cubre `@second-opinion` (C9). Las
-`model_stats` de `~/.fcc/council.db` + el eval C1 ordenan `MODEL_FALLBACKS`
-(C10). Detalle: `docs/evals/2026-07-21-c8-council-ab.md`.
+`model_stats` de `~/.fcc/verdict.db` + el eval C1 ordenan `MODEL_FALLBACKS`
+(C10). Detalle: `docs/evals/2026-07-21-c8-verdict-ab.md`.
 
 ## Fases
 
@@ -106,7 +106,7 @@ por defecto. La segunda opinión barata la cubre `@second-opinion` (C9). Las
    SSH).
 5. **Integración OpenCode** — ✅ (2026-07-21, `4.12.0`): B1–B6.
 6. **v1 servidor: continuidad + calidad** — ✅ (2026-07-21, `4.13.0`): C1–C10
-   (eval kimi, `MODEL_FALLBACKS` pre-commit, launcher multi-modelo, Council
+   (eval kimi, `MODEL_FALLBACKS` pre-commit, launcher multi-modelo, Verdict
    nicho, systemd, cuotas SSH, second-opinion, checklist).
 
 ## Implementación
@@ -135,11 +135,11 @@ fcc-agent --yes --fallback-model cerebras/gpt-oss-120b "…"
 
 | Pieza | Rol |
 | --- | --- |
-| `FailureKind` / `QuotaTracker` / `classify_failure` | Circuit breaker compartido (antes solo en `council/quota.py`) |
-| `DailyExhaustionStore` | SQLite de modelos agotados hoy; CouncilStore delega en las mismas helpers |
+| `FailureKind` / `QuotaTracker` / `classify_failure` | Circuit breaker compartido (antes solo en `verdict/quota.py`) |
+| `DailyExhaustionStore` | SQLite de modelos agotados hoy; VerdictStore delega en las mismas helpers |
 | `FallbackProxyClient` | Ante 429/cuota prueba el siguiente `--fallback-model` |
 
-`council/quota.py` queda como re-export. No hay código muerto del tracker antiguo.
+`verdict/quota.py` queda como re-export. No hay código muerto del tracker antiguo.
 
 ### Fase 3 — compactación
 
@@ -175,7 +175,7 @@ real (`curl -fsSL https://opencode.ai/install | bash`).
   FCC sirve `/v1/messages`). No usar el root sin `/v1` (eso es la convención
   de Claude Code vía `ANTHROPIC_BASE_URL`).
 - API key: token del proxy (`ANTHROPIC_AUTH_TOKEN` o sentinel `fcc-no-auth`).
-- MCP local stdio: `type: "local"`, `command: ["fcc-council", "serve-mcp"]`.
+- MCP local stdio: `type: "local"`, `command: ["fcc-verdict", "serve-mcp"]`.
 - Override de config: env `OPENCODE_CONFIG` (el launcher escribe
   `~/.fcc/opencode.json` y la exporta).
 - Smoke no interactivo: `opencode run "…"`.
@@ -204,7 +204,7 @@ Snippet de referencia (el launcher genera el equivalente):
   "mcp": {
     "free-llm-verdict": {
       "type": "local",
-      "command": ["fcc-council", "serve-mcp"],
+      "command": ["fcc-verdict", "serve-mcp"],
       "enabled": true
     }
   }
@@ -242,10 +242,10 @@ Decisiones clave (detalle de tareas C1–C7 en el backlog):
   cambian cada pocas semanas: C1 deja un script repetible que puntúa
   candidatos reales de `/v1/models` en tareas agénticas. `github_models/*`
   queda excluido de la cadena de chat (tope ~4k tokens/request en free).
-- **Council fuera del per-turno.** Se sistematiza vía `AGENTS.md`
+- **Verdict fuera del per-turno.** Se sistematiza vía `AGENTS.md`
   (planificación, bugs resistentes, revisión de diseño), no en cada tool
   call.
 - **Honestidad sobre "tipo Sonnet":** ningún free alcanza Sonnet 4.5
-  sostenido en agentic coding; default fuerte + cadena + Council acorta la
+  sostenido en agentic coding; default fuerte + cadena + Verdict acorta la
   distancia, no la cierra.
 

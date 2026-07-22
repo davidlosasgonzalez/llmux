@@ -63,7 +63,7 @@ Every commit on `main` that changes a **production file** must include a semver 
 These paths count as production (runtime, packaging, or install surface):
 
 - `src/free_claude_code/api/`, `src/free_claude_code/cli/`, `src/free_claude_code/config/`, `src/free_claude_code/core/`, `src/free_claude_code/messaging/`, `src/free_claude_code/providers/`
-- `src/free_claude_code/application/`, `src/free_claude_code/agent/`, `src/free_claude_code/council/`
+- `src/free_claude_code/application/`, `src/free_claude_code/agent/`, `src/free_claude_code/verdict/`
 - `.env.example`
 - `pyproject.toml` (dependencies, scripts, packaging)
 - `scripts/install.sh`, `scripts/install.ps1`, `scripts/uninstall.sh`, `scripts/uninstall.ps1`, `scripts/ci.sh`, `scripts/ci.ps1`

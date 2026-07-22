@@ -2,7 +2,7 @@
 
 Distinct from :class:`free_claude_code.core.failures.FailureKind`, which maps
 to Anthropic wire error types. This enum drives cool-off windows for free
-providers in the council and the own-agent harness.
+providers in the verdict and the own-agent harness.
 """
 
 from enum import StrEnum

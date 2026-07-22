@@ -32,7 +32,7 @@ def test_build_opencode_config_includes_fcc_provider_and_mcp():
                 proxy_root_url="http://127.0.0.1:8082",
                 auth_token="",
                 model="cerebras/gpt-oss-120b",
-                council_command=["fcc-council", "serve-mcp"],
+                verdict_command=["fcc-verdict", "serve-mcp"],
                 fallback_models=["open_router/deepseek/deepseek-v3.2"],
             )
         )
@@ -46,10 +46,10 @@ def test_build_opencode_config_includes_fcc_provider_and_mcp():
     assert "open_router/deepseek/deepseek-v3.2" in provider["models"]
     mcp = cfg["mcp"]["free-llm-verdict"]
     assert mcp["type"] == "local"
-    assert mcp["command"] == ["fcc-council", "serve-mcp"]
+    assert mcp["command"] == ["fcc-verdict", "serve-mcp"]
     assert mcp["enabled"] is True
     assert "second-opinion" in cfg["agent"]
-    assert cfg["command"]["council"]["template"]
+    assert cfg["command"]["verdict"]["template"]
 
 
 def test_write_opencode_config_roundtrip(tmp_path: Path):
@@ -57,7 +57,7 @@ def test_write_opencode_config_roundtrip(tmp_path: Path):
         proxy_root_url="http://127.0.0.1:9",
         auth_token="secret",
         model="claude-sonnet-4-5",
-        council_command=["fcc-council", "serve-mcp"],
+        verdict_command=["fcc-verdict", "serve-mcp"],
         config_dir=tmp_path,
     )
     assert path == tmp_path / "opencode.json"

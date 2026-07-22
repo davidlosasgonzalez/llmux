@@ -40,10 +40,10 @@ def test_opencode_run_hits_proxy_when_available(
             proxy_root_url=server.base_url,
             auth_token=smoke_config.settings.anthropic_auth_token,
             model=model,
-            council_command=["fcc-council", "serve-mcp"],
+            verdict_command=["fcc-verdict", "serve-mcp"],
             config_dir=tmp_path,
         )
-        # Avoid pulling Council MCP into the smoke path.
+        # Avoid pulling Verdict MCP into the smoke path.
         payload = json.loads(config_path.read_text(encoding="utf-8"))
         payload.pop("mcp", None)
         config_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
