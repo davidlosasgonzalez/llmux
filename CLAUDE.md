@@ -94,6 +94,12 @@ When unsure between PATCH and MINOR, prefer PATCH for fixes and MINOR for new ca
 
 Example commit on `main` after a packaging fix: bump `1.2.38` → `1.2.39`, run `uv lock`, commit together with the fix.
 
+## COMMIT CONVENTION
+
+- Format: `type: summary` — lowercase imperative summary, no scope, no parentheses, no version in the title.
+- Body: short paragraphs explaining the why; wrap at ~72 columns.
+- The semver bump still lands in `pyproject.toml` in the same commit (see [Versioning](#versioning-main)); mention the new version at the end of the body if useful.
+
 ## SUMMARY STANDARDS
 
 - Summaries must be technical and granular.
