@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 _RATE_LIMIT_RE = re.compile(r"rate limit set for ([0-9.]+)s")
+_SERVING_RE = re.compile(r"precommit_fallback\.serving .*?model=(\S+)")
 _STREAM_CLOSE_SUFFIXES = ("stream_completed", "stream_interrupted")
 
 
@@ -26,6 +27,7 @@ class TurnSummary:
     end: datetime | None = None
     gateway_model: str | None = None
     provider_id: str | None = None
+    served_model: str | None = None
     fallback_candidates: list[str] = field(default_factory=list)
     outcome: str | None = None
     rate_limit_wait_s: float = 0.0
@@ -96,6 +98,8 @@ def _apply(summary: TurnSummary, record: dict[str, object]) -> None:
         summary.http_429 += 1
     if "retry" in message.lower():
         summary.upstream_retries += 1
+    if serving := _SERVING_RE.search(message):
+        summary.served_model = serving.group(1)
 
     if model := record.get("gateway_model"):
         summary.gateway_model = str(model)
@@ -134,13 +138,18 @@ def format_summary(summary: TurnSummary) -> str:
     model = "/".join(
         part for part in (summary.provider_id, summary.gateway_model) if part
     )
+    routed_note = ""
+    if summary.served_model and summary.served_model != model:
+        # A fallback actually served the turn; the routed primary differs.
+        routed_note = f"  (routed: {model or '(unknown)'})"
+        model = summary.served_model
     lines = [
         f"turn {summary.request_id}",
         f"  duration      {summary.duration_s:7.1f}s",
         f"  rate-limit    {summary.rate_limit_wait_s:7.1f}s"
         f"  in {summary.rate_limit_blocks} blocks"
         f"  ({summary.rate_limit_fraction * 100:.0f}% of turn)",
-        f"  model         {model or '(unknown)'}",
+        f"  model         {model or '(unknown)'}{routed_note}",
         f"  outcome       {summary.outcome or '(none)'}"
         f"  chunks={summary.stream_chunks}",
         f"  upstream      429s={summary.http_429}"

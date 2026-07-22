@@ -131,3 +131,24 @@ def test_format_summary_is_readable() -> None:
     assert "req_slow" in text
     assert "rate-limit" in text
     assert "cerebras/gpt-oss-120b" in text
+
+
+def test_served_model_from_fallback_overrides_routed_primary() -> None:
+    lines = _slow_turn_lines()
+    lines.insert(
+        3,
+        _row(
+            time="2026-07-21 23:38:31.000000+02:00",
+            level="INFO",
+            message=(
+                "precommit_fallback.serving request_id=req_slow "
+                "model=gemini/gemini-flash-latest provider=gemini"
+            ),
+            request_id="req_slow",
+        ),
+    )
+    (turn,) = summarize_turns(lines)
+    assert turn.served_model == "gemini/gemini-flash-latest"
+    text = format_summary(turn)
+    assert "gemini/gemini-flash-latest" in text
+    assert "routed: cerebras/gpt-oss-120b" in text
