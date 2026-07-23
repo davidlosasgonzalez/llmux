@@ -139,6 +139,30 @@ _NON_PROVIDER_FIELDS: tuple[ConfigFieldSpec, ...] = (
         ),
     ),
     ConfigFieldSpec(
+        "MODEL_LONG_CONTEXT",
+        "Long-Context Rescue Model",
+        "models",
+        settings_attr="model_long_context",
+        description=(
+            "Rescue tier appended after Model Fallbacks, reached only once "
+            "every earlier candidate's context window is too small for the "
+            "prompt. Pick a large-window model (e.g. gemini, minimax, kimi)."
+        ),
+    ),
+    ConfigFieldSpec(
+        "CONTEXT_WINDOW_OVERRIDES",
+        "Context Window Overrides",
+        "models",
+        settings_attr="context_window_overrides",
+        default="",
+        advanced=True,
+        description=(
+            "Comma-separated 'model_or_ref=tokens' overrides for the static "
+            "context-window/free-tier-cap heuristics, when they're wrong for "
+            "your account (e.g. 'cerebras/gpt-oss-120b=8000')."
+        ),
+    ),
+    ConfigFieldSpec(
         "ENABLE_MODEL_THINKING",
         "Enable Thinking",
         "thinking",

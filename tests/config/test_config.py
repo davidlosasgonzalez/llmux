@@ -845,6 +845,53 @@ class TestPerModelMapping:
         with pytest.raises(ValidationError, match="Invalid provider"):
             Settings()
 
+    def test_context_window_overrides_defaults_empty(self):
+        """CONTEXT_WINDOW_OVERRIDES is unset by default."""
+        from llmux.config.settings import Settings
+
+        s = Settings()
+        assert s.context_window_overrides == ""
+
+    def test_context_window_overrides_from_kwarg(self):
+        """context_window_overrides accepts direct construction like model_fallbacks."""
+        from llmux.config.settings import Settings
+
+        s = Settings(
+            context_window_overrides="cerebras/gpt-oss-120b=8000,kimi-k2.6=200000"
+        )
+        assert s.context_window_overrides == (
+            "cerebras/gpt-oss-120b=8000,kimi-k2.6=200000"
+        )
+
+    def test_context_window_overrides_from_env(self, monkeypatch):
+        """CONTEXT_WINDOW_OVERRIDES env var is loaded."""
+        from llmux.config.settings import Settings
+
+        monkeypatch.setenv("CONTEXT_WINDOW_OVERRIDES", "kimi-k2.6=200000")
+        s = Settings()
+        assert s.context_window_overrides == "kimi-k2.6=200000"
+
+    def test_context_window_overrides_malformed_pair_raises(self):
+        """A pair missing '=' raises ValidationError."""
+        from llmux.config.settings import Settings
+
+        with pytest.raises(ValidationError, match="CONTEXT_WINDOW_OVERRIDES"):
+            Settings(context_window_overrides="not-a-pair")
+
+    def test_context_window_overrides_non_integer_value_raises(self):
+        """A non-integer token count raises ValidationError."""
+        from llmux.config.settings import Settings
+
+        with pytest.raises(ValidationError, match="CONTEXT_WINDOW_OVERRIDES"):
+            Settings(context_window_overrides="cerebras/gpt-oss-120b=not-a-number")
+
+    def test_context_window_overrides_non_positive_value_raises(self):
+        """A zero or negative token count raises ValidationError."""
+        from llmux.config.settings import Settings
+
+        with pytest.raises(ValidationError, match="CONTEXT_WINDOW_OVERRIDES"):
+            Settings(context_window_overrides="cerebras/gpt-oss-120b=0")
+
     def test_resolve_model_fable_override(self):
         """ModelRouter returns model_fable for Fable model names."""
         from llmux.application.routing import ModelRouter

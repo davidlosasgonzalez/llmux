@@ -10,6 +10,7 @@ quality or availability problems.
 from typing import Protocol
 
 from llmux.config.model_refs import (
+    parse_context_window_overrides,
     parse_model_fallbacks,
     parse_model_name,
     parse_provider_type,
@@ -22,10 +23,14 @@ from llmux.core.model_capability import (
 
 _SMALL_SIZE_BILLIONS = 25.0
 _CLASSIFIER_HEAVY_BILLIONS = 130.0
-_HIGH_TIER_SLOTS = ("MODEL_OPUS", "MODEL_FABLE")
 # Below this, a chain has no room for a Claude Code conversation that has
 # grown for a while; anything smaller needs a MODEL_LONG_CONTEXT rescue tier.
 _LONG_CONTEXT_FLOOR = 200_000
+# Context window Claude Code assumes for Sonnet/Opus absent other information;
+# the client should compact before a narrower chain's ceiling, not after.
+_CLIENT_ASSUMED_WINDOW = 200_000
+_RECOMMENDATION_MARGIN_PCT = 5
+_MIN_RECOMMENDED_PCT = 30
 
 
 class LintableModelConfig(Protocol):
@@ -34,6 +39,7 @@ class LintableModelConfig(Protocol):
     model_opus: str | None
     model_fallbacks: str
     model_long_context: str | None
+    context_window_overrides: str
     model_classifier: str | None
 
 
@@ -99,21 +105,31 @@ def _fallback_chain_warnings(settings: LintableModelConfig) -> list[str]:
     return warnings
 
 
-def _context_ceiling_warning(settings: LintableModelConfig) -> list[str]:
-    if settings.model_long_context is not None:
-        return []
-
+def _chain_windows(settings: LintableModelConfig) -> list[int]:
+    """Known context windows for MODEL + MODEL_FALLBACKS, overrides applied."""
+    overrides = parse_context_window_overrides(settings.context_window_overrides)
     fallbacks = parse_model_fallbacks(settings.model_fallbacks)
     chain = [settings.model, *fallbacks]
     windows: list[int] = []
     for model_ref in chain:
         model_id = parse_model_name(model_ref) if "/" in model_ref else model_ref
-        window = known_context_window(model_id)
+        window = (
+            overrides.get(model_ref)
+            or overrides.get(model_id)
+            or known_context_window(model_id)
+        )
         if window is not None:
             windows.append(window)
+    return windows
+
+
+def _context_ceiling_warning(settings: LintableModelConfig) -> list[str]:
+    if settings.model_long_context is not None:
+        return []
 
     # An unknown-window model in the chain might already cover long prompts;
     # only warn when every known window is below the floor.
+    windows = _chain_windows(settings)
     if not windows or max(windows) >= _LONG_CONTEXT_FLOOR:
         return []
 
@@ -124,6 +140,34 @@ def _context_ceiling_warning(settings: LintableModelConfig) -> list[str]:
         "MODEL_LONG_CONTEXT to a large-window model (e.g. gemini, minimax, "
         "kimi) as a rescue tier."
     ]
+
+
+def client_config_recommendation(settings: LintableModelConfig) -> str | None:
+    """Recommended ``CLAUDE_AUTOCOMPACT_PCT_OVERRIDE``, or None if not needed.
+
+    Claude Code's default autocompact threshold is calibrated to Claude's own
+    (much larger) context window, not to a narrower configured model chain;
+    left alone, a long conversation hits this chain's ceiling before the
+    client ever compacts. Not needed once a rescue tier (MODEL_LONG_CONTEXT)
+    or a large-enough chain ceiling removes the risk.
+    """
+    if settings.model_long_context is not None:
+        return None
+    windows = _chain_windows(settings)
+    if not windows or max(windows) >= _LONG_CONTEXT_FLOOR:
+        return None
+    ceiling = max(windows)
+    pct = max(
+        _MIN_RECOMMENDED_PCT,
+        int(ceiling / _CLIENT_ASSUMED_WINDOW * 100) - _RECOMMENDATION_MARGIN_PCT,
+    )
+    return (
+        f"Configured model chain's context ceiling (~{ceiling} tokens) is "
+        f"below what Claude Code assumes (~{_CLIENT_ASSUMED_WINDOW} tokens); "
+        f"set CLAUDE_AUTOCOMPACT_PCT_OVERRIDE={pct} in Claude Code's "
+        "settings.json env block so it compacts before reaching this "
+        "chain's ceiling."
+    )
 
 
 def _heavy_classifier(settings: LintableModelConfig) -> list[str]:

@@ -9,7 +9,7 @@ from typing import Any
 from loguru import logger
 
 from llmux.application.errors import ApplicationUnavailableError
-from llmux.application.model_lint import lint_model_config
+from llmux.application.model_lint import client_config_recommendation, lint_model_config
 from llmux.config.admin.persistence import (
     PreparedAdminUpdate,
     commit_prepared_admin_update,
@@ -120,6 +120,9 @@ class ApplicationRuntime:
             await self._validate_configured_models_best_effort()
             for lint_warning in lint_model_config(self.settings):
                 logger.warning("Model config lint: {}", lint_warning)
+            recommendation = client_config_recommendation(self.settings)
+            if recommendation is not None:
+                logger.info("Client config: {}", recommendation)
             self.provider_manager.start_model_list_refresh()
             logging.getLogger("uvicorn.error").info(
                 "Admin UI: %s (local-only)",
@@ -203,6 +206,7 @@ class ApplicationRuntime:
                 provider_id: sorted(model_ids)
                 for provider_id, model_ids in self.provider_manager.cached_model_ids().items()
             },
+            "client_config_recommendation": client_config_recommendation(settings),
         }
 
     async def test_provider(self, provider_id: str) -> dict[str, Any]:

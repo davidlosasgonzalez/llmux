@@ -92,6 +92,7 @@ class MessagesHandler:
             model_router=self._model_router,
             model_fallbacks=settings.model_fallbacks,
             long_context_model=settings.model_long_context,
+            window_overrides=settings.context_window_overrides,
             quota=QuotaTracker(),
             exhaustion=DailyExhaustionStore(config_dir_path() / "proxy_quota.db"),
         )

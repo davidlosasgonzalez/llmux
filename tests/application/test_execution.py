@@ -255,6 +255,40 @@ async def test_long_context_model_unused_when_prompt_fits_primary() -> None:
     assert served.model == "llama-3.3-70b-versatile"
 
 
+@pytest.mark.asyncio
+async def test_window_override_string_is_parsed_and_narrows_a_candidate() -> None:
+    """ProviderExecutor parses window_overrides and passes it through to the
+    fallback filter, narrowing a candidate the static table would keep."""
+    settings = Settings(
+        model="cerebras/gpt-oss-120b",
+        model_fallbacks="groq/llama-3.3-70b-versatile",
+    )
+    router = ModelRouter(settings)
+    provider = FakeProvider()
+    executor = ProviderExecutor(
+        lambda _provider_id: provider,
+        token_counter=lambda _messages, _system, _tools: 2_000,
+        model_router=router,
+        model_fallbacks=settings.model_fallbacks,
+        window_overrides="cerebras/gpt-oss-120b=2500",
+    )
+    routed = _routed_via_router(router)
+    routed.request.max_tokens = 500
+
+    stream = executor.stream(
+        routed,
+        wire_api="messages",
+        raw_log_label="FULL_PAYLOAD",
+        raw_log_payload={},
+        request_id="req_override",
+    )
+
+    assert [chunk async for chunk in stream] == ["event: message_stop\ndata: {}\n\n"]
+    assert len(provider.stream_calls) == 1
+    served = cast(MessagesRequest, provider.stream_calls[0]["request"])
+    assert served.model == "llama-3.3-70b-versatile"
+
+
 def test_executor_preflight_failure_stays_before_token_count_and_stream() -> None:
     provider = FailingPreflightProvider()
     token_counter = MagicMock(return_value=17)

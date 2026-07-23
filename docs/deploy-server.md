@@ -132,16 +132,25 @@ llmux-verdict usage --output json
 Procedimiento manual:
 
 1. Preferir modelos con alta tasa de éxito / baja latencia en `model_stats`.
-2. Excluir `github_models/*` (tope ~4k tokens/request).
+2. `github_models/*` (tope ~4k tokens/request) ya no hace falta excluirlo a
+   mano: el filtro de contexto lo salta solo cuando el request supera su cap
+   de free tier (`daily_limit(...).max_request_tokens`). Incluirlo solo aporta
+   como fallback de último recurso para requests pequeños.
 3. Poner el mejor como `MODEL`, el resto (2–3) en `MODEL_FALLBACKS` separados
    por comas.
 4. Si toda la cadena `MODEL`+`MODEL_FALLBACKS` tiene ventana de contexto
    parecida (p.ej. todos ~131k), fijar `MODEL_LONG_CONTEXT` a un modelo de
    ventana grande (gemini, minimax, kimi) — si no, una conversación larga de
    Claude Code puede agotar toda la cadena a la vez. `llmux-server` avisa de
-   esto al arrancar si falta.
-5. Contrastar con el último eval C1 (`docs/evals/…`).
-6. Reiniciar `llmux-server` para aplicar la config.
+   esto al arrancar si falta, y también imprime el
+   `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` recomendado para el cliente según el
+   techo real de la cadena.
+5. Si la tabla estática de ventanas/caps se equivoca para tu cuenta concreta
+   (p.ej. Cerebras con menos contexto libre del que la tabla asume), corregirlo
+   con `CONTEXT_WINDOW_OVERRIDES` (`model_or_ref=tokens`) en vez de tocar
+   código.
+6. Contrastar con el último eval C1 (`docs/evals/…`).
+7. Reiniciar `llmux-server` para aplicar la config.
 
 ## 6. Checklist v2 (reproducir de cero)
 
@@ -152,6 +161,8 @@ Procedimiento manual:
 - [ ] `llmux-claude -p "pong"` completa contra el proxy
 - [ ] Drill fallback: forzar 429 en primario (key inválida temporal) →
       responde el secundario; logs `precommit_fallback.serving`
+- [ ] Revisar en el log de arranque la línea `Client config:` con el
+      `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` recomendado y aplicarlo si aplica
 - [ ] Drill contexto: request con prompt oversize → responde 400
       `invalid_request_error` ("prompt is too long") si no hay
       `MODEL_LONG_CONTEXT`, o sirve desde ahí si lo hay

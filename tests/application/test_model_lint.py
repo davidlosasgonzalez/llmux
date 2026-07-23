@@ -2,7 +2,10 @@
 
 from dataclasses import dataclass
 
-from llmux.application.model_lint import lint_model_config
+from llmux.application.model_lint import (
+    client_config_recommendation,
+    lint_model_config,
+)
 
 
 @dataclass
@@ -15,6 +18,7 @@ class FakeModelConfig:
     # context-ceiling lint stay isolated from it; that lint has its own tests
     # below with this explicitly set back to None.
     model_long_context: str | None = "gemini/models/gemini-3.5-flash"
+    context_window_overrides: str = ""
     model_classifier: str | None = None
 
 
@@ -147,6 +151,58 @@ def test_chain_with_unknown_window_model_does_not_warn():
         model_long_context=None,
     )
     assert lint_model_config(config) == []
+
+
+def test_override_lowers_effective_window_and_triggers_warning():
+    config = FakeModelConfig(
+        model="nvidia_nim/nvidia/nemotron-3-super-120b-a12b",
+        model_fallbacks="kimi/kimi-k2.6",
+        model_long_context=None,
+        context_window_overrides="kimi-k2.6=50000",
+    )
+    warnings = lint_model_config(config)
+    assert len(warnings) == 1
+    assert "MODEL_LONG_CONTEXT" in warnings[0]
+
+
+def test_override_raises_effective_window_and_clears_warning():
+    config = FakeModelConfig(
+        model="nvidia_nim/nvidia/nemotron-3-super-120b-a12b",
+        model_fallbacks="open_router/deepseek/deepseek-v4-flash,cerebras/gpt-oss-120b",
+        model_long_context=None,
+        context_window_overrides="cerebras/gpt-oss-120b=300000",
+    )
+    assert lint_model_config(config) == []
+
+
+def test_client_config_recommendation_for_narrow_default_chain():
+    config = FakeModelConfig(
+        model="nvidia_nim/nvidia/nemotron-3-super-120b-a12b",
+        model_fallbacks="open_router/deepseek/deepseek-v4-flash,cerebras/gpt-oss-120b",
+        model_long_context=None,
+    )
+    recommendation = client_config_recommendation(config)
+    assert recommendation is not None
+    assert "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=60" in recommendation
+    assert "131072" in recommendation
+
+
+def test_client_config_recommendation_none_with_long_context():
+    config = FakeModelConfig(
+        model="nvidia_nim/nvidia/nemotron-3-super-120b-a12b",
+        model_fallbacks="open_router/deepseek/deepseek-v4-flash,cerebras/gpt-oss-120b",
+        model_long_context="gemini/models/gemini-3.5-flash",
+    )
+    assert client_config_recommendation(config) is None
+
+
+def test_client_config_recommendation_none_with_large_window_in_chain():
+    config = FakeModelConfig(
+        model="nvidia_nim/nvidia/nemotron-3-super-120b-a12b",
+        model_fallbacks="kimi/kimi-k2.6",
+        model_long_context=None,
+    )
+    assert client_config_recommendation(config) is None
 
 
 def test_ref_without_provider_prefix_is_ignored():

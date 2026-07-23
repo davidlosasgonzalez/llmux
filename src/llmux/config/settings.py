@@ -12,6 +12,7 @@ from .env_files import (
     env_file_override,
     settings_env_files,
 )
+from .model_refs import parse_context_window_overrides
 from .nim import NimSettings
 from .provider_catalog import SUPPORTED_PROVIDER_IDS
 
@@ -130,6 +131,18 @@ class Settings(BaseSettings):
     # be a large-window model (e.g. gemini, minimax, kimi).
     model_long_context: str | None = Field(
         default=None, validation_alias="MODEL_LONG_CONTEXT"
+    )
+    # Operator override for the static context-window/free-tier-cap heuristics
+    # (core/model_capability.py, core/provider_limits.py), which are
+    # deliberately static and can be wrong for a given account (e.g. Cerebras
+    # often caps free-tier context well below the model's real window).
+    # Comma-separated "model_or_ref=tokens" pairs, e.g.
+    # "cerebras/gpt-oss-120b=8000,kimi-k2.6=200000".
+    context_window_overrides: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "CONTEXT_WINDOW_OVERRIDES", "context_window_overrides"
+        ),
     )
 
     # Valid: "static" (default, unchanged substring routing) | "auto" (a
@@ -284,6 +297,12 @@ class Settings(BaseSettings):
             raise ValueError(
                 f"model_routing_mode must be 'static' or 'auto', got {v!r}"
             )
+        return v
+
+    @field_validator("context_window_overrides")
+    @classmethod
+    def validate_context_window_overrides(cls, v: str) -> str:
+        parse_context_window_overrides(v)
         return v
 
     @field_validator("web_fetch_allowed_schemes")

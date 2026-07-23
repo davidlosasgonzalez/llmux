@@ -1,7 +1,7 @@
 """Provider execution shared by inbound API adapters."""
 
 import sys
-from collections.abc import AsyncIterator, Callable, Sequence
+from collections.abc import AsyncIterator, Callable, Mapping, Sequence
 from typing import Literal
 
 from loguru import logger
@@ -11,7 +11,10 @@ from llmux.application.fallback import (
     stream_with_precommit_fallback,
 )
 from llmux.application.routing import ModelRouter, RoutedMessagesRequest
-from llmux.config.model_refs import parse_model_fallbacks
+from llmux.config.model_refs import (
+    parse_context_window_overrides,
+    parse_model_fallbacks,
+)
 from llmux.core.anthropic import (
     Message,
     SystemContent,
@@ -48,6 +51,7 @@ class ProviderExecutor:
         model_router: ModelRouter | None = None,
         model_fallbacks: Sequence[str] | str = (),
         long_context_model: str | None = None,
+        window_overrides: Mapping[str, int] | str = "",
         quota: QuotaTracker | None = None,
         exhaustion: DailyExhaustionStore | None = None,
     ) -> None:
@@ -63,6 +67,10 @@ class ProviderExecutor:
                 item.strip() for item in model_fallbacks if item.strip()
             ]
         self._long_context_model = long_context_model
+        if isinstance(window_overrides, str):
+            self._window_overrides = parse_context_window_overrides(window_overrides)
+        else:
+            self._window_overrides = dict(window_overrides)
         self._quota = quota
         self._exhaustion = exhaustion
 
@@ -117,6 +125,7 @@ class ProviderExecutor:
                 exhaustion=self._exhaustion,
                 request_id=request_id,
                 input_tokens=input_tokens,
+                window_overrides=self._window_overrides,
             )
         else:
             # Single-candidate path: keep historical preflight-before-tokens behaviour.
