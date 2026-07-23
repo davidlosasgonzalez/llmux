@@ -36,6 +36,7 @@
 - **Encapsulation**: Use accessor methods for internal state (e.g. `set_current_task()`), not direct `_attribute` assignment from outside.
 - **Provider-specific config**: Keep provider-specific fields (e.g. `nim_settings`) in provider constructors, not in the base `ProviderConfig`.
 - **Dead code**: Remove unused code, legacy systems, and hardcoded values. Use settings/config instead of literals (e.g. `settings.provider_type` not `"nvidia_nim"`).
+- **Pre-commit hygiene (standing rule)**: Before every commit, sweep the area actually touched for leftover noise (now-unused branches/helpers, stale comments describing removed behavior) and update any documentation that describes that area (README.md, ARCHITECTURE.md, docs/) so it stays accurate — not just add a line about the new feature. Do this by default, without being asked each time. Scope it to the touched area; it is not a license for a repo-wide unprompted refactor or doc audit.
 - **Performance**: Use list accumulation for strings (not `+=` in loops), cache env vars at init, prefer iterative over recursive when stack depth matters.
 - **No type ignores**: Do not add `# type: ignore` or `# ty: ignore`. Fix the underlying type issue.
 - **Python 3.14 annotations**: Do not use `from __future__ import annotations`; rely on native lazy annotations and fix circular import boundaries instead of hiding them with annotation stringization.
