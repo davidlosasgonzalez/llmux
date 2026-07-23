@@ -228,6 +228,45 @@ def test_admin_validate_rejects_bad_model_shape(monkeypatch, tmp_path):
     assert any("provider type" in error for error in body["errors"])
 
 
+def test_admin_validate_reports_model_lint_warnings(monkeypatch, tmp_path):
+    _set_home(monkeypatch, tmp_path)
+    _clear_process_config(monkeypatch)
+    app = create_test_app()
+
+    response = _local_client(app).post(
+        "/admin/api/config/validate",
+        json={
+            "values": {
+                "MODEL": "open_router/deepseek/deepseek-v4-flash",
+                "MODEL_FALLBACKS": "open_router/moonshotai/kimi-k2.6",
+                "MODEL_OPUS": "gemini/models/gemini-3.1-flash-lite",
+            }
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["valid"] is True
+    assert any("MODEL_OPUS" in warning for warning in body["warnings"])
+    assert any("open_router" in warning for warning in body["warnings"])
+
+
+def test_admin_validate_clean_config_has_no_warnings(monkeypatch, tmp_path):
+    _set_home(monkeypatch, tmp_path)
+    _clear_process_config(monkeypatch)
+    app = create_test_app()
+
+    response = _local_client(app).post(
+        "/admin/api/config/validate",
+        json={"values": {"MODEL": "kimi/kimi-k2.6"}},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["valid"] is True
+    assert body["warnings"] == []
+
+
 def test_admin_apply_writes_complete_managed_env_and_masks_preview(
     monkeypatch, tmp_path
 ):
