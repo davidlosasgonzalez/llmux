@@ -1,6 +1,6 @@
 import pytest
 
-from free_claude_code.core.anthropic import (
+from llmux.core.anthropic import (
     anthropic_error_payload,
     anthropic_status_for_error_type,
 )

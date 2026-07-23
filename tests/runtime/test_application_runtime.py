@@ -2,11 +2,11 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from free_claude_code.config.admin.persistence import PreparedAdminUpdate
-from free_claude_code.config.settings import Settings
-from free_claude_code.providers.runtime import ProviderRuntime
-from free_claude_code.runtime.application import ApplicationRuntime
-from free_claude_code.runtime.provider_manager import ProviderRuntimeManager
+from llmux.config.admin.persistence import PreparedAdminUpdate
+from llmux.config.settings import Settings
+from llmux.providers.runtime import ProviderRuntime
+from llmux.runtime.application import ApplicationRuntime
+from llmux.runtime.provider_manager import ProviderRuntimeManager
 
 
 class TrackingRuntime(ProviderRuntime):
@@ -82,11 +82,11 @@ async def test_provider_apply_constructs_before_commit_then_publishes(tmp_path) 
 
     with (
         patch(
-            "free_claude_code.runtime.application.prepare_admin_update",
+            "llmux.runtime.application.prepare_admin_update",
             return_value=prepared,
         ),
         patch(
-            "free_claude_code.runtime.application.commit_prepared_admin_update",
+            "llmux.runtime.application.commit_prepared_admin_update",
             side_effect=commit,
         ),
     ):
@@ -117,12 +117,10 @@ async def test_candidate_failure_never_commits_and_preserves_current(tmp_path) -
 
     with (
         patch(
-            "free_claude_code.runtime.application.prepare_admin_update",
+            "llmux.runtime.application.prepare_admin_update",
             return_value=prepared,
         ),
-        patch(
-            "free_claude_code.runtime.application.commit_prepared_admin_update"
-        ) as commit,
+        patch("llmux.runtime.application.commit_prepared_admin_update") as commit,
         pytest.raises(RuntimeError, match="candidate failed"),
     ):
         await runtime.apply_admin_config({"MODEL": "nvidia_nim/new"})
@@ -147,11 +145,11 @@ async def test_persistence_failure_closes_candidate_and_preserves_current(
 
     with (
         patch(
-            "free_claude_code.runtime.application.prepare_admin_update",
+            "llmux.runtime.application.prepare_admin_update",
             return_value=prepared,
         ),
         patch(
-            "free_claude_code.runtime.application.commit_prepared_admin_update",
+            "llmux.runtime.application.commit_prepared_admin_update",
             side_effect=OSError("disk full"),
         ),
         pytest.raises(OSError, match="disk full"),
@@ -184,11 +182,11 @@ async def test_restart_required_apply_commits_without_hot_publication(tmp_path) 
 
     with (
         patch(
-            "free_claude_code.runtime.application.prepare_admin_update",
+            "llmux.runtime.application.prepare_admin_update",
             return_value=prepared,
         ),
         patch(
-            "free_claude_code.runtime.application.commit_prepared_admin_update",
+            "llmux.runtime.application.commit_prepared_admin_update",
             return_value=_applied_response(("PORT",)),
         ) as commit,
     ):

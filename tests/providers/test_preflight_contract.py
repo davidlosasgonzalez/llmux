@@ -4,9 +4,9 @@ from collections.abc import AsyncIterator
 
 import pytest
 
-from free_claude_code.core.anthropic.models import Message, MessagesRequest
-from free_claude_code.providers.base import BaseProvider, ProviderConfig
-from free_claude_code.providers.openai_chat import OpenAIChatProvider
+from llmux.core.anthropic.models import Message, MessagesRequest
+from llmux.providers.base import BaseProvider, ProviderConfig
+from llmux.providers.openai_chat import OpenAIChatProvider
 
 
 class RecordingOpenAIProvider(OpenAIChatProvider):

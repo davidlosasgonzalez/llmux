@@ -1,14 +1,14 @@
 name: Bug report
-description: Report something that is not working in Free Claude Code.
+description: Report something that is not working in LLMux.
 title: "[Bug]: "
 labels:
   - bug
 body:
   - type: input
-    id: fcc-version
+    id: llmux-version
     attributes:
-      label: FCC version
-      description: Run `fcc-server --version` and enter the reported version. If FCC did not install, enter `not installed`.
+      label: LLMux version
+      description: Run `llmux-server --version` and enter the reported version. If LLMux did not install, enter `not installed`.
       placeholder: "4.4.1 or not installed"
     validations:
       required: true
@@ -19,7 +19,7 @@ body:
       label: CLI
       description: If the problem occurred while using a coding CLI, select it.
       options:
-        - Claude Code (fcc-claude)
+        - Claude Code (llmux-claude)
 
   - type: input
     id: selected-models

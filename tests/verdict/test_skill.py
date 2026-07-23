@@ -1,6 +1,6 @@
 """The deep-verdict skill installer writes the file and backs up existing ones."""
 
-from free_claude_code.verdict.skill import (
+from llmux.verdict.skill import (
     install_skill,
     render_mcp_registration,
     skill_dir,
@@ -23,4 +23,4 @@ def test_install_skill_writes_and_backs_up(tmp_path, monkeypatch):
 
 def test_mcp_registration_snippet_mentions_server():
     snippet = render_mcp_registration()
-    assert "fcc-verdict serve-mcp" in snippet
+    assert "llmux-verdict serve-mcp" in snippet

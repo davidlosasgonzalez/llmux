@@ -1,1 +1,0 @@
-"""Free Claude Code package."""

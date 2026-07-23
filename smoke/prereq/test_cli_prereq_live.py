@@ -4,10 +4,10 @@ from pathlib import Path
 
 import pytest
 
-from free_claude_code.cli.claude_env import build_claude_proxy_env
+from llmux.cli.claude_env import build_claude_proxy_env
 from smoke.lib.child_process import (
-    cmd_fcc_init,
-    cmd_free_claude_code_serve,
+    cmd_llmux_init,
+    cmd_llmux_serve,
     run_captured_text,
 )
 from smoke.lib.config import SmokeConfig
@@ -17,27 +17,27 @@ from smoke.lib.skips import skip_upstream_unavailable
 pytestmark = [pytest.mark.live, pytest.mark.smoke_target("cli")]
 
 
-def test_fcc_init_scaffolds_user_config(
+def test_llmux_init_scaffolds_user_config(
     smoke_config: SmokeConfig, tmp_path: Path
 ) -> None:
     env = os.environ.copy()
     env["HOME"] = str(tmp_path)
     env["USERPROFILE"] = str(tmp_path)
     result = run_captured_text(
-        cmd_fcc_init(),
+        cmd_llmux_init(),
         cwd=smoke_config.root,
         env=env,
         timeout=smoke_config.timeout_s,
         check=False,
     )
     assert result.returncode == 0, result.stderr or result.stdout
-    assert (tmp_path / ".fcc" / ".env").is_file()
+    assert (tmp_path / ".llmux" / ".env").is_file()
 
 
-def test_free_claude_code_entrypoint_starts_server(smoke_config: SmokeConfig) -> None:
+def test_llmux_entrypoint_starts_server(smoke_config: SmokeConfig) -> None:
     with start_server(
         smoke_config,
-        command=cmd_free_claude_code_serve(),
+        command=cmd_llmux_serve(),
         name="entrypoint",
     ) as server:
         assert server.process.poll() is None
@@ -64,7 +64,7 @@ def test_claude_cli_prompt_when_available(
             base_env=os.environ,
         )
         result = run_captured_text(
-            [claude_bin, "-p", "Reply with exactly FCC_SMOKE_PONG"],
+            [claude_bin, "-p", "Reply with exactly LLMUX_SMOKE_PONG"],
             cwd=tmp_path,
             env=env,
             timeout=smoke_config.timeout_s,
@@ -75,7 +75,7 @@ def test_claude_cli_prompt_when_available(
     assert "POST /v1/messages" in server_log, (
         "Claude CLI did not call the local Anthropic-compatible endpoint"
     )
-    if "FCC_SMOKE_PONG" not in result.stdout:
+    if "LLMUX_SMOKE_PONG" not in result.stdout:
         skip_upstream_unavailable(
             "Claude CLI reached the local proxy but returned no smoke token"
         )

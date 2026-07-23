@@ -79,7 +79,7 @@ def test_claude_cli_adaptive_thinking_e2e(
             server=server,
             config=smoke_config,
             cwd=tmp_path,
-            prompt="think hard, then reply with exactly FCC_SMOKE_CLI",
+            prompt="think hard, then reply with exactly LLMUX_SMOKE_CLI",
         )
         server_log = server.log_path.read_text(encoding="utf-8", errors="replace")
 
@@ -88,7 +88,7 @@ def test_claude_cli_adaptive_thinking_e2e(
     assert " 422 " not in server_log
     assert 'HTTP/1.1" 422' not in server_log
     assert "400 Bad Request" not in result.stdout
-    assert "FCC_SMOKE_CLI" in result.stdout
+    assert "LLMUX_SMOKE_CLI" in result.stdout
 
 
 @pytest.mark.smoke_target("cli")
@@ -98,7 +98,7 @@ def test_claude_cli_provider_error_e2e(
     claude_bin = shutil.which(smoke_config.claude_bin)
     if not claude_bin:
         pytest.skip(f"missing_env: Claude CLI not found: {smoke_config.claude_bin}")
-    broken_model = "lmstudio/fcc-smoke-failing-model"
+    broken_model = "lmstudio/llmux-smoke-failing-model"
 
     with (
         _deliberately_failing_openai_provider() as (
@@ -123,7 +123,7 @@ def test_claude_cli_provider_error_e2e(
             server=server,
             config=smoke_config,
             cwd=tmp_path,
-            prompt="Reply with exactly FCC_SMOKE_UNREACHABLE.",
+            prompt="Reply with exactly LLMUX_SMOKE_UNREACHABLE.",
             model="claude-sonnet-4-5-20250929",
         )
         server_log = server.log_path.read_text(encoding="utf-8", errors="replace")
@@ -139,7 +139,7 @@ def test_claude_cli_provider_error_e2e(
     assert "empty or malformed" not in lower
     assert "proxy or gateway intercepting" not in lower
     assert "api error" in lower or "selected model" in lower
-    assert "fcc smoke provider rejected the request deliberately" in lower
+    assert "llmux smoke provider rejected the request deliberately" in lower
     assert downstream_requests == 1, server_log
     assert provider_requests == ["/v1/chat/completions"]
 
@@ -157,7 +157,7 @@ def _deliberately_failing_openai_provider() -> Iterator[tuple[str, list[str]]]:
                         "object": "list",
                         "data": [
                             {
-                                "id": "fcc-smoke-failing-model",
+                                "id": "llmux-smoke-failing-model",
                                 "object": "model",
                             }
                         ],
@@ -178,8 +178,8 @@ def _deliberately_failing_openai_provider() -> Iterator[tuple[str, list[str]]]:
                 {
                     "error": {
                         "type": "invalid_request_error",
-                        "code": "fcc_smoke_failure",
-                        "message": "FCC smoke provider rejected the request deliberately.",
+                        "code": "llmux_smoke_failure",
+                        "message": "LLMux smoke provider rejected the request deliberately.",
                     }
                 },
             )

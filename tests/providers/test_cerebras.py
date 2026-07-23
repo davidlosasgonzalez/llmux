@@ -4,8 +4,8 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from free_claude_code.config.provider_catalog import CEREBRAS_DEFAULT_BASE
-from free_claude_code.providers.base import ProviderConfig
+from llmux.config.provider_catalog import CEREBRAS_DEFAULT_BASE
+from llmux.providers.base import ProviderConfig
 from tests.providers.request_factory import make_messages_request
 from tests.providers.support import passthrough_rate_limiter, profiled_provider
 
@@ -34,9 +34,7 @@ def cerebras_provider(cerebras_config):
 
 def test_init(cerebras_config):
     """Test provider initialization."""
-    with patch(
-        "free_claude_code.providers.openai_chat.provider.AsyncOpenAI"
-    ) as mock_openai:
+    with patch("llmux.providers.openai_chat.provider.AsyncOpenAI") as mock_openai:
         provider = profiled_provider(
             "cerebras", cerebras_config, rate_limiter=passthrough_rate_limiter()
         )
@@ -81,7 +79,7 @@ def test_build_request_body_global_disable_blocks_reasoning_mapping():
 def test_build_request_body_remaps_max_tokens_preserves_message_name(cerebras_provider):
     """Cerebras does not strip message ``name``; ``max_tokens`` maps to completion field."""
     with patch(
-        "free_claude_code.providers.openai_chat.request_policy.build_base_request_body"
+        "llmux.providers.openai_chat.request_policy.build_base_request_body"
     ) as mock_convert:
         mock_convert.return_value = {
             "model": "llama3.1-8b",
@@ -98,7 +96,7 @@ def test_build_request_body_remaps_max_tokens_preserves_message_name(cerebras_pr
 
 def test_build_request_body_prefers_existing_max_completion_tokens(cerebras_provider):
     with patch(
-        "free_claude_code.providers.openai_chat.request_policy.build_base_request_body"
+        "llmux.providers.openai_chat.request_policy.build_base_request_body"
     ) as mock_convert:
         mock_convert.return_value = {
             "model": "llama3.1-8b",

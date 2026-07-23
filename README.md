@@ -1,14 +1,14 @@
 <div align="center">
 
-# 🤖 Free Claude Code
+# 🤖 LLMux
 
 Use Claude Code or its IDE extensions through your own provider-backed proxy.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge)](https://opensource.org/licenses/MIT)
 [![Python 3.14](https://img.shields.io/badge/python-3.14-3776ab.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/downloads/)
 [![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json&style=for-the-badge)](https://github.com/astral-sh/uv)
-[![Tested with Pytest](https://img.shields.io/badge/testing-Pytest-00c0ff.svg?style=for-the-badge)](https://github.com/davidlosasgonzalez/llm-verdict/actions/workflows/tests.yml)
-[![Type checking: Ty](https://img.shields.io/badge/type%20checking-ty-ffcc00.svg?style=for-the-badge)](https://pypi.org/project/ty/)
+[![Tested with Pytest](https://img.shields.io/badge/testing-Pytest-00c0ff.svg?style=for-the-badge)](https://github.com/davidlosasgonzalez/llmux/actions/workflows/tests.yml)
+[![Type checking: Ty](https://img.shields.io/badge/type%20checking-ty-fllmux00.svg?style=for-the-badge)](https://pypi.org/project/ty/)
 [![Code style: Ruff](https://img.shields.io/badge/code%20formatting-ruff-f5a623.svg?style=for-the-badge)](https://github.com/astral-sh/ruff)
 [![Logging: Loguru](https://img.shields.io/badge/logging-loguru-4ecdc4.svg?style=for-the-badge)](https://github.com/Delgan/loguru)
 
@@ -19,22 +19,22 @@ Run Claude Code with free, paid, or local models. Choose and validate providers 
 </div>
 
 <div align="center">
-  <img src="assets/pic.png" alt="Free Claude Code in action" width="700">
-  <p><em>Claude Code running through the Free Claude Code proxy.</em></p>
+  <img src="assets/pic.png" alt="LLMux in action" width="700">
+  <p><em>Claude Code running through the LLMux proxy.</em></p>
 </div>
 
 <a id="model-picker"></a>
 
 <div align="center">
   <img src="assets/cc-model-picker.png" alt="Claude Code model picker showing gateway models" width="700">
-  <p><em>Claude Code native <code>/model</code> picker with FCC gateway models.</em></p>
+  <p><em>Claude Code native <code>/model</code> picker with LLMux gateway models.</em></p>
 </div>
 
 ## What You Get
 
-- Launch Claude Code against the proxy with `fcc-claude` — no subscription required.
+- Launch Claude Code against the proxy with `llmux-claude` — no subscription required.
 - Switch among 23 cloud and local providers from the Admin UI.
-- Use Claude Code's native model picker with the models FCC exposes.
+- Use Claude Code's native model picker with the models LLMux exposes.
 - Route Fable, Opus, Sonnet, Haiku, and fallback traffic to different models.
 - Keep streaming, tool use, reasoning, and image input across compatible models.
 - Fail over automatically when an upstream answers with an error body (e.g. "Connect timeout, please try again later.") instead of a completion.
@@ -42,8 +42,8 @@ Run Claude Code with free, paid, or local models. Choose and validate providers 
 - Report upstream prompt-cache hits as Anthropic `cache_read_input_tokens`, with cached tokens excluded from `input_tokens`.
 - Fail over after a single same-provider retry when `MODEL_FALLBACKS` is configured (adaptive `PROVIDER_UPSTREAM_MAX_RETRIES` default).
 - Connect Claude Code in VS Code or through JetBrains ACP.
-- Ask a free multi-model deliberation for second opinions with `fcc-verdict` (CLI and MCP server).
-- Inspect per-request routing decisions with `fcc-trace`.
+- Ask a free multi-model deliberation for second opinions with `llmux-verdict` (CLI and MCP server).
+- Inspect per-request routing decisions with `llmux-trace`.
 - Serve Claude Code's web search and fetch tools locally via Brave (`ENABLE_WEB_SERVER_TOOLS=true` plus `BRAVE_SEARCH_API_KEY`).
 - Protect the local proxy with optional token authentication.
 
@@ -56,13 +56,13 @@ Run Claude Code with free, paid, or local models. Choose and validate providers 
 macOS/Linux:
 
 ```bash
-curl -fsSL "https://raw.githubusercontent.com/davidlosasgonzalez/llm-verdict/main/scripts/install.sh" | sh
+curl -fsSL "https://raw.githubusercontent.com/davidlosasgonzalez/llmux/main/scripts/install.sh" | sh
 ```
 
 Windows PowerShell:
 
 ```powershell
-& ([scriptblock]::Create((irm "https://raw.githubusercontent.com/davidlosasgonzalez/llm-verdict/main/scripts/install.ps1")))
+& ([scriptblock]::Create((irm "https://raw.githubusercontent.com/davidlosasgonzalez/llmux/main/scripts/install.ps1")))
 ```
 
 Re-run the same command whenever you want to update. You can review the installers before running them: [install.sh](scripts/install.sh) and [install.ps1](scripts/install.ps1).
@@ -70,11 +70,11 @@ Re-run the same command whenever you want to update. You can review the installe
 ### 2. Start The Server
 
 ```bash
-fcc-server
+llmux-server
 ```
 
-To print the installed Free Claude Code version without starting the server,
-run `fcc-server --version`.
+To print the installed LLMux version without starting the server,
+run `llmux-server --version`.
 
 Keep this process running. By default, the Admin UI opens in your browser once
 the server is healthy. Its address is always shown in the startup log:
@@ -102,13 +102,13 @@ Use the port shown in your terminal if it differs from `8082`.
 ### 4. Run Claude Code
 
 ```bash
-fcc-claude
+llmux-claude
 ```
 
-The launcher uses the current Admin UI settings. Use Claude Code's model picker to choose from the models FCC exposes. Normal CLI arguments still work, for example:
+The launcher uses the current Admin UI settings. Use Claude Code's model picker to choose from the models LLMux exposes. Normal CLI arguments still work, for example:
 
 ```bash
-fcc-claude -p "hello"
+llmux-claude -p "hello"
 ```
 
 ## Choose A Provider
@@ -146,7 +146,7 @@ Important provider notes:
 - Mistral Codestral uses a separate key from Mistral La Plateforme.
 - Cloudflare requires both its API token and account ID.
 - Ollama Cloud connects directly to `ollama.com`; use the exact model IDs shown
-  by FCC's model picker. Local Ollama remains available through the separate
+  by LLMux's model picker. Local Ollama remains available through the separate
   `ollama/` prefix.
 - Prefer tool-capable models for coding agents. Local models also need enough context for the agent's system prompt and tool definitions.
 
@@ -159,7 +159,7 @@ Start LM Studio's local server, load a tool-capable model, and use the model ide
 
 ### llama.cpp
 
-Start `llama-server` with its OpenAI-compatible Chat Completions API and enough context for the model. Use the local model ID with the `llamacpp/` prefix. `LLAMACPP_BASE_URL` defaults to `http://localhost:8080/v1`; FCC accepts either the server root or an explicit `/v1` suffix.
+Start `llama-server` with its OpenAI-compatible Chat Completions API and enough context for the model. Use the local model ID with the `llamacpp/` prefix. `LLAMACPP_BASE_URL` defaults to `http://localhost:8080/v1`; LLMux accepts either the server root or an explicit `/v1` suffix.
 
 ### Ollama
 
@@ -168,7 +168,7 @@ ollama pull llama3.1
 ollama serve
 ```
 
-Use the tag shown by `ollama list` with the `ollama/` prefix. `OLLAMA_BASE_URL` defaults to `http://localhost:11434`; FCC accepts either the root URL or an explicit `/v1` suffix.
+Use the tag shown by `ollama list` with the `ollama/` prefix. `OLLAMA_BASE_URL` defaults to `http://localhost:11434`; LLMux accepts either the root URL or an explicit `/v1` suffix.
 
 </details>
 
@@ -195,14 +195,14 @@ Any classifier failure (unset/invalid `MODEL_CLASSIFIER`, no reachable
 candidate, an unparsable answer) falls back to the static routing above; the
 existing `MODEL_FALLBACKS` chain still applies on top of whichever model was
 chosen. Inspect a request's classifier decision and outcome with
-`fcc-trace <request_id>` (or `fcc-trace --last`), which summarises turns from
-`~/.fcc/logs/server.log`.
+`llmux-trace <request_id>` (or `llmux-trace --last`), which summarises turns from
+`~/.llmux/logs/server.log`.
 
 <a id="connect-your-client"></a>
 
 ## Connect Your Client
 
-For terminal use, start `fcc-server`, then run `fcc-claude`. Use the guides below for editor integrations.
+For terminal use, start `llmux-server`, then run `llmux-claude`. Use the guides below for editor integrations.
 
 <details>
 <summary><strong>Claude Code in VS Code</strong></summary>
@@ -251,7 +251,7 @@ Match the port and token to the Admin UI, then restart the IDE.
 <details>
 <summary><strong>Claude Code still asks you to log in</strong></summary>
 
-If Claude Code asks you to log in after you configure the FCC URL and token, open its state file:
+If Claude Code asks you to log in after you configure the LLMux URL and token, open its state file:
 
 - Windows: `%USERPROFILE%\.claude.json`
 - macOS/Linux/WSL: `~/.claude.json`
@@ -281,10 +281,10 @@ same question, runs a debate, and returns one consolidated answer. It reuses
 the provider keys you already configured — it never calls paid models unless
 you explicitly allow it.
 
-- CLI: `fcc-verdict evaluate "Should I use X over Y?"`
-- MCP server for Claude Code: `fcc-verdict serve-mcp` (register it as a stdio
-  MCP server named `free-llm-verdict`)
-- Status and models: `fcc-verdict providers`, `fcc-verdict models`
+- CLI: `llmux-verdict evaluate "Should I use X over Y?"`
+- MCP server for Claude Code: `llmux-verdict serve-mcp` (register it as a stdio
+  MCP server named `free-llmux`)
+- Status and models: `llmux-verdict providers`, `llmux-verdict models`
 
 See [docs/verdict.md](docs/verdict.md) for configuration and depth options.
 
@@ -296,23 +296,23 @@ Re-run the matching command from [Install Or Update](#install).
 
 ### Uninstall
 
-Stop every running FCC command first. The uninstaller removes the FCC uv tool, verifies every FCC command is gone, and then deletes `~/.fcc/`. It leaves uv, Python, Claude Code, and shared PATH entries intact.
+Stop every running LLMux command first. The uninstaller removes the LLMux uv tool, verifies every LLMux command is gone, and then deletes `~/.llmux/`. It leaves uv, Python, Claude Code, and shared PATH entries intact.
 
 macOS/Linux:
 
 ```bash
-curl -fsSL "https://raw.githubusercontent.com/davidlosasgonzalez/llm-verdict/main/scripts/uninstall.sh" | sh
+curl -fsSL "https://raw.githubusercontent.com/davidlosasgonzalez/llmux/main/scripts/uninstall.sh" | sh
 ```
 
 Windows PowerShell:
 
 ```powershell
-& ([scriptblock]::Create((irm "https://raw.githubusercontent.com/davidlosasgonzalez/llm-verdict/main/scripts/uninstall.ps1")))
+& ([scriptblock]::Create((irm "https://raw.githubusercontent.com/davidlosasgonzalez/llmux/main/scripts/uninstall.ps1")))
 ```
 
 ## Project Links
 
-- [Report bugs or request features](https://github.com/davidlosasgonzalez/llm-verdict/issues)
+- [Report bugs or request features](https://github.com/davidlosasgonzalez/llmux/issues)
 - [Architecture and extension guide](ARCHITECTURE.md)
 - [Contributing guide](CONTRIBUTING.md)
 

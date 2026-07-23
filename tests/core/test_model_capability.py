@@ -1,6 +1,6 @@
 """Tests for static model capability heuristics."""
 
-from free_claude_code.core.model_capability import known_context_window
+from llmux.core.model_capability import known_context_window
 
 
 def test_known_context_window_by_family():

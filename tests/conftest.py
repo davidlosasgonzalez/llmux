@@ -4,7 +4,7 @@ import os
 
 import pytest
 
-from free_claude_code.config.settings import Settings
+from llmux.config.settings import Settings
 from tests.providers.support import passthrough_rate_limiter
 
 # Set mock environment BEFORE any imports that use Settings
@@ -27,7 +27,7 @@ def _isolate_from_dotenv(monkeypatch):
 
 @pytest.fixture
 def provider_config():
-    from free_claude_code.providers.base import ProviderConfig
+    from llmux.providers.base import ProviderConfig
 
     return ProviderConfig(
         api_key="test_key",
@@ -39,8 +39,8 @@ def provider_config():
 
 @pytest.fixture
 def nim_provider(provider_config):
-    from free_claude_code.config.nim import NimSettings
-    from free_claude_code.providers.nvidia_nim import NvidiaNimProvider
+    from llmux.config.nim import NimSettings
+    from llmux.providers.nvidia_nim import NvidiaNimProvider
 
     return NvidiaNimProvider(
         provider_config,
@@ -51,15 +51,15 @@ def nim_provider(provider_config):
 
 @pytest.fixture
 def open_router_provider(provider_config):
-    from free_claude_code.providers.open_router import OpenRouterProvider
+    from llmux.providers.open_router import OpenRouterProvider
 
     return OpenRouterProvider(provider_config, rate_limiter=passthrough_rate_limiter())
 
 
 @pytest.fixture
 def lmstudio_provider(provider_config):
-    from free_claude_code.providers.base import ProviderConfig
-    from free_claude_code.providers.lmstudio import LMStudioProvider
+    from llmux.providers.base import ProviderConfig
+    from llmux.providers.lmstudio import LMStudioProvider
 
     lmstudio_config = ProviderConfig(
         api_key="lm-studio",
@@ -72,8 +72,8 @@ def lmstudio_provider(provider_config):
 
 @pytest.fixture
 def llamacpp_provider(provider_config):
-    from free_claude_code.providers.base import ProviderConfig
-    from free_claude_code.providers.openai_chat import create_openai_chat_provider
+    from llmux.providers.base import ProviderConfig
+    from llmux.providers.openai_chat import create_openai_chat_provider
 
     llamacpp_config = ProviderConfig(
         api_key="llamacpp",

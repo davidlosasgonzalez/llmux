@@ -1,6 +1,6 @@
 import pytest
 
-from free_claude_code.core.anthropic.stream_contracts import (
+from llmux.core.anthropic.stream_contracts import (
     assert_anthropic_stream_contract,
     has_tool_use,
 )
@@ -24,8 +24,8 @@ def test_live_tool_use_when_configured_model_supports_tools(
     provider_model = models[0]
 
     payload = message_payload(
-        "Use the echo_smoke tool once with value FCC_SMOKE_TOOL.",
-        model="fcc-smoke-default",
+        "Use the echo_smoke tool once with value LLMUX_SMOKE_TOOL.",
+        model="llmux-smoke-default",
         max_tokens=256,
         extra={
             "tools": [

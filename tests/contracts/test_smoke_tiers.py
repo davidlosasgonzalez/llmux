@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from free_claude_code.core.anthropic.stream_contracts import SSEEvent
+from llmux.core.anthropic.stream_contracts import SSEEvent
 from smoke.lib.report import classify_outcome
 from smoke.lib.report_summary import format_summary, summarize_reports
 from smoke.lib.skips import skip_if_upstream_unavailable_events
@@ -13,7 +13,7 @@ def test_smoke_readme_uses_env_gated_serial_commands() -> None:
     repo_root = Path(__file__).resolve().parents[2]
     text = (repo_root / "smoke" / "README.md").read_text(encoding="utf-8")
 
-    assert "FCC_LIVE_SMOKE=1" in text
+    assert "LLMUX_LIVE_SMOKE=1" in text
     assert "-n 0" in text
     assert "-m live" not in text
 

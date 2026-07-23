@@ -1,7 +1,7 @@
 """Prompt-construction contracts for the factual-disagreement rules (T6)."""
 
-from free_claude_code.verdict.models import Proposal, Synthesis
-from free_claude_code.verdict.prompts import critique_prompt, synthesis_prompt
+from llmux.verdict.models import Proposal, Synthesis
+from llmux.verdict.prompts import critique_prompt, synthesis_prompt
 
 
 def _synthesis() -> Synthesis:

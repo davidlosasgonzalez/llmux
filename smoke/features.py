@@ -53,7 +53,7 @@ FEATURE_INVENTORY: tuple[FeatureCoverage, ...] = (
         ("test_provider_text_multiturn_e2e",),
         ("providers",),
         ("configured provider credentials or local provider endpoint",),
-        "missing providers are missing_env unless FCC_ALLOW_NO_PROVIDER_SMOKE=1",
+        "missing providers are missing_env unless LLMUX_ALLOW_NO_PROVIDER_SMOKE=1",
     ),
     FeatureCoverage(
         "drop_in_claude_code_replacement",
@@ -73,7 +73,7 @@ FEATURE_INVENTORY: tuple[FeatureCoverage, ...] = (
         ("api", "cli", "clients", "nvidia_nim_cli", "openrouter_free_cli"),
         (
             "configured provider",
-            "FCC_SMOKE_CLAUDE_BIN for real Claude CLI",
+            "LLMUX_SMOKE_CLAUDE_BIN for real Claude CLI",
             "NVIDIA_NIM_API_KEY",
             "OPENROUTER_API_KEY",
         ),
@@ -87,7 +87,7 @@ FEATURE_INVENTORY: tuple[FeatureCoverage, ...] = (
         ("test_configured_provider_models_stream_successfully",),
         ("test_provider_matrix_presence_e2e", "test_provider_text_multiturn_e2e"),
         ("providers",),
-        ("configured provider credentials/endpoints", "optional FCC_SMOKE_MODEL_*"),
+        ("configured provider credentials/endpoints", "optional LLMUX_SMOKE_MODEL_*"),
         "selected providers missing credentials are failing missing_env",
     ),
     FeatureCoverage(
@@ -330,8 +330,8 @@ FEATURE_INVENTORY: tuple[FeatureCoverage, ...] = (
         "public_surface",
         ("tests/cli/test_entrypoints.py", "tests/core/test_version.py"),
         (
-            "test_fcc_init_scaffolds_user_config",
-            "test_free_claude_code_entrypoint_starts_server",
+            "test_llmux_init_scaffolds_user_config",
+            "test_llmux_entrypoint_starts_server",
         ),
         (
             "test_entrypoint_init_e2e",
@@ -356,7 +356,7 @@ FEATURE_INVENTORY: tuple[FeatureCoverage, ...] = (
         ),
         ("cli", "nvidia_nim_cli", "openrouter_free_cli"),
         (
-            "FCC_SMOKE_CLAUDE_BIN",
+            "LLMUX_SMOKE_CLAUDE_BIN",
             "configured provider",
             "NVIDIA_NIM_API_KEY",
             "OPENROUTER_API_KEY",
@@ -365,7 +365,7 @@ FEATURE_INVENTORY: tuple[FeatureCoverage, ...] = (
     ),
     FeatureCoverage(
         "config_env_precedence",
-        "FCC_ENV_FILE, dotenv, and process env precedence are deterministic",
+        "LLMUX_ENV_FILE, dotenv, and process env precedence are deterministic",
         "public_surface",
         ("tests/config/test_config.py",),
         (),
