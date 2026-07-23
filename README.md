@@ -379,6 +379,11 @@ Windows PowerShell:
 - [Architecture and extension guide](ARCHITECTURE.md)
 - [Contributing guide](CONTRIBUTING.md)
 
+LLMux is maintained solo, on personal time. Pull requests from other users
+aren't actively monitored or reviewed — if you want to change something,
+fork the repo or clone it and run your own copy instead of waiting on a
+review.
+
 ## Credits
 
 LLMux started from [Alishahryar1/free-claude-code](https://github.com/Alishahryar1/free-claude-code).
