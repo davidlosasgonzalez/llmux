@@ -5,7 +5,7 @@ chunk has been emitted, failures propagate — mid-stream recovery stays on the
 same provider.
 """
 
-from collections.abc import AsyncIterator, Callable, Sequence
+from collections.abc import AsyncIterator, Callable, Mapping, Sequence
 from datetime import UTC, datetime
 
 from loguru import logger
@@ -15,6 +15,7 @@ from llmux.config.model_refs import parse_model_name, parse_provider_type
 from llmux.core.failures import ExecutionFailure
 from llmux.core.failures import FailureKind as ExecutionFailureKind
 from llmux.core.model_capability import known_context_window
+from llmux.core.provider_limits import daily_limit
 from llmux.core.quota import (
     DailyExhaustionStore,
     FailureKind,
@@ -25,9 +26,14 @@ from llmux.core.quota import (
 
 OpenStream = Callable[[RoutedMessagesRequest], AsyncIterator[str]]
 
-# Room kept for the completion when judging whether a prompt fits a model's
-# context window; a prompt that fills the window exactly leaves no output space.
+# Fallback room kept for the completion when the request doesn't specify
+# max_tokens (which the real Anthropic API always requires, but this proxy's
+# request model allows to be unset); the real max_tokens is preferred whenever
+# present since Claude Code routinely asks for far more than this.
 _OUTPUT_RESERVE_TOKENS = 8_192
+# Headroom for cl100k_base (used to estimate input_tokens) drifting from the
+# real model's tokenizer near the ceiling — observed ±10-20% at ~120k tokens.
+_INPUT_ESTIMATE_MARGIN = 1.1
 
 _FALLBACK_KINDS = frozenset(
     {
@@ -54,6 +60,18 @@ def fallback_candidates(primary: str, fallbacks: Sequence[str]) -> list[str]:
     return ordered
 
 
+def _effective_window(
+    model_ref: str, model_name: str, overrides: Mapping[str, int] | None
+) -> int | None:
+    """Operator override (by full ref, then model name) or the static heuristic."""
+    if overrides:
+        if model_ref in overrides:
+            return overrides[model_ref]
+        if model_name in overrides:
+            return overrides[model_name]
+    return known_context_window(model_name)
+
+
 def route_for_model(
     router: ModelRouter,
     template: RoutedMessagesRequest,
@@ -77,6 +95,7 @@ async def stream_with_precommit_fallback(
     exhaustion: DailyExhaustionStore | None = None,
     request_id: str = "",
     input_tokens: int | None = None,
+    window_overrides: Mapping[str, int] | None = None,
 ) -> AsyncIterator[str]:
     """Yield from the first candidate that emits a chunk; never switch mid-stream."""
 
@@ -84,7 +103,11 @@ async def stream_with_precommit_fallback(
     errors: list[str] = []
     last_error: BaseException | None = None
     context_skips = 0
-    max_window_seen: int | None = None
+    max_ceiling_seen: int | None = None
+    output_reserve = template.request.max_tokens or _OUTPUT_RESERVE_TOKENS
+    estimated_input = (
+        int(input_tokens * _INPUT_ESTIMATE_MARGIN) if input_tokens is not None else None
+    )
 
     for model_ref in candidates:
         provider = parse_provider_type(model_ref)
@@ -94,11 +117,11 @@ async def stream_with_precommit_fallback(
         # Match on the model name alone: the provider prefix must not decide
         # the window (e.g. ``gemini/gemma-...`` is not a 1M-context model).
         model_name = parse_model_name(model_ref) if "/" in model_ref else model_ref
-        window = known_context_window(model_name)
+        window = _effective_window(model_ref, model_name, window_overrides)
         if (
-            input_tokens is not None
+            estimated_input is not None
             and window is not None
-            and input_tokens + _OUTPUT_RESERVE_TOKENS > window
+            and estimated_input + output_reserve > window
         ):
             errors.append(
                 f"{model_ref}: context window ~{window} too small for "
@@ -113,7 +136,32 @@ async def stream_with_precommit_fallback(
                 input_tokens,
             )
             context_skips += 1
-            max_window_seen = max(max_window_seen or 0, window)
+            max_ceiling_seen = max(max_ceiling_seen or 0, window)
+            continue
+        # A free tier can reject a request well inside the model's real
+        # context window (e.g. GitHub Models 413s at 4K tokens/request, far
+        # below its actual window) — a provider-imposed cap, checked
+        # independently of the context window above.
+        request_cap = daily_limit(provider, model_name).max_request_tokens
+        if (
+            estimated_input is not None
+            and request_cap is not None
+            and estimated_input + output_reserve > request_cap
+        ):
+            errors.append(
+                f"{model_ref}: provider request cap ~{request_cap} too small "
+                f"for {input_tokens} input tokens"
+            )
+            logger.warning(
+                "precommit_fallback.skip_provider_cap request_id={} model={} "
+                "cap={} input_tokens={}",
+                request_id,
+                model_ref,
+                request_cap,
+                input_tokens,
+            )
+            context_skips += 1
+            max_ceiling_seen = max(max_ceiling_seen or 0, request_cap)
             continue
         if exhaustion is not None:
             day = datetime.now(UTC).strftime("%Y-%m-%d")
@@ -175,8 +223,8 @@ async def stream_with_precommit_fallback(
             status_code=400,
             message=(
                 f"prompt is too long: {input_tokens} tokens exceed every "
-                f"configured model's context window (largest ~{max_window_seen} "
-                "tokens)"
+                f"configured model's context window or provider request cap "
+                f"(largest ~{max_ceiling_seen} tokens)"
             ),
             retryable=False,
         )

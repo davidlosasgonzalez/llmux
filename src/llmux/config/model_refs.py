@@ -40,6 +40,42 @@ def parse_model_fallbacks(raw: str) -> list[str]:
     return [part.strip() for part in raw.split(",") if part.strip()]
 
 
+def parse_context_window_overrides(raw: str) -> dict[str, int]:
+    """Parse ``CONTEXT_WINDOW_OVERRIDES``: comma-separated ``key=tokens`` pairs.
+
+    Each key is either a full ``provider/model`` ref or a bare model name,
+    matched against both forms when filtering fallback candidates by context
+    window. Raises ``ValueError`` on a malformed pair or a non-positive token
+    count.
+    """
+
+    overrides: dict[str, int] = {}
+    for part in raw.split(","):
+        entry = part.strip()
+        if not entry:
+            continue
+        key, separator, value = entry.partition("=")
+        if not separator or not key.strip() or not value.strip():
+            raise ValueError(
+                f"Invalid CONTEXT_WINDOW_OVERRIDES entry {entry!r}; "
+                "expected 'model_or_ref=tokens'"
+            )
+        try:
+            tokens = int(value.strip())
+        except ValueError as exc:
+            raise ValueError(
+                f"Invalid CONTEXT_WINDOW_OVERRIDES token count in {entry!r}: "
+                "must be an integer"
+            ) from exc
+        if tokens <= 0:
+            raise ValueError(
+                f"Invalid CONTEXT_WINDOW_OVERRIDES token count in {entry!r}: "
+                "must be positive"
+            )
+        overrides[key.strip()] = tokens
+    return overrides
+
+
 def configured_chat_model_refs(
     settings: ChatModelConfig,
 ) -> tuple[ConfiguredChatModelRef, ...]:
