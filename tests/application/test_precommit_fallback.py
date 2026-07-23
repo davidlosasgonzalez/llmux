@@ -13,6 +13,7 @@ from llmux.application.routing import ModelRouter, RoutedMessagesRequest
 from llmux.config.model_refs import parse_model_fallbacks
 from llmux.config.settings import Settings
 from llmux.core.anthropic import Message, MessagesRequest
+from llmux.core.failures import ExecutionFailure, FailureKind
 from llmux.core.quota import DailyExhaustionStore, QuotaTracker
 
 
@@ -322,7 +323,7 @@ async def test_precommit_fallback_errors_when_all_windows_too_small():
         raise AssertionError("no candidate should be opened")
         yield  # pragma: no cover
 
-    with pytest.raises(RuntimeError, match="context window"):
+    with pytest.raises(ExecutionFailure, match="prompt is too long") as exc_info:
         async for _ in stream_with_precommit_fallback(
             template=template,
             candidates=[
@@ -335,3 +336,49 @@ async def test_precommit_fallback_errors_when_all_windows_too_small():
             input_tokens=140_000,
         ):
             pass
+
+    failure = exc_info.value
+    assert failure.kind is FailureKind.INVALID_REQUEST
+    assert failure.status_code == 400
+    assert failure.retryable is False
+
+
+@pytest.mark.asyncio
+async def test_precommit_fallback_serves_long_context_rescue_when_others_too_small():
+    """A large-window candidate at the tail of the chain rescues an oversized prompt."""
+    settings = Settings(
+        model="groq/llama-3.3-70b-versatile",
+        model_fallbacks="cerebras/gpt-oss-120b",
+    )
+    router = ModelRouter(settings)
+    request = MessagesRequest(
+        model="claude-sonnet-4-5",
+        max_tokens=64,
+        messages=[Message(role="user", content="hi")],
+    )
+    template = router.resolve_messages_request(request)
+
+    calls: list[str] = []
+
+    async def open_stream(routed: RoutedMessagesRequest):
+        calls.append(routed.resolved.provider_model_ref)
+        yield "event: message_start\ndata: {}\n\n"
+
+    chunks = [
+        chunk
+        async for chunk in stream_with_precommit_fallback(
+            template=template,
+            candidates=[
+                "groq/llama-3.3-70b-versatile",
+                "cerebras/gpt-oss-120b",
+                "gemini/gemini-flash-latest",
+            ],
+            router=router,
+            open_stream=open_stream,
+            request_id="test",
+            input_tokens=140_000,
+        )
+    ]
+
+    assert chunks == ["event: message_start\ndata: {}\n\n"]
+    assert calls == ["gemini/gemini-flash-latest"]

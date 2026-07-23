@@ -12,6 +12,8 @@ from loguru import logger
 
 from llmux.application.routing import ModelRouter, RoutedMessagesRequest
 from llmux.config.model_refs import parse_model_name, parse_provider_type
+from llmux.core.failures import ExecutionFailure
+from llmux.core.failures import FailureKind as ExecutionFailureKind
 from llmux.core.model_capability import known_context_window
 from llmux.core.quota import (
     DailyExhaustionStore,
@@ -81,6 +83,8 @@ async def stream_with_precommit_fallback(
     tracker = quota or QuotaTracker()
     errors: list[str] = []
     last_error: BaseException | None = None
+    context_skips = 0
+    max_window_seen: int | None = None
 
     for model_ref in candidates:
         provider = parse_provider_type(model_ref)
@@ -108,6 +112,8 @@ async def stream_with_precommit_fallback(
                 window,
                 input_tokens,
             )
+            context_skips += 1
+            max_window_seen = max(max_window_seen or 0, window)
             continue
         if exhaustion is not None:
             day = datetime.now(UTC).strftime("%Y-%m-%d")
@@ -163,6 +169,17 @@ async def stream_with_precommit_fallback(
             continue
 
     detail = "; ".join(errors) if errors else "no candidates"
+    if last_error is None and context_skips > 0:
+        raise ExecutionFailure(
+            kind=ExecutionFailureKind.INVALID_REQUEST,
+            status_code=400,
+            message=(
+                f"prompt is too long: {input_tokens} tokens exceed every "
+                f"configured model's context window (largest ~{max_window_seen} "
+                "tokens)"
+            ),
+            retryable=False,
+        )
     if last_error is not None:
         raise RuntimeError(
             f"pre-commit fallback exhausted all candidates: {detail}"
