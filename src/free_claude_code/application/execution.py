@@ -111,6 +111,7 @@ class ProviderExecutor:
                 quota=self._quota,
                 exhaustion=self._exhaustion,
                 request_id=request_id,
+                input_tokens=input_tokens,
             )
         else:
             # Single-candidate path: keep historical preflight-before-tokens behaviour.
