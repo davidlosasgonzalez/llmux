@@ -64,6 +64,7 @@ _FAMILY_TOKENS: tuple[tuple[str, str], ...] = (
 _CONTEXT_WINDOW_TOKENS: tuple[tuple[str, int], ...] = (
     ("gemini", 1_048_576),
     ("minimax", 1_000_000),
+    ("nemotron-3-ultra", 1_000_000),
     ("kimi", 262_144),
     ("command-a", 262_144),
     ("deepseek", 131_072),

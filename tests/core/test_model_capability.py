@@ -14,6 +14,10 @@ def test_known_context_window_by_family():
 def test_known_context_window_specific_token_wins():
     assert known_context_window("cohere/command-a-plus-05-2026") == 262_144
     assert known_context_window("cohere/command-r7b") == 131_072
+    assert (
+        known_context_window("open_router/nvidia/nemotron-3-ultra-550b-a55b:free")
+        == 1_000_000
+    )
 
 
 def test_known_context_window_unknown_model_returns_none():
