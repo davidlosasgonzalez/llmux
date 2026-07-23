@@ -2,13 +2,13 @@
 
 import pytest
 
-from free_claude_code.application.fallback import (
+from llmux.application.fallback import (
     fallback_candidates,
     stream_with_precommit_fallback,
 )
-from free_claude_code.application.routing import ModelRouter, RoutedMessagesRequest
-from free_claude_code.config.settings import Settings
-from free_claude_code.core.anthropic import Message, MessagesRequest
+from llmux.application.routing import ModelRouter, RoutedMessagesRequest
+from llmux.config.settings import Settings
+from llmux.core.anthropic import Message, MessagesRequest
 
 
 @pytest.mark.asyncio

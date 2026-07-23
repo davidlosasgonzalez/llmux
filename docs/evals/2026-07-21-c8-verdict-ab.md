@@ -7,7 +7,7 @@ Date: 2026-07-21
 
 ## Method (abbreviated)
 
-Compare `fcc-verdict evaluate --depth quick --research on` against a single
+Compare `llmux-verdict evaluate --depth quick --research on` against a single
 agent run with `MODEL=open_router/moonshotai/kimi-k2.5` on the same prompt set.
 Full live matrix is expensive; this decision uses:
 
@@ -32,6 +32,6 @@ Full live matrix is expensive; this decision uses:
 
 ```bash
 # Example single pair — expand to 5–8 prompts and score manually
-fcc-verdict evaluate --depth quick --research on "Should Advisor use X over Y?"
+llmux-verdict evaluate --depth quick --research on "Should Advisor use X over Y?"
 # vs a single-model answer from the best free model on the same prompt
 ```

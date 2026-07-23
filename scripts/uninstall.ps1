@@ -8,15 +8,15 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
-$PackageName = "free-claude-code"
-$FccHomeDirname = ".fcc"
-$FccCommands = @(
-    "fcc-server",
-    "fcc-claude",
-    "fcc-init",
-    "fcc-verdict",
-    "fcc-trace",
-    "free-claude-code"
+$PackageName = "llmux"
+$LlmuxHomeDirname = ".llmux"
+$LlmuxCommands = @(
+    "llmux-server",
+    "llmux-claude",
+    "llmux-init",
+    "llmux-verdict",
+    "llmux-trace",
+    "llmux"
 )
 $script:UvPath = ""
 $script:UvToolBin = ""
@@ -25,7 +25,7 @@ function Show-Usage {
     @"
 Usage: uninstall.ps1 [options]
 
-Removes the Free Claude Code uv tool and deletes ~/.fcc/ after removal is verified.
+Removes the LLMux uv tool and deletes ~/.llmux/ after removal is verified.
 Does not remove uv, Claude Code, the uv-managed Python runtime, or shared PATH entries.
 
 Options:
@@ -119,16 +119,16 @@ function Add-KnownUvPaths {
     Add-PathEntry (Join-Path $env:USERPROFILE ".cargo\bin")
 }
 
-function Assert-NoFccProcessesRunning {
+function Assert-NoLlmuxProcessesRunning {
     $running = @()
-    foreach ($commandName in $FccCommands) {
+    foreach ($commandName in $LlmuxCommands) {
         $processes = @(Get-Process -Name $commandName -ErrorAction SilentlyContinue)
         if ($processes.Count -gt 0) {
             $running += $commandName
         }
     }
     if ($running.Count -gt 0) {
-        throw "Free Claude Code is still running ($($running -join ', ')). Stop those processes, then rerun uninstall."
+        throw "LLMux is still running ($($running -join ', ')). Stop those processes, then rerun uninstall."
     }
 }
 
@@ -142,7 +142,7 @@ function Initialize-UvContext {
 
     $uvCommand = Get-ApplicationCommand "uv"
     if (-not $uvCommand) {
-        throw "uv is required to remove the Free Claude Code tool. Install uv, then rerun this uninstaller; ~/.fcc was not deleted."
+        throw "uv is required to remove the LLMux tool. Install uv, then rerun this uninstaller; ~/.llmux was not deleted."
     }
     $script:UvPath = $uvCommand.Source
 
@@ -153,11 +153,11 @@ function Initialize-UvContext {
         if (-not [string]::IsNullOrWhiteSpace($result.Output)) {
             [Console]::Error.WriteLine($result.Output)
         }
-        throw "Could not determine the uv tool bin directory (exit code $($result.ExitCode)); ~/.fcc was not deleted."
+        throw "Could not determine the uv tool bin directory (exit code $($result.ExitCode)); ~/.llmux was not deleted."
     }
     $script:UvToolBin = $result.Output.Trim()
     if ([string]::IsNullOrWhiteSpace($script:UvToolBin)) {
-        throw "uv returned an empty tool bin directory; ~/.fcc was not deleted."
+        throw "uv returned an empty tool bin directory; ~/.llmux was not deleted."
     }
 }
 
@@ -179,24 +179,24 @@ function Uninstall-FreeClaudeCode {
         return
     }
     if (Test-MissingUvToolError -Output $result.Output) {
-        Write-Host "Free Claude Code uv tool is already absent; verifying its entry points."
+        Write-Host "LLMux uv tool is already absent; verifying its entry points."
         return
     }
     if (-not [string]::IsNullOrWhiteSpace($result.Output)) {
         [Console]::Error.WriteLine($result.Output)
     }
-    throw "uv tool uninstall $PackageName failed with exit code $($result.ExitCode); ~/.fcc was not deleted."
+    throw "uv tool uninstall $PackageName failed with exit code $($result.ExitCode); ~/.llmux was not deleted."
 }
 
-function Confirm-FccCommandsRemoved {
+function Confirm-LlmuxCommandsRemoved {
     if ($DryRun) {
-        Write-Host "+ verify all Free Claude Code entry points are absent from the uv tool bin directory"
+        Write-Host "+ verify all LLMux entry points are absent from the uv tool bin directory"
         return
     }
 
     $remaining = @()
     $extensions = @("", ".exe", ".cmd", ".bat", ".ps1")
-    foreach ($commandName in $FccCommands) {
+    foreach ($commandName in $LlmuxCommands) {
         foreach ($extension in $extensions) {
             $commandPath = Join-Path $script:UvToolBin "$commandName$extension"
             if (Test-Path -LiteralPath $commandPath) {
@@ -205,21 +205,21 @@ function Confirm-FccCommandsRemoved {
         }
     }
     if ($remaining.Count -gt 0) {
-        throw "Free Claude Code entry points remain after uv uninstall: $($remaining -join ', '); ~/.fcc was not deleted."
+        throw "LLMux entry points remain after uv uninstall: $($remaining -join ', '); ~/.llmux was not deleted."
     }
 }
 
-function Purge-FccHome {
-    $fccHome = Join-Path $env:USERPROFILE $FccHomeDirname
-    if (-not (Test-Path -LiteralPath $fccHome)) {
-        Write-Host "No FCC config directory at $fccHome; skipping purge."
+function Purge-LlmuxHome {
+    $llmuxHome = Join-Path $env:USERPROFILE $LlmuxHomeDirname
+    if (-not (Test-Path -LiteralPath $llmuxHome)) {
+        Write-Host "No LLMux config directory at $llmuxHome; skipping purge."
         return
     }
 
     $commandText = @(
         "Remove-Item",
         "-LiteralPath",
-        (Format-Argument $fccHome),
+        (Format-Argument $llmuxHome),
         "-Recurse",
         "-Force"
     ) -join " "
@@ -228,9 +228,9 @@ function Purge-FccHome {
         return
     }
 
-    Remove-Item -LiteralPath $fccHome -Recurse -Force
-    if (Test-Path -LiteralPath $fccHome) {
-        throw "FCC config directory still exists after deletion: $fccHome"
+    Remove-Item -LiteralPath $llmuxHome -Recurse -Force
+    if (Test-Path -LiteralPath $llmuxHome) {
+        throw "LLMux config directory still exists after deletion: $llmuxHome"
     }
 }
 
@@ -243,29 +243,29 @@ if ($RemainingArgs.Count -gt 0) {
     throw "Unknown option: $($RemainingArgs -join ' ')"
 }
 if ([string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
-    throw "USERPROFILE is not set; cannot locate Free Claude Code data."
+    throw "USERPROFILE is not set; cannot locate LLMux data."
 }
 
-Write-Step "Checking for running Free Claude Code processes"
-Assert-NoFccProcessesRunning
+Write-Step "Checking for running LLMux processes"
+Assert-NoLlmuxProcessesRunning
 
-Write-Step "Locating the uv-managed Free Claude Code installation"
+Write-Step "Locating the uv-managed LLMux installation"
 Initialize-UvContext
 
-Write-Step "Removing the Free Claude Code uv tool"
+Write-Step "Removing the LLMux uv tool"
 Uninstall-FreeClaudeCode
 
-Write-Step "Verifying Free Claude Code entry points were removed"
-Confirm-FccCommandsRemoved
+Write-Step "Verifying LLMux entry points were removed"
+Confirm-LlmuxCommandsRemoved
 
-Write-Step "Purging FCC config and data from ~/.fcc"
-Purge-FccHome
+Write-Step "Purging LLMux config and data from ~/.llmux"
+Purge-LlmuxHome
 
 Write-Host ""
 if ($DryRun) {
     Write-Host "Dry run complete. No changes were made."
 }
 else {
-    Write-Host "Free Claude Code has been removed and verified."
+    Write-Host "LLMux has been removed and verified."
     Write-Host "uv, Claude Code, the uv-managed Python runtime, and shared PATH entries were left installed."
 }

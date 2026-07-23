@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 from loguru import logger
 
-from free_claude_code.config.logging_config import configure_logging
-from free_claude_code.core.trace import (
+from llmux.config.logging_config import configure_logging
+from llmux.core.trace import (
     TRACE_PAYLOAD_BINDING,
     trace_event,
     traced_async_stream,
@@ -70,7 +70,7 @@ def test_trace_payload_merged_into_json_line(tmp_path) -> None:
 
 def test_sanitize_masks_nested_api_key_strings() -> None:
     """Credential-shaped keys redact without touching normal message text."""
-    from free_claude_code.core.trace import sanitize_trace_value
+    from llmux.core.trace import sanitize_trace_value
 
     out = sanitize_trace_value(
         {"outer": {"api_key": "secret", "text": "visible"}},

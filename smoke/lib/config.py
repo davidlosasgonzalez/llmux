@@ -5,12 +5,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from free_claude_code.config.model_refs import parse_model_name, parse_provider_type
-from free_claude_code.config.provider_catalog import (
+from llmux.config.model_refs import parse_model_name, parse_provider_type
+from llmux.config.provider_catalog import (
     PROVIDER_CATALOG,
     SUPPORTED_PROVIDER_IDS,
 )
-from free_claude_code.config.settings import Settings, get_settings
+from llmux.config.settings import Settings, get_settings
 
 DEFAULT_TARGETS = frozenset(
     {
@@ -87,12 +87,12 @@ OPENROUTER_FREE_CLI_DEFAULT_MODELS: tuple[str, ...] = (
 TARGET_REQUIRED_ENV: dict[str, tuple[str, ...]] = {
     "api": (),
     "auth": (),
-    "cli": ("FCC_SMOKE_CLAUDE_BIN", "configured provider for Claude CLI prompt"),
+    "cli": ("LLMUX_SMOKE_CLAUDE_BIN", "configured provider for Claude CLI prompt"),
     "clients": (),
     "config": (),
     "extensibility": (),
     "messaging": (),
-    "providers": ("configured provider credentials/endpoints or FCC_SMOKE_MODEL_*",),
+    "providers": ("configured provider credentials/endpoints or LLMUX_SMOKE_MODEL_*",),
     "rate_limit": ("configured provider model",),
     "tools": ("configured tool-capable provider model",),
     "lmstudio": ("LM_STUDIO_BASE_URL with a running LM Studio server",),
@@ -100,11 +100,11 @@ TARGET_REQUIRED_ENV: dict[str, tuple[str, ...]] = {
     "ollama": ("OLLAMA_BASE_URL with a running Ollama server",),
     "nvidia_nim_cli": (
         "NVIDIA_NIM_API_KEY",
-        "FCC_SMOKE_CLAUDE_BIN or claude on PATH",
+        "LLMUX_SMOKE_CLAUDE_BIN or claude on PATH",
     ),
     "openrouter_free_cli": (
         "OPENROUTER_API_KEY",
-        "FCC_SMOKE_CLAUDE_BIN or claude on PATH",
+        "LLMUX_SMOKE_CLAUDE_BIN or claude on PATH",
     ),
 }
 
@@ -142,13 +142,15 @@ class SmokeConfig:
         return cls(
             root=root,
             results_dir=root / ".smoke-results",
-            live=os.getenv("FCC_LIVE_SMOKE") == "1",
-            interactive=os.getenv("FCC_SMOKE_INTERACTIVE") == "1",
-            targets=_parse_targets(os.getenv("FCC_SMOKE_TARGETS")),
-            provider_matrix=_parse_csv(os.getenv("FCC_SMOKE_PROVIDER_MATRIX")),
-            timeout_s=float(os.getenv("FCC_SMOKE_TIMEOUT_S", "45")),
-            prompt=os.getenv("FCC_SMOKE_PROMPT", "Reply with exactly: FCC_SMOKE_PONG"),
-            claude_bin=os.getenv("FCC_SMOKE_CLAUDE_BIN", "claude"),
+            live=os.getenv("LLMUX_LIVE_SMOKE") == "1",
+            interactive=os.getenv("LLMUX_SMOKE_INTERACTIVE") == "1",
+            targets=_parse_targets(os.getenv("LLMUX_SMOKE_TARGETS")),
+            provider_matrix=_parse_csv(os.getenv("LLMUX_SMOKE_PROVIDER_MATRIX")),
+            timeout_s=float(os.getenv("LLMUX_SMOKE_TIMEOUT_S", "45")),
+            prompt=os.getenv(
+                "LLMUX_SMOKE_PROMPT", "Reply with exactly: LLMUX_SMOKE_PONG"
+            ),
+            claude_bin=os.getenv("LLMUX_SMOKE_CLAUDE_BIN", "claude"),
             worker_id=os.getenv("PYTEST_XDIST_WORKER", "main"),
             settings=settings,
         )
@@ -217,7 +219,7 @@ class SmokeConfig:
             return None
         if not self.has_provider_configuration("mistral"):
             return None
-        override_env = "FCC_SMOKE_MODEL_MISTRAL_REASONING"
+        override_env = "LLMUX_SMOKE_MODEL_MISTRAL_REASONING"
         if override := os.getenv(override_env):
             full_model = _normalize_provider_model("mistral", override)
             source = override_env
@@ -236,7 +238,7 @@ class SmokeConfig:
             return True
         if self.provider_matrix and provider in self.provider_matrix:
             return True
-        return bool(os.getenv(f"FCC_SMOKE_MODEL_{provider.upper()}"))
+        return bool(os.getenv(f"LLMUX_SMOKE_MODEL_{provider.upper()}"))
 
     def has_provider_configuration(self, provider: str) -> bool:
         if provider == "nvidia_nim":
@@ -313,7 +315,7 @@ def _parse_targets(raw: str | None) -> frozenset[str]:
 
 
 def _provider_smoke_model(provider: str) -> tuple[str, str]:
-    override_env = f"FCC_SMOKE_MODEL_{provider.upper()}"
+    override_env = f"LLMUX_SMOKE_MODEL_{provider.upper()}"
     if override := os.getenv(override_env):
         return _normalize_provider_model(provider, override), override_env
 
@@ -327,7 +329,7 @@ def _provider_smoke_model(provider: str) -> tuple[str, str]:
 def _normalize_provider_model(provider: str, raw_model: str) -> str:
     model = raw_model.strip()
     if not model:
-        msg = f"FCC_SMOKE_MODEL_{provider.upper()} must not be empty"
+        msg = f"LLMUX_SMOKE_MODEL_{provider.upper()} must not be empty"
         raise ValueError(msg)
     if "/" not in model:
         return f"{provider}/{model}"
@@ -336,7 +338,7 @@ def _normalize_provider_model(provider: str, raw_model: str) -> str:
         return model
     if prefix in SUPPORTED_PROVIDER_IDS:
         msg = (
-            f"FCC_SMOKE_MODEL_{provider.upper()} must use provider prefix "
+            f"LLMUX_SMOKE_MODEL_{provider.upper()} must use provider prefix "
             f"{provider!r}, got {model!r}"
         )
         raise ValueError(msg)
@@ -352,19 +354,19 @@ def nvidia_nim_cli_model_refs(
     de-duplicated order and provenance in reports.
     """
     source = env if env is not None else os.environ
-    explicit_models = _parse_csv_ordered(source.get("FCC_SMOKE_NIM_MODELS"))
-    extra_models = _parse_csv_ordered(source.get("FCC_SMOKE_NIM_EXTRA_MODELS"))
+    explicit_models = _parse_csv_ordered(source.get("LLMUX_SMOKE_NIM_MODELS"))
+    extra_models = _parse_csv_ordered(source.get("LLMUX_SMOKE_NIM_EXTRA_MODELS"))
 
-    if "FCC_SMOKE_NIM_MODELS" in source and not explicit_models:
-        raise ValueError("FCC_SMOKE_NIM_MODELS must list at least one model")
+    if "LLMUX_SMOKE_NIM_MODELS" in source and not explicit_models:
+        raise ValueError("LLMUX_SMOKE_NIM_MODELS must list at least one model")
 
     models: list[tuple[str, str]] = []
     base_models = explicit_models or NVIDIA_NIM_CLI_DEFAULT_MODELS
     base_source = (
-        "FCC_SMOKE_NIM_MODELS" if explicit_models else "nvidia_nim_cli_default"
+        "LLMUX_SMOKE_NIM_MODELS" if explicit_models else "nvidia_nim_cli_default"
     )
     models.extend((model, base_source) for model in base_models)
-    models.extend((model, "FCC_SMOKE_NIM_EXTRA_MODELS") for model in extra_models)
+    models.extend((model, "LLMUX_SMOKE_NIM_EXTRA_MODELS") for model in extra_models)
 
     normalized: dict[str, str] = {}
     for raw_model, model_source in models:
@@ -378,26 +380,28 @@ def openrouter_free_cli_model_refs(
 ) -> dict[str, str]:
     """Return normalized OpenRouter free CLI matrix model refs in deterministic order."""
     source = env if env is not None else os.environ
-    explicit_models = _parse_csv_ordered(source.get("FCC_SMOKE_OPENROUTER_FREE_MODELS"))
+    explicit_models = _parse_csv_ordered(
+        source.get("LLMUX_SMOKE_OPENROUTER_FREE_MODELS")
+    )
     extra_models = _parse_csv_ordered(
-        source.get("FCC_SMOKE_OPENROUTER_FREE_EXTRA_MODELS")
+        source.get("LLMUX_SMOKE_OPENROUTER_FREE_EXTRA_MODELS")
     )
 
-    if "FCC_SMOKE_OPENROUTER_FREE_MODELS" in source and not explicit_models:
+    if "LLMUX_SMOKE_OPENROUTER_FREE_MODELS" in source and not explicit_models:
         raise ValueError(
-            "FCC_SMOKE_OPENROUTER_FREE_MODELS must list at least one model"
+            "LLMUX_SMOKE_OPENROUTER_FREE_MODELS must list at least one model"
         )
 
     models: list[tuple[str, str]] = []
     base_models = explicit_models or OPENROUTER_FREE_CLI_DEFAULT_MODELS
     base_source = (
-        "FCC_SMOKE_OPENROUTER_FREE_MODELS"
+        "LLMUX_SMOKE_OPENROUTER_FREE_MODELS"
         if explicit_models
         else "openrouter_free_cli_default"
     )
     models.extend((model, base_source) for model in base_models)
     models.extend(
-        (model, "FCC_SMOKE_OPENROUTER_FREE_EXTRA_MODELS") for model in extra_models
+        (model, "LLMUX_SMOKE_OPENROUTER_FREE_EXTRA_MODELS") for model in extra_models
     )
 
     normalized: dict[str, str] = {}

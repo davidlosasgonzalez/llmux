@@ -1,22 +1,22 @@
 import subprocess
 from pathlib import Path
 
-from free_claude_code.config.settings import Settings
+from llmux.config.settings import Settings
 from smoke.lib import child_process
 from smoke.lib import server as smoke_server
 from smoke.lib.child_process import (
-    cmd_free_claude_code_serve,
+    cmd_llmux_serve,
     cmd_python_c,
     run_captured_text,
 )
 from smoke.lib.config import SmokeConfig
 
 
-def test_free_claude_code_serve_command_uses_cli_entrypoint() -> None:
-    assert cmd_free_claude_code_serve() == [
+def test_llmux_serve_command_uses_cli_entrypoint() -> None:
+    assert cmd_llmux_serve() == [
         child_process.python_exe(),
         "-c",
-        "from free_claude_code.cli.entrypoints import serve; serve()",
+        "from llmux.cli.entrypoints import serve; serve()",
     ]
 
 
@@ -58,7 +58,7 @@ def test_start_server_disables_cli_admin_browser(monkeypatch, tmp_path: Path) ->
     env_obj = captured["env"]
     assert isinstance(env_obj, dict)
     env = {str(key): value for key, value in env_obj.items()}
-    assert env["FCC_OPEN_BROWSER"] == "0"
+    assert env["LLMUX_OPEN_BROWSER"] == "0"
     assert env["HOST"] == "127.0.0.1"
     assert env["PORT"] == "4567"
 
@@ -84,14 +84,14 @@ def test_run_captured_text_uses_utf8_replacement(monkeypatch, tmp_path: Path) ->
     result = run_captured_text(
         ("cmd", "arg"),
         cwd=tmp_path,
-        env={"FCC_TEST": "1"},
+        env={"LLMUX_TEST": "1"},
         timeout=1.0,
     )
 
     assert result.stdout == "ok"
     assert calls["command"] == ["cmd", "arg"]
     assert calls["cwd"] == tmp_path
-    assert calls["env"] == {"FCC_TEST": "1"}
+    assert calls["env"] == {"LLMUX_TEST": "1"}
     assert calls["capture_output"] is True
     assert calls["text"] is True
     assert calls["encoding"] == "utf-8"

@@ -2,16 +2,16 @@
 
 import pytest
 
-from free_claude_code.verdict.config import VerdictConfig
-from free_claude_code.verdict.models import CostStatus, ModelRef, TaskType
-from free_claude_code.verdict.orchestration import Orchestrator
-from free_claude_code.verdict.provider_limits import (
+from llmux.verdict.config import VerdictConfig
+from llmux.verdict.models import CostStatus, ModelRef, TaskType
+from llmux.verdict.orchestration import Orchestrator
+from llmux.verdict.provider_limits import (
     budget_class,
     budget_multiplier,
     daily_limit,
 )
-from free_claude_code.verdict.selector import select_models
-from free_claude_code.verdict.storage import ModelStats, VerdictStore
+from llmux.verdict.selector import select_models
+from llmux.verdict.storage import ModelStats, VerdictStore
 from tests.verdict.support import FakeInvoker, default_candidates
 
 
@@ -120,7 +120,7 @@ async def test_quota_exhaustion_is_recorded_and_skipped_next_run(tmp_path):
     )
     await orch1.run("Q", TaskType.GENERAL_REASONING, candidates)
 
-    from free_claude_code.verdict.orchestration import _today
+    from llmux.verdict.orchestration import _today
 
     assert victim in store.exhausted_keys(_today())
 
@@ -143,7 +143,7 @@ async def test_quota_exhaustion_is_recorded_and_skipped_next_run(tmp_path):
 # test above for each of the other phases.
 @pytest.mark.asyncio
 async def test_review_failure_is_recorded(tmp_path):
-    from free_claude_code.verdict.orchestration import _today
+    from llmux.verdict.orchestration import _today
 
     store = VerdictStore(tmp_path / "verdict.db")
     candidates = default_candidates()
@@ -164,7 +164,7 @@ async def test_review_failure_is_recorded(tmp_path):
 
 @pytest.mark.asyncio
 async def test_synthesis_failure_is_recorded_even_when_fallback_recovers(tmp_path):
-    from free_claude_code.verdict.orchestration import _today
+    from llmux.verdict.orchestration import _today
 
     store = VerdictStore(tmp_path / "verdict.db")
     candidates = default_candidates()
@@ -187,7 +187,7 @@ async def test_synthesis_failure_is_recorded_even_when_fallback_recovers(tmp_pat
 
 @pytest.mark.asyncio
 async def test_critique_failure_is_recorded(tmp_path):
-    from free_claude_code.verdict.orchestration import _today
+    from llmux.verdict.orchestration import _today
 
     store = VerdictStore(tmp_path / "verdict.db")
     candidates = default_candidates()

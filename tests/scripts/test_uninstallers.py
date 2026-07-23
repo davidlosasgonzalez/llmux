@@ -6,13 +6,13 @@ from pathlib import Path
 
 import pytest
 
-FCC_COMMANDS = (
-    "fcc-server",
-    "fcc-claude",
-    "fcc-init",
-    "fcc-verdict",
-    "fcc-trace",
-    "free-claude-code",
+LLMUX_COMMANDS = (
+    "llmux-server",
+    "llmux-claude",
+    "llmux-init",
+    "llmux-verdict",
+    "llmux-trace",
+    "llmux",
 )
 
 
@@ -36,7 +36,7 @@ class PosixUninstallHarness:
     home: Path
     bin_dir: Path
     tool_bin: Path
-    fcc_home: Path
+    llmux_home: Path
     log: Path
     env: dict[str, str]
 
@@ -63,7 +63,7 @@ class PosixUninstallHarness:
         return self.log.read_text(encoding="utf-8").splitlines()
 
     def remove_entry_points(self) -> None:
-        for name in FCC_COMMANDS:
+        for name in LLMUX_COMMANDS:
             (self.tool_bin / name).unlink(missing_ok=True)
 
 
@@ -75,12 +75,12 @@ def posix_uninstall_harness(tmp_path: Path) -> PosixUninstallHarness:
     home = tmp_path / "home"
     bin_dir = home / ".local" / "bin"
     tool_bin = tmp_path / "tool-bin"
-    fcc_home = home / ".fcc"
+    llmux_home = home / ".llmux"
     log = tmp_path / "calls.log"
-    for path in (bin_dir, tool_bin, fcc_home):
+    for path in (bin_dir, tool_bin, llmux_home):
         path.mkdir(parents=True)
-    (fcc_home / "config.json").write_text("{}", encoding="utf-8")
-    for name in FCC_COMMANDS:
+    (llmux_home / "config.json").write_text("{}", encoding="utf-8")
+    for name in LLMUX_COMMANDS:
         _write_executable(tool_bin / name, "#!/bin/sh\nexit 0\n")
 
     _write_executable(bin_dir / "claude", "#!/bin/sh\nexit 0\n")
@@ -102,13 +102,13 @@ if [ "${1:-}" = "tool" ] && [ "${2:-}" = "uninstall" ]; then
         exit 42
     fi
     if [ "$FAIL_STEP" = "missing" ] || [ "$FAIL_STEP" = "stale-entrypoint" ]; then
-        echo 'Tool `free-claude-code` is not installed' >&2
+        echo 'Tool `llmux` is not installed' >&2
         exit 2
     fi
-    for name in fcc-server fcc-claude fcc-init fcc-verdict fcc-trace free-claude-code; do
+    for name in llmux-server llmux-claude llmux-init llmux-verdict llmux-trace llmux; do
         /bin/rm -f "$FAKE_TOOL_BIN/$name"
     done
-    echo "Uninstalled free-claude-code"
+    echo "Uninstalled llmux"
     exit 0
 fi
 exit 43
@@ -137,26 +137,27 @@ exec /bin/rm "$@"
         }
     )
     env.pop("XDG_BIN_HOME", None)
-    return PosixUninstallHarness(home, bin_dir, tool_bin, fcc_home, log, env)
+    return PosixUninstallHarness(home, bin_dir, tool_bin, llmux_home, log, env)
 
 
-def test_uninstall_sh_removes_and_verifies_only_fcc(
+def test_uninstall_sh_removes_and_verifies_only_llmux(
     posix_uninstall_harness: PosixUninstallHarness,
 ) -> None:
     result = posix_uninstall_harness.run()
 
     assert result.returncode == 0, result.stderr
-    assert "Free Claude Code has been removed and verified." in result.stdout
-    assert not posix_uninstall_harness.fcc_home.exists()
+    assert "LLMux has been removed and verified." in result.stdout
+    assert not posix_uninstall_harness.llmux_home.exists()
     assert all(
-        not (posix_uninstall_harness.tool_bin / name).exists() for name in FCC_COMMANDS
+        not (posix_uninstall_harness.tool_bin / name).exists()
+        for name in LLMUX_COMMANDS
     )
     assert (posix_uninstall_harness.bin_dir / "uv").exists()
     assert (posix_uninstall_harness.bin_dir / "claude").exists()
     assert posix_uninstall_harness.calls() == [
         "uv:tool dir --bin",
-        "uv:tool uninstall free-claude-code",
-        f"rm:-rf {posix_uninstall_harness.fcc_home}",
+        "uv:tool uninstall llmux",
+        f"rm:-rf {posix_uninstall_harness.llmux_home}",
     ]
 
 
@@ -168,7 +169,7 @@ def test_uninstall_sh_is_idempotent_when_tool_is_already_absent(
     result = posix_uninstall_harness.run(fail_step="missing")
 
     assert result.returncode == 0, result.stderr
-    assert not posix_uninstall_harness.fcc_home.exists()
+    assert not posix_uninstall_harness.llmux_home.exists()
     assert "already absent" in result.stdout
 
 
@@ -180,8 +181,8 @@ def test_uninstall_sh_preserves_config_when_tool_removal_is_unconfirmed(
     result = posix_uninstall_harness.run(fail_step=failure)
 
     assert result.returncode != 0
-    assert posix_uninstall_harness.fcc_home.exists()
-    assert "Free Claude Code has been removed and verified." not in result.stdout
+    assert posix_uninstall_harness.llmux_home.exists()
+    assert "LLMux has been removed and verified." not in result.stdout
     assert not any(call.startswith("rm:") for call in posix_uninstall_harness.calls())
 
 
@@ -191,7 +192,7 @@ def test_uninstall_sh_requires_uv_before_deleting_config(
     result = posix_uninstall_harness.run(include_uv=False)
 
     assert result.returncode != 0
-    assert posix_uninstall_harness.fcc_home.exists()
+    assert posix_uninstall_harness.llmux_home.exists()
     assert "uv is required" in result.stderr
     assert posix_uninstall_harness.calls() == []
 
@@ -202,11 +203,12 @@ def test_uninstall_sh_reports_purge_failure_after_verified_tool_removal(
     result = posix_uninstall_harness.run(fail_step="purge")
 
     assert result.returncode != 0
-    assert posix_uninstall_harness.fcc_home.exists()
+    assert posix_uninstall_harness.llmux_home.exists()
     assert all(
-        not (posix_uninstall_harness.tool_bin / name).exists() for name in FCC_COMMANDS
+        not (posix_uninstall_harness.tool_bin / name).exists()
+        for name in LLMUX_COMMANDS
     )
-    assert "Free Claude Code has been removed and verified." not in result.stdout
+    assert "LLMux has been removed and verified." not in result.stdout
 
 
 def test_uninstall_sh_dry_run_is_non_mutating(
@@ -215,9 +217,9 @@ def test_uninstall_sh_dry_run_is_non_mutating(
     result = posix_uninstall_harness.run("--dry-run")
 
     assert result.returncode == 0, result.stderr
-    assert posix_uninstall_harness.fcc_home.exists()
+    assert posix_uninstall_harness.llmux_home.exists()
     assert all(
-        (posix_uninstall_harness.tool_bin / name).exists() for name in FCC_COMMANDS
+        (posix_uninstall_harness.tool_bin / name).exists() for name in LLMUX_COMMANDS
     )
     assert posix_uninstall_harness.calls() == []
     assert "Dry run complete. No changes were made." in result.stdout
@@ -229,7 +231,7 @@ def test_uninstall_sh_rejects_invalid_options_before_mutation(
     result = posix_uninstall_harness.run("--unknown")
 
     assert result.returncode != 0
-    assert posix_uninstall_harness.fcc_home.exists()
+    assert posix_uninstall_harness.llmux_home.exists()
     assert posix_uninstall_harness.calls() == []
 
 
@@ -238,7 +240,7 @@ class PowerShellUninstallHarness:
     home: Path
     bin_dir: Path
     tool_bin: Path
-    fcc_home: Path
+    llmux_home: Path
     log: Path
     env: dict[str, str]
     powershell: str
@@ -279,7 +281,7 @@ class PowerShellUninstallHarness:
         return self.log.read_text(encoding="utf-8").splitlines()
 
     def remove_entry_points(self) -> None:
-        for name in FCC_COMMANDS:
+        for name in LLMUX_COMMANDS:
             (self.tool_bin / f"{name}.cmd").unlink(missing_ok=True)
 
 
@@ -298,18 +300,18 @@ def powershell_uninstall_harness(
     home = tmp_path / "home"
     bin_dir = home / ".local" / "bin"
     tool_bin = tmp_path / "tool-bin"
-    fcc_home = home / ".fcc"
+    llmux_home = home / ".llmux"
     log = tmp_path / "calls.log"
-    for path in (bin_dir, tool_bin, fcc_home):
+    for path in (bin_dir, tool_bin, llmux_home):
         path.mkdir(parents=True)
-    (fcc_home / "config.json").write_text("{}", encoding="utf-8")
-    for name in FCC_COMMANDS:
+    (llmux_home / "config.json").write_text("{}", encoding="utf-8")
+    for name in LLMUX_COMMANDS:
         (tool_bin / f"{name}.cmd").write_text(
             "@echo off\nexit /b 0\n", encoding="utf-8"
         )
     (bin_dir / "claude.cmd").write_text("@echo off\nexit /b 0\n", encoding="utf-8")
 
-    uv_commands = " ".join(FCC_COMMANDS)
+    uv_commands = " ".join(LLMUX_COMMANDS)
     (bin_dir / "uv.cmd").write_text(
         rf"""@echo off
 echo uv:%*>>"%CALL_LOG%"
@@ -322,10 +324,10 @@ echo %FAKE_TOOL_BIN%
 exit /b 0
 :uninstall
 if "%FAIL_STEP%"=="uninstall" echo permission denied while removing tool 1>&2 & exit /b 52
-if "%FAIL_STEP%"=="missing" echo Tool `free-claude-code` is not installed 1>&2 & exit /b 2
-if "%FAIL_STEP%"=="stale-entrypoint" echo Tool `free-claude-code` is not installed 1>&2 & exit /b 2
+if "%FAIL_STEP%"=="missing" echo Tool `llmux` is not installed 1>&2 & exit /b 2
+if "%FAIL_STEP%"=="stale-entrypoint" echo Tool `llmux` is not installed 1>&2 & exit /b 2
 for %%C in ({uv_commands}) do del /q "%FAKE_TOOL_BIN%\%%C.cmd" 2>nul
-echo Uninstalled free-claude-code
+echo Uninstalled llmux
 exit /b 0
 """,
         encoding="utf-8",
@@ -348,7 +350,7 @@ function Remove-Item {
     }
     Microsoft.PowerShell.Management\Remove-Item @PSBoundParameters
 }
-$installer = [scriptblock]::Create([IO.File]::ReadAllText($env:FCC_UNINSTALLER))
+$installer = [scriptblock]::Create([IO.File]::ReadAllText($env:LLMUX_UNINSTALLER))
 if ($env:UNINSTALL_DRY_RUN -eq "1") {
     & $installer -DryRun
 }
@@ -371,34 +373,34 @@ else {
             "USERPROFILE": str(home),
             "CALL_LOG": str(log),
             "FAKE_TOOL_BIN": str(tool_bin),
-            "FCC_UNINSTALLER": str(_repo_root() / "scripts" / "uninstall.ps1"),
+            "LLMUX_UNINSTALLER": str(_repo_root() / "scripts" / "uninstall.ps1"),
             "FAIL_STEP": "",
             "UNINSTALL_DRY_RUN": "0",
         }
     )
     return PowerShellUninstallHarness(
-        home, bin_dir, tool_bin, fcc_home, log, env, powershell, wrapper
+        home, bin_dir, tool_bin, llmux_home, log, env, powershell, wrapper
     )
 
 
-def test_uninstall_ps1_removes_and_verifies_only_fcc(
+def test_uninstall_ps1_removes_and_verifies_only_llmux(
     powershell_uninstall_harness: PowerShellUninstallHarness,
 ) -> None:
     result = powershell_uninstall_harness.run()
 
     assert result.returncode == 0, result.stderr
-    assert "Free Claude Code has been removed and verified." in result.stdout
-    assert not powershell_uninstall_harness.fcc_home.exists()
+    assert "LLMux has been removed and verified." in result.stdout
+    assert not powershell_uninstall_harness.llmux_home.exists()
     assert all(
         not (powershell_uninstall_harness.tool_bin / f"{name}.cmd").exists()
-        for name in FCC_COMMANDS
+        for name in LLMUX_COMMANDS
     )
     assert (powershell_uninstall_harness.bin_dir / "uv.cmd").exists()
     assert (powershell_uninstall_harness.bin_dir / "claude.cmd").exists()
     assert powershell_uninstall_harness.calls() == [
         "uv:tool dir --bin",
-        "uv:tool uninstall free-claude-code",
-        f"remove:{powershell_uninstall_harness.fcc_home}",
+        "uv:tool uninstall llmux",
+        f"remove:{powershell_uninstall_harness.llmux_home}",
     ]
 
 
@@ -410,7 +412,7 @@ def test_uninstall_ps1_is_idempotent_when_tool_is_already_absent(
     result = powershell_uninstall_harness.run(fail_step="missing")
 
     assert result.returncode == 0, result.stderr
-    assert not powershell_uninstall_harness.fcc_home.exists()
+    assert not powershell_uninstall_harness.llmux_home.exists()
     assert "already absent" in result.stdout
 
 
@@ -422,8 +424,8 @@ def test_uninstall_ps1_preserves_config_when_tool_removal_is_unconfirmed(
     result = powershell_uninstall_harness.run(fail_step=failure)
 
     assert result.returncode != 0
-    assert powershell_uninstall_harness.fcc_home.exists()
-    assert "Free Claude Code has been removed and verified." not in result.stdout
+    assert powershell_uninstall_harness.llmux_home.exists()
+    assert "LLMux has been removed and verified." not in result.stdout
     assert not any(
         call.startswith("remove:") for call in powershell_uninstall_harness.calls()
     )
@@ -435,7 +437,7 @@ def test_uninstall_ps1_requires_uv_before_deleting_config(
     result = powershell_uninstall_harness.run(include_uv=False)
 
     assert result.returncode != 0
-    assert powershell_uninstall_harness.fcc_home.exists()
+    assert powershell_uninstall_harness.llmux_home.exists()
     assert "uv is required" in result.stderr
     assert powershell_uninstall_harness.calls() == []
 
@@ -446,12 +448,12 @@ def test_uninstall_ps1_reports_purge_failure_after_verified_tool_removal(
     result = powershell_uninstall_harness.run(fail_step="purge")
 
     assert result.returncode != 0
-    assert powershell_uninstall_harness.fcc_home.exists()
+    assert powershell_uninstall_harness.llmux_home.exists()
     assert all(
         not (powershell_uninstall_harness.tool_bin / f"{name}.cmd").exists()
-        for name in FCC_COMMANDS
+        for name in LLMUX_COMMANDS
     )
-    assert "Free Claude Code has been removed and verified." not in result.stdout
+    assert "LLMux has been removed and verified." not in result.stdout
 
 
 def test_uninstall_ps1_dry_run_is_non_mutating(
@@ -460,10 +462,10 @@ def test_uninstall_ps1_dry_run_is_non_mutating(
     result = powershell_uninstall_harness.run(dry_run=True)
 
     assert result.returncode == 0, result.stderr
-    assert powershell_uninstall_harness.fcc_home.exists()
+    assert powershell_uninstall_harness.llmux_home.exists()
     assert all(
         (powershell_uninstall_harness.tool_bin / f"{name}.cmd").exists()
-        for name in FCC_COMMANDS
+        for name in LLMUX_COMMANDS
     )
     assert powershell_uninstall_harness.calls() == []
     assert "Dry run complete. No changes were made." in result.stdout
@@ -478,7 +480,7 @@ def test_uninstallers_guard_running_commands_and_preserve_shared_owners() -> Non
     assert "pgrep" in shell
     assert "Get-Process" in powershell
     for text in (shell, powershell):
-        for command in FCC_COMMANDS:
+        for command in LLMUX_COMMANDS:
             assert command in text
         assert "npm uninstall" not in text
         assert "uv self uninstall" not in text
@@ -493,10 +495,10 @@ def test_readme_uninstall_uses_raw_urls_and_verification_contract() -> None:
 
     assert (
         'curl -fsSL "https://raw.githubusercontent.com/'
-        'davidlosasgonzalez/llm-verdict/main/scripts/uninstall.sh" | sh'
+        'davidlosasgonzalez/llmux/main/scripts/uninstall.sh" | sh'
     ) in text
     assert (
         '& ([scriptblock]::Create((irm "https://raw.githubusercontent.com/'
-        'davidlosasgonzalez/llm-verdict/main/scripts/uninstall.ps1")))'
+        'davidlosasgonzalez/llmux/main/scripts/uninstall.ps1")))'
     ) in text
-    assert "verifies every FCC command is gone" in text
+    assert "verifies every LLMux command is gone" in text

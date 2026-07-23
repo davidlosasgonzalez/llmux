@@ -4,13 +4,13 @@ from collections.abc import MutableMapping
 
 from fastapi import FastAPI
 
-from free_claude_code.api.app import create_app
-from free_claude_code.api.ports import ApiServices
-from free_claude_code.config.settings import Settings
-from free_claude_code.providers.base import BaseProvider
-from free_claude_code.providers.runtime import ProviderRuntime
-from free_claude_code.runtime.application import ApplicationRuntime, RestartCallback
-from free_claude_code.runtime.provider_manager import ProviderRuntimeManager
+from llmux.api.app import create_app
+from llmux.api.ports import ApiServices
+from llmux.config.settings import Settings
+from llmux.providers.base import BaseProvider
+from llmux.providers.runtime import ProviderRuntime
+from llmux.runtime.application import ApplicationRuntime, RestartCallback
+from llmux.runtime.provider_manager import ProviderRuntimeManager
 
 
 def create_test_app(

@@ -1,9 +1,9 @@
 #!/bin/sh
 set -eu
 
-PACKAGE_NAME="free-claude-code"
-FCC_HOME_DIRNAME=".fcc"
-FCC_COMMANDS="fcc-server fcc-claude fcc-init fcc-verdict fcc-trace free-claude-code"
+PACKAGE_NAME="llmux"
+LLMUX_HOME_DIRNAME=".llmux"
+LLMUX_COMMANDS="llmux-server llmux-claude llmux-init llmux-verdict llmux-trace llmux"
 
 dry_run=0
 uv_tool_bin=""
@@ -12,7 +12,7 @@ show_usage() {
     cat <<'USAGE'
 Usage: uninstall.sh [options]
 
-Removes the Free Claude Code uv tool and deletes ~/.fcc/ after removal is verified.
+Removes the LLMux uv tool and deletes ~/.llmux/ after removal is verified.
 Does not remove uv, Claude Code, the uv-managed Python runtime, or shared PATH entries.
 
 Options:
@@ -91,7 +91,7 @@ add_known_uv_paths() {
     hash -r 2>/dev/null || true
 }
 
-is_fcc_command_running() {
+is_llmux_command_running() {
     command_name=$1
 
     if command -v pgrep >/dev/null 2>&1; then
@@ -107,16 +107,16 @@ is_fcc_command_running() {
     ps -A -o comm= 2>/dev/null | grep -qx "$command_name"
 }
 
-assert_no_fcc_processes_running() {
+assert_no_llmux_processes_running() {
     running=""
-    for command_name in $FCC_COMMANDS; do
-        if is_fcc_command_running "$command_name"; then
+    for command_name in $LLMUX_COMMANDS; do
+        if is_llmux_command_running "$command_name"; then
             running="${running} ${command_name}"
         fi
     done
 
     if [ -n "$running" ]; then
-        fail "Free Claude Code is still running (${running# }). Stop those processes, then rerun uninstall."
+        fail "LLMux is still running (${running# }). Stop those processes, then rerun uninstall."
     fi
 }
 
@@ -129,7 +129,7 @@ initialize_uv_context() {
     fi
 
     if ! command -v uv >/dev/null 2>&1; then
-        fail "uv is required to remove the Free Claude Code tool. Install uv, then rerun this uninstaller; ~/.fcc was not deleted."
+        fail "uv is required to remove the LLMux tool. Install uv, then rerun this uninstaller; ~/.llmux was not deleted."
     fi
 
     print_command uv tool dir --bin
@@ -137,12 +137,12 @@ initialize_uv_context() {
         :
     else
         status=$?
-        fail "Could not determine the uv tool bin directory (exit code $status); ~/.fcc was not deleted."
+        fail "Could not determine the uv tool bin directory (exit code $status); ~/.llmux was not deleted."
     fi
-    [ -n "$uv_tool_bin" ] || fail "uv returned an empty tool bin directory; ~/.fcc was not deleted."
+    [ -n "$uv_tool_bin" ] || fail "uv returned an empty tool bin directory; ~/.llmux was not deleted."
 }
 
-uninstall_free_claude_code() {
+uninstall_llmux() {
     print_command uv tool uninstall "$PACKAGE_NAME"
     if [ "$dry_run" -eq 1 ]; then
         return 0
@@ -158,43 +158,43 @@ uninstall_free_claude_code() {
     fi
 
     if is_missing_uv_tool_error "$output"; then
-        printf 'Free Claude Code uv tool is already absent; verifying its entry points.\n'
+        printf 'LLMux uv tool is already absent; verifying its entry points.\n'
         return 0
     fi
     if [ -n "$output" ]; then
         printf '%s\n' "$output" >&2
     fi
-    fail "uv tool uninstall $PACKAGE_NAME failed with exit code $status; ~/.fcc was not deleted."
+    fail "uv tool uninstall $PACKAGE_NAME failed with exit code $status; ~/.llmux was not deleted."
 }
 
-verify_fcc_commands_removed() {
+verify_llmux_commands_removed() {
     if [ "$dry_run" -eq 1 ]; then
-        printf '+ verify all Free Claude Code entry points are absent from the uv tool bin directory\n'
+        printf '+ verify all LLMux entry points are absent from the uv tool bin directory\n'
         return 0
     fi
 
     remaining=""
-    for command_name in $FCC_COMMANDS; do
+    for command_name in $LLMUX_COMMANDS; do
         command_path="$uv_tool_bin/$command_name"
         if [ -e "$command_path" ] || [ -L "$command_path" ]; then
             remaining="${remaining} ${command_path}"
         fi
     done
     if [ -n "$remaining" ]; then
-        fail "Free Claude Code entry points remain after uv uninstall:${remaining}; ~/.fcc was not deleted."
+        fail "LLMux entry points remain after uv uninstall:${remaining}; ~/.llmux was not deleted."
     fi
 }
 
-purge_fcc_home() {
-    fcc_home="$HOME/$FCC_HOME_DIRNAME"
-    if [ ! -e "$fcc_home" ]; then
-        printf 'No FCC config directory at %s; skipping purge.\n' "$fcc_home"
+purge_llmux_home() {
+    llmux_home="$HOME/$LLMUX_HOME_DIRNAME"
+    if [ ! -e "$llmux_home" ]; then
+        printf 'No LLMux config directory at %s; skipping purge.\n' "$llmux_home"
         return 0
     fi
 
-    run rm -rf "$fcc_home"
-    if [ "$dry_run" -eq 0 ] && [ -e "$fcc_home" ]; then
-        fail "FCC config directory still exists after deletion: $fcc_home"
+    run rm -rf "$llmux_home"
+    if [ "$dry_run" -eq 0 ] && [ -e "$llmux_home" ]; then
+        fail "LLMux config directory still exists after deletion: $llmux_home"
     fi
 }
 
@@ -218,26 +218,26 @@ parse_args() {
 }
 
 parse_args "$@"
-[ -n "${HOME:-}" ] || fail "HOME is not set; cannot locate Free Claude Code data."
+[ -n "${HOME:-}" ] || fail "HOME is not set; cannot locate LLMux data."
 
-step "Checking for running Free Claude Code processes"
-assert_no_fcc_processes_running
+step "Checking for running LLMux processes"
+assert_no_llmux_processes_running
 
-step "Locating the uv-managed Free Claude Code installation"
+step "Locating the uv-managed LLMux installation"
 initialize_uv_context
 
-step "Removing the Free Claude Code uv tool"
-uninstall_free_claude_code
+step "Removing the LLMux uv tool"
+uninstall_llmux
 
-step "Verifying Free Claude Code entry points were removed"
-verify_fcc_commands_removed
+step "Verifying LLMux entry points were removed"
+verify_llmux_commands_removed
 
-step "Purging FCC config and data from ~/.fcc"
-purge_fcc_home
+step "Purging LLMux config and data from ~/.llmux"
+purge_llmux_home
 
 if [ "$dry_run" -eq 1 ]; then
     printf '\nDry run complete. No changes were made.\n'
 else
-    printf '\nFree Claude Code has been removed and verified.\n'
+    printf '\nLLMux has been removed and verified.\n'
     printf 'uv, Claude Code, the uv-managed Python runtime, and shared PATH entries were left installed.\n'
 fi

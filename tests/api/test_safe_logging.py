@@ -6,12 +6,12 @@ import pytest
 from fastapi import HTTPException
 from fastapi.responses import JSONResponse
 
-from free_claude_code.api import request_errors
-from free_claude_code.api.handlers import MessagesHandler, TokenCountHandler
-from free_claude_code.application import execution
-from free_claude_code.config.settings import Settings
-from free_claude_code.core.anthropic import AnthropicStreamLedger
-from free_claude_code.core.anthropic.models import Message, MessagesRequest
+from llmux.api import request_errors
+from llmux.api.handlers import MessagesHandler, TokenCountHandler
+from llmux.application import execution
+from llmux.config.settings import Settings
+from llmux.core.anthropic import AnthropicStreamLedger
+from llmux.core.anthropic.models import Message, MessagesRequest
 
 
 @pytest.mark.asyncio
@@ -68,9 +68,7 @@ async def test_create_message_logs_full_payload_when_opt_in():
 
 
 def test_stream_ledger_default_debug_has_no_serialized_json_content():
-    with patch(
-        "free_claude_code.core.anthropic.streaming.emitter.logger.debug"
-    ) as mock_debug:
+    with patch("llmux.core.anthropic.streaming.emitter.logger.debug") as mock_debug:
         ledger = AnthropicStreamLedger("msg_x", "m", 1, log_raw_events=False)
         ledger.message_start()
 
@@ -78,9 +76,7 @@ def test_stream_ledger_default_debug_has_no_serialized_json_content():
 
 
 def test_stream_ledger_raw_logging_includes_event_body_when_enabled():
-    with patch(
-        "free_claude_code.core.anthropic.streaming.emitter.logger.debug"
-    ) as mock_debug:
+    with patch("llmux.core.anthropic.streaming.emitter.logger.debug") as mock_debug:
         ledger = AnthropicStreamLedger("msg_x", "m", 1, log_raw_events=True)
         ledger.message_start()
 
@@ -172,7 +168,7 @@ def test_count_tokens_unexpected_error_default_logs_exclude_exception_text():
         settings,
         token_counter=boom,
     )
-    from free_claude_code.core.anthropic.models import TokenCountRequest
+    from llmux.core.anthropic.models import TokenCountRequest
 
     req = TokenCountRequest(
         model="claude-3-haiku-20240307",

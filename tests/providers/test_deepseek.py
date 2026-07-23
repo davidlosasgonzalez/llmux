@@ -6,18 +6,18 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from free_claude_code.application.errors import InvalidRequestError
-from free_claude_code.config.constants import ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS
-from free_claude_code.config.provider_catalog import DEEPSEEK_DEFAULT_BASE
-from free_claude_code.core.anthropic.models import (
+from llmux.application.errors import InvalidRequestError
+from llmux.config.constants import ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS
+from llmux.config.provider_catalog import DEEPSEEK_DEFAULT_BASE
+from llmux.core.anthropic.models import (
     ContentBlockImage,
     Message,
     MessagesRequest,
     Tool,
 )
-from free_claude_code.core.anthropic.stream_contracts import parse_sse_text
-from free_claude_code.providers.base import ProviderConfig
-from free_claude_code.providers.deepseek import DeepSeekProvider
+from llmux.core.anthropic.stream_contracts import parse_sse_text
+from llmux.providers.base import ProviderConfig
+from llmux.providers.deepseek import DeepSeekProvider
 from tests.providers.support import passthrough_rate_limiter
 
 
@@ -42,9 +42,7 @@ def test_default_base_url_alias():
 
 
 def test_init(deepseek_config):
-    with patch(
-        "free_claude_code.providers.openai_chat.provider.AsyncOpenAI"
-    ) as mock_client:
+    with patch("llmux.providers.openai_chat.provider.AsyncOpenAI") as mock_client:
         provider = DeepSeekProvider(
             deepseek_config, rate_limiter=passthrough_rate_limiter()
         )

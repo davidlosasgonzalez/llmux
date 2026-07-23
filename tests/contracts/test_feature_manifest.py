@@ -1,17 +1,17 @@
 import re
 from pathlib import Path
 
-from free_claude_code.config.provider_catalog import PROVIDER_CATALOG
-from free_claude_code.providers.base import BaseProvider
-from free_claude_code.providers.cloudflare import CloudflareProvider
-from free_claude_code.providers.deepseek import DeepSeekProvider
-from free_claude_code.providers.gemini import GeminiProvider
-from free_claude_code.providers.github_models import GitHubModelsProvider
-from free_claude_code.providers.lmstudio import LMStudioProvider
-from free_claude_code.providers.mistral import MistralProvider
-from free_claude_code.providers.nvidia_nim import NvidiaNimProvider
-from free_claude_code.providers.open_router import OpenRouterProvider
-from free_claude_code.providers.openai_chat import (
+from llmux.config.provider_catalog import PROVIDER_CATALOG
+from llmux.providers.base import BaseProvider
+from llmux.providers.cloudflare import CloudflareProvider
+from llmux.providers.deepseek import DeepSeekProvider
+from llmux.providers.gemini import GeminiProvider
+from llmux.providers.github_models import GitHubModelsProvider
+from llmux.providers.lmstudio import LMStudioProvider
+from llmux.providers.mistral import MistralProvider
+from llmux.providers.nvidia_nim import NvidiaNimProvider
+from llmux.providers.open_router import OpenRouterProvider
+from llmux.providers.openai_chat import (
     OPENAI_CHAT_PROFILES,
     OpenAIChatProvider,
 )

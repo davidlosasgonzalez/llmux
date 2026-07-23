@@ -1,59 +1,59 @@
 # Deploy — servidor + Claude Code + SSH (v2)
 
 Checklist para controlar un proyecto en un servidor vía Termius → SSH → tmux,
-con FCC como proxy y Claude Code como TUI diaria.
+con LLMux como proxy y Claude Code como TUI diaria.
 
 ## 1. Base
 
 1. Instalar [uv](https://docs.astral.sh/uv/) y Python 3.14:
    `uv python install 3.14.0`
 2. Clonar este repo (o instalar el paquete) en el servidor.
-3. `uv sync` / install script; comprobar `fcc-server --help`, `fcc-claude --help`.
-4. Copiar `.env.example` → `~/.fcc/.env` y rellenar API keys.
+3. `uv sync` / install script; comprobar `llmux-server --help`, `llmux-claude --help`.
+4. Copiar `.env.example` → `~/.llmux/.env` y rellenar API keys.
 5. Fijar política de modelos (C1):
    - `MODEL=open_router/moonshotai/kimi-k2.5` (o el ganador del último eval)
    - `MODEL_FALLBACKS=open_router/deepseek/deepseek-v3.2,cerebras/gpt-oss-120b`
 6. Instalar Claude Code: `curl -fsSL https://claude.ai/install.sh | bash`
 
-## 2. Proxy FCC (persistente)
+## 2. Proxy LLMux (persistente)
 
-Usar la unit versionada `deploy/fcc-server.service`:
+Usar la unit versionada `deploy/llmux-server.service`:
 
 ```bash
-mkdir -p ~/.config/systemd/user ~/.fcc/logs ~/.local/bin
-# Asegura que fcc-server esté en ~/.local/bin (uv tool / symlink)
-cp deploy/fcc-server.service ~/.config/systemd/user/
+mkdir -p ~/.config/systemd/user ~/.llmux/logs ~/.local/bin
+# Asegura que llmux-server esté en ~/.local/bin (uv tool / symlink)
+cp deploy/llmux-server.service ~/.config/systemd/user/
 systemctl --user daemon-reload
-systemctl --user enable --now fcc-server.service
+systemctl --user enable --now llmux-server.service
 loginctl enable-linger "$USER"   # sobrevive logout SSH
 curl -fsS http://127.0.0.1:8082/health
 ```
 
-Alternativa rápida: `tmux new -s fcc` → `fcc-server`.
+Alternativa rápida: `tmux new -s llmux` → `llmux-server`.
 
 ### 2b. Variante system-mode (root, clone en /opt)
 
-Para un VPS donde `/opt/free-claude-code` es un clone de
-`github.com/davidlosasgonzalez/llm-verdict` (deploy key de solo lectura) y el
+Para un VPS donde `/opt/llmux` es un clone de
+`github.com/davidlosasgonzalez/llmux` (deploy key de solo lectura) y el
 servicio corre como root (verificada en producción, 2026-07-22):
 
 ```ini
-# /etc/systemd/system/fcc-server.service
+# /etc/systemd/system/llmux-server.service
 [Unit]
-Description=Free Claude Code proxy (fcc-server)
+Description=LLMux proxy (llmux-server)
 After=network-online.target
 Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/free-claude-code
-EnvironmentFile=/root/.fcc/.env
-ExecStart=/opt/free-claude-code/.venv/bin/fcc-server
+WorkingDirectory=/opt/llmux
+EnvironmentFile=/root/.llmux/.env
+ExecStart=/opt/llmux/.venv/bin/llmux-server
 Restart=on-failure
 RestartSec=3
 Environment=HOME=/root
-StandardOutput=append:/root/.fcc/logs/systemd-server.log
-StandardError=append:/root/.fcc/logs/systemd-server.log
+StandardOutput=append:/root/.llmux/logs/systemd-server.log
+StandardError=append:/root/.llmux/logs/systemd-server.log
 
 [Install]
 WantedBy=multi-user.target
@@ -61,7 +61,7 @@ WantedBy=multi-user.target
 
 Dos lecciones pagadas con horas de debugging — no las repitas:
 
-- **`EnvironmentFile=` es obligatorio.** Settings no carga `~/.fcc/.env` en
+- **`EnvironmentFile=` es obligatorio.** Settings no carga `~/.llmux/.env` en
   este contexto; sin él, el proxy arranca "healthy" pero responde
   `X_API_KEY is not set` a cada petición.
 - **`ExecStart` directo al binario del venv, nunca `uv run`.** `uv run` como
@@ -74,50 +74,50 @@ Dos lecciones pagadas con horas de debugging — no las repitas:
 Actualización del servidor (tras cada push a `main`):
 
 ```bash
-cd /opt/free-claude-code
+cd /opt/llmux
 git pull --ff-only
 export PATH="$HOME/.local/bin:$PATH"   # uv no está en PATH en shell no interactiva
 uv sync
-systemctl restart fcc-server.service
+systemctl restart llmux-server.service
 sleep 5 && curl -fsS http://127.0.0.1:8082/health
-# Verificación real, nunca solo /health: una petición E2E + fcc-trace --last
+# Verificación real, nunca solo /health: una petición E2E + llmux-trace --last
 ```
 
 ## 3. Claude Code
 
 ```bash
 cd /path/to/project
-fcc-claude            # lanza Claude Code contra el proxy local
-fcc-claude -p "responde solo: pong"
+llmux-claude            # lanza Claude Code contra el proxy local
+llmux-claude -p "responde solo: pong"
 ```
 
 El launcher comprueba que el proxy está vivo e inyecta `ANTHROPIC_BASE_URL` y
 `ANTHROPIC_AUTH_TOKEN` según la config del Admin UI. El picker nativo `/model`
-de Claude Code lista los modelos que FCC expone.
+de Claude Code lista los modelos que LLMux expone.
 
 Para segundas opiniones multi-modelo, registrar el MCP de Verdict en Claude
 Code (stdio):
 
 ```bash
-claude mcp add free-llm-verdict -- fcc-verdict serve-mcp
+claude mcp add free-llmux -- llmux-verdict serve-mcp
 ```
 
 ## 4. Flujo remoto (Termius)
 
 1. SSH al servidor.
-2. Trabajo: `cd proyecto && fcc-claude`.
+2. Trabajo: `cd proyecto && llmux-claude`.
 3. Admin UI desde el portátil:
    `ssh -L 8082:127.0.0.1:8082 user@server` → abrir `http://127.0.0.1:8082/admin`
 4. Cuotas por SSH:
 
 ```bash
-fcc-verdict usage
+llmux-verdict usage
 ```
 
 5. Diagnóstico de una petición concreta:
 
 ```bash
-fcc-trace --last
+llmux-trace --last
 ```
 
 ## 5. Ordenar fallbacks con stats del Verdict (C10)
@@ -125,8 +125,8 @@ fcc-trace --last
 Tras varias deliberaciones:
 
 ```bash
-fcc-verdict usage --output json
-# o inspeccionar ~/.fcc/verdict.db model_stats
+llmux-verdict usage --output json
+# o inspeccionar ~/.llmux/verdict.db model_stats
 ```
 
 Procedimiento manual:
@@ -136,17 +136,17 @@ Procedimiento manual:
 3. Poner el mejor como `MODEL`, el resto (2–3) en `MODEL_FALLBACKS` separados
    por comas.
 4. Contrastar con el último eval C1 (`docs/evals/…`).
-5. Reiniciar `fcc-server` para aplicar la config.
+5. Reiniciar `llmux-server` para aplicar la config.
 
 ## 6. Checklist v2 (reproducir de cero)
 
-- [ ] `~/.fcc/.env` con keys + `MODEL` + `MODEL_FALLBACKS`
-- [ ] `systemctl --user status fcc-server` active (o tmux)
+- [ ] `~/.llmux/.env` con keys + `MODEL` + `MODEL_FALLBACKS`
+- [ ] `systemctl --user status llmux-server` active (o tmux)
 - [ ] `curl /health` OK tras reboot / re-login (linger)
-- [ ] `fcc-verdict usage` imprime tabla (aunque esté vacía)
-- [ ] `fcc-claude -p "pong"` completa contra el proxy
+- [ ] `llmux-verdict usage` imprime tabla (aunque esté vacía)
+- [ ] `llmux-claude -p "pong"` completa contra el proxy
 - [ ] Drill fallback: forzar 429 en primario (key inválida temporal) →
       responde el secundario; logs `precommit_fallback.serving`
 - [ ] `/verdict` o MCP `evaluate` en una pregunta de diseño
-- [ ] `fcc-trace --last` resume el turno con el modelo servido
+- [ ] `llmux-trace --last` resume el turno con el modelo servido
 - [ ] Validación en `~/Documents/advisor` (local) antes del VPS

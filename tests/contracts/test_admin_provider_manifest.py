@@ -1,8 +1,8 @@
 """Ensure admin UI manifest exposes every catalog credential/proxy binding."""
 
-from free_claude_code.config.admin.manifest import FIELD_BY_KEY
-from free_claude_code.config.provider_catalog import PROVIDER_CATALOG
-from free_claude_code.config.settings import Settings
+from llmux.config.admin.manifest import FIELD_BY_KEY
+from llmux.config.provider_catalog import PROVIDER_CATALOG
+from llmux.config.settings import Settings
 
 
 def test_provider_catalog_remote_credentials_in_admin_manifest() -> None:
@@ -96,8 +96,8 @@ def test_provider_catalog_proxy_attrs_in_admin_manifest() -> None:
 
 
 def test_provider_catalog_display_names_are_admin_status_source() -> None:
-    from free_claude_code.config.admin.status import provider_config_status
-    from free_claude_code.config.admin.values import load_value_state
+    from llmux.config.admin.status import provider_config_status
+    from llmux.config.admin.values import load_value_state
 
     status_by_provider = {
         entry["provider_id"]: entry

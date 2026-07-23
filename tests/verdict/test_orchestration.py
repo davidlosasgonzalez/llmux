@@ -4,10 +4,10 @@ import asyncio
 
 import pytest
 
-from free_claude_code.verdict.config import VerdictConfig
-from free_claude_code.verdict.invoker import InvocationResult
-from free_claude_code.verdict.models import Depth, ModelRef, TaskType
-from free_claude_code.verdict.orchestration import Orchestrator
+from llmux.verdict.config import VerdictConfig
+from llmux.verdict.invoker import InvocationResult
+from llmux.verdict.models import Depth, ModelRef, TaskType
+from llmux.verdict.orchestration import Orchestrator
 from tests.verdict.support import FakeInvoker, default_candidates
 
 

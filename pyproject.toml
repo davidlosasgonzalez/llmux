@@ -3,8 +3,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "free-claude-code"
-version = "6.6.1"
+name = "llmux"
+version = "7.0.0"
 description = "Local proxy connecting Claude Code to OpenAI-compatible AI providers"
 readme = "README.md"
 requires-python = ">=3.14.0"
@@ -26,18 +26,18 @@ dependencies = [
 ]
 
 [project.scripts]
-fcc-server = "free_claude_code.cli.entrypoints:serve"
-free-claude-code = "free_claude_code.cli.entrypoints:serve"
-fcc-init = "free_claude_code.cli.entrypoints:init"
-fcc-claude = "free_claude_code.cli.launchers.claude:launch"
-fcc-verdict = "free_claude_code.verdict.cli:main"
-fcc-trace = "free_claude_code.observability.cli:main"
+llmux-server = "llmux.cli.entrypoints:serve"
+llmux = "llmux.cli.entrypoints:serve"
+llmux-init = "llmux.cli.entrypoints:init"
+llmux-claude = "llmux.cli.launchers.claude:launch"
+llmux-verdict = "llmux.verdict.cli:main"
+llmux-trace = "llmux.observability.cli:main"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/free_claude_code"]
+packages = ["src/llmux"]
 
 [tool.hatch.build.targets.wheel.force-include]
-".env.example" = "free_claude_code/config/env.example"
+".env.example" = "llmux/config/env.example"
 
 [tool.uv]
 required-version = ">=0.11.0"
@@ -76,7 +76,7 @@ ignore = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["free_claude_code", "smoke"]
+known-first-party = ["llmux", "smoke"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -95,7 +95,7 @@ markers = [
     "cli: CLI integration checks",
     "clients: client compatibility checks",
     "contract: deterministic feature contract checks",
-    "smoke_target(name): route a smoke test behind FCC_SMOKE_TARGETS",
+    "smoke_target(name): route a smoke test behind LLMUX_SMOKE_TARGETS",
     "xdist_group(name): group smoke provider items under pytest-xdist --dist=loadgroup",
 ]
 

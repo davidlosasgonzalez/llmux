@@ -11,8 +11,8 @@ from typing import Any
 import httpx
 import pytest
 
-from free_claude_code.config.env_template import load_env_template
-from free_claude_code.config.provider_catalog import PROVIDER_CATALOG
+from llmux.config.env_template import load_env_template
+from llmux.config.provider_catalog import PROVIDER_CATALOG
 from smoke.lib.config import SmokeConfig
 from smoke.lib.server import RunningServer, start_server
 
@@ -171,7 +171,7 @@ def _message_payload(*, stream: bool) -> dict[str, Any]:
 
 
 def _write_initial_managed_config(home: Path, upstream: FakeOpenAIUpstream) -> None:
-    config_path = home / ".fcc" / ".env"
+    config_path = home / ".llmux" / ".env"
     config_path.parent.mkdir(parents=True, exist_ok=True)
     config_path.write_text(
         load_env_template()
@@ -237,7 +237,7 @@ def test_provider_hot_swap_preserves_inflight_stream_e2e(
                 | {
                     "ANTHROPIC_AUTH_TOKEN",
                     "ENABLE_MODEL_THINKING",
-                    "FCC_ENV_FILE",
+                    "LLMUX_ENV_FILE",
                     "LM_STUDIO_BASE_URL",
                     "MODEL",
                     "MODEL_FABLE",

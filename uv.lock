@@ -492,65 +492,6 @@ wheels = [
 ]
 
 [[package]]
-name = "free-claude-code"
-version = "6.6.1"
-source = { editable = "." }
-dependencies = [
-    { name = "aiohttp" },
-    { name = "fastapi", extra = ["standard"] },
-    { name = "httpx", extra = ["socks"] },
-    { name = "jsonschema" },
-    { name = "loguru" },
-    { name = "markdown-it-py" },
-    { name = "mcp" },
-    { name = "openai" },
-    { name = "pydantic" },
-    { name = "pydantic-settings" },
-    { name = "python-dotenv" },
-    { name = "pyyaml" },
-    { name = "tiktoken" },
-    { name = "uvicorn" },
-]
-
-[package.dev-dependencies]
-dev = [
-    { name = "pytest" },
-    { name = "pytest-asyncio" },
-    { name = "pytest-cov" },
-    { name = "pytest-xdist" },
-    { name = "ruff" },
-    { name = "ty" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "aiohttp", specifier = ">=3.14.1" },
-    { name = "fastapi", extras = ["standard"], specifier = ">=0.139.2" },
-    { name = "httpx", extras = ["socks"], specifier = ">=0.28.1" },
-    { name = "jsonschema", specifier = ">=4.25.0" },
-    { name = "loguru", specifier = ">=0.7.0" },
-    { name = "markdown-it-py", specifier = ">=4.2.0" },
-    { name = "mcp", specifier = ">=1.2.0" },
-    { name = "openai", specifier = ">=2.44.0" },
-    { name = "pydantic", specifier = ">=2.13.4" },
-    { name = "pydantic-settings", specifier = ">=2.14.2" },
-    { name = "python-dotenv", specifier = ">=1.2.2" },
-    { name = "pyyaml", specifier = ">=6.0.0" },
-    { name = "tiktoken", specifier = ">=0.13.0" },
-    { name = "uvicorn", specifier = ">=0.50.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "pytest", specifier = ">=9.1.1" },
-    { name = "pytest-asyncio", specifier = ">=1.4.0" },
-    { name = "pytest-cov", specifier = ">=7.1.0" },
-    { name = "pytest-xdist", specifier = ">=3.8.0" },
-    { name = "ruff", specifier = ">=0.15.20" },
-    { name = "ty", specifier = ">=0.0.56" },
-]
-
-[[package]]
 name = "frozenlist"
 version = "1.8.0"
 source = { registry = "https://pypi.org/simple" }
@@ -755,6 +696,65 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/19/74/a633ee74eb36c44aa6d1095e7cc5569bebf04342ee146178e2d36600708b/jsonschema_specifications-2025.9.1.tar.gz", hash = "sha256:b540987f239e745613c7a9176f3edb72b832a4ac465cf02712288397832b5e8d", size = 32855, upload-time = "2025-09-08T01:34:59.186Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/41/45/1a4ed80516f02155c51f51e8cedb3c1902296743db0bbc66608a0db2814f/jsonschema_specifications-2025.9.1-py3-none-any.whl", hash = "sha256:98802fee3a11ee76ecaca44429fda8a41bff98b00a0f2838151b113f210cc6fe", size = 18437, upload-time = "2025-09-08T01:34:57.871Z" },
+]
+
+[[package]]
+name = "llmux"
+version = "7.0.0"
+source = { editable = "." }
+dependencies = [
+    { name = "aiohttp" },
+    { name = "fastapi", extra = ["standard"] },
+    { name = "httpx", extra = ["socks"] },
+    { name = "jsonschema" },
+    { name = "loguru" },
+    { name = "markdown-it-py" },
+    { name = "mcp" },
+    { name = "openai" },
+    { name = "pydantic" },
+    { name = "pydantic-settings" },
+    { name = "python-dotenv" },
+    { name = "pyyaml" },
+    { name = "tiktoken" },
+    { name = "uvicorn" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "pytest" },
+    { name = "pytest-asyncio" },
+    { name = "pytest-cov" },
+    { name = "pytest-xdist" },
+    { name = "ruff" },
+    { name = "ty" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiohttp", specifier = ">=3.14.1" },
+    { name = "fastapi", extras = ["standard"], specifier = ">=0.139.2" },
+    { name = "httpx", extras = ["socks"], specifier = ">=0.28.1" },
+    { name = "jsonschema", specifier = ">=4.25.0" },
+    { name = "loguru", specifier = ">=0.7.0" },
+    { name = "markdown-it-py", specifier = ">=4.2.0" },
+    { name = "mcp", specifier = ">=1.2.0" },
+    { name = "openai", specifier = ">=2.44.0" },
+    { name = "pydantic", specifier = ">=2.13.4" },
+    { name = "pydantic-settings", specifier = ">=2.14.2" },
+    { name = "python-dotenv", specifier = ">=1.2.2" },
+    { name = "pyyaml", specifier = ">=6.0.0" },
+    { name = "tiktoken", specifier = ">=0.13.0" },
+    { name = "uvicorn", specifier = ">=0.50.0" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=9.1.1" },
+    { name = "pytest-asyncio", specifier = ">=1.4.0" },
+    { name = "pytest-cov", specifier = ">=7.1.0" },
+    { name = "pytest-xdist", specifier = ">=3.8.0" },
+    { name = "ruff", specifier = ">=0.15.20" },
+    { name = "ty", specifier = ">=0.0.56" },
 ]
 
 [[package]]

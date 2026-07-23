@@ -8,13 +8,13 @@ from unittest.mock import AsyncMock, patch
 import httpx
 import pytest
 
-from free_claude_code.config.provider_catalog import GITHUB_MODELS_DEFAULT_BASE
-from free_claude_code.core.anthropic.models import Message, MessagesRequest
-from free_claude_code.core.anthropic.stream_contracts import parse_sse_text
-from free_claude_code.providers.base import ProviderConfig
-from free_claude_code.providers.github_models import GitHubModelsProvider
-from free_claude_code.providers.github_models.client import GITHUB_MODELS_CATALOG_URL
-from free_claude_code.providers.model_listing import ModelListResponseError
+from llmux.config.provider_catalog import GITHUB_MODELS_DEFAULT_BASE
+from llmux.core.anthropic.models import Message, MessagesRequest
+from llmux.core.anthropic.stream_contracts import parse_sse_text
+from llmux.providers.base import ProviderConfig
+from llmux.providers.github_models import GitHubModelsProvider
+from llmux.providers.github_models.client import GITHUB_MODELS_CATALOG_URL
+from llmux.providers.model_listing import ModelListResponseError
 from tests.providers.support import passthrough_rate_limiter
 
 
@@ -73,9 +73,7 @@ def test_default_base_url_constant() -> None:
 def test_init_uses_default_base_url_api_key_and_github_headers(
     github_models_config: ProviderConfig,
 ) -> None:
-    with patch(
-        "free_claude_code.providers.openai_chat.provider.AsyncOpenAI"
-    ) as mock_openai:
+    with patch("llmux.providers.openai_chat.provider.AsyncOpenAI") as mock_openai:
         provider = GitHubModelsProvider(
             github_models_config, rate_limiter=passthrough_rate_limiter()
         )
@@ -97,7 +95,7 @@ def test_init_strips_trailing_slash(github_models_config: ProviderConfig) -> Non
         base_url=f"{GITHUB_MODELS_DEFAULT_BASE}/",
     )
 
-    with patch("free_claude_code.providers.openai_chat.provider.AsyncOpenAI"):
+    with patch("llmux.providers.openai_chat.provider.AsyncOpenAI"):
         provider = GitHubModelsProvider(config, rate_limiter=passthrough_rate_limiter())
 
     assert provider._base_url == GITHUB_MODELS_DEFAULT_BASE

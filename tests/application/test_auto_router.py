@@ -5,12 +5,12 @@ from collections.abc import AsyncIterator
 
 import pytest
 
-from free_claude_code.application.auto_router import (
+from llmux.application.auto_router import (
     choose_auto_model,
     extract_prompt_context,
 )
-from free_claude_code.config.settings import Settings
-from free_claude_code.core.anthropic.models import Message, MessagesRequest
+from llmux.config.settings import Settings
+from llmux.core.anthropic.models import Message, MessagesRequest
 
 
 def _sse_text_response(text: str) -> str:

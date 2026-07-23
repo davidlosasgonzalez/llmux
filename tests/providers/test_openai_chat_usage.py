@@ -8,15 +8,15 @@ import openai
 import pytest
 from httpx import Request, Response
 
-from free_claude_code.core.anthropic.models import MessagesRequest
-from free_claude_code.core.anthropic.stream_contracts import parse_sse_text
-from free_claude_code.providers.base import ProviderConfig
-from free_claude_code.providers.openai_chat import (
+from llmux.core.anthropic.models import MessagesRequest
+from llmux.core.anthropic.stream_contracts import parse_sse_text
+from llmux.providers.base import ProviderConfig
+from llmux.providers.openai_chat import (
     OpenAIChatProfile,
     OpenAIChatProvider,
     OpenAIChatRequestPolicy,
 )
-from free_claude_code.providers.openai_chat.usage import (
+from llmux.providers.openai_chat.usage import (
     clone_without_stream_usage,
     is_stream_usage_rejection,
     request_stream_usage,

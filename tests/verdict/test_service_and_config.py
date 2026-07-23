@@ -4,12 +4,12 @@ from dataclasses import dataclass, field
 
 import pytest
 
-from free_claude_code.config.settings import Settings
-from free_claude_code.verdict.config import VerdictConfig, load_config
-from free_claude_code.verdict.errors import InsufficientFreeModelsError
-from free_claude_code.verdict.models import Privacy
-from free_claude_code.verdict.research import ResearchService, SearchHit
-from free_claude_code.verdict.service import VerdictService
+from llmux.config.settings import Settings
+from llmux.verdict.config import VerdictConfig, load_config
+from llmux.verdict.errors import InsufficientFreeModelsError
+from llmux.verdict.models import Privacy
+from llmux.verdict.research import ResearchService, SearchHit
+from llmux.verdict.service import VerdictService
 from tests.verdict.support import FakeInvoker, make_model
 
 
@@ -137,7 +137,7 @@ async def test_evaluate_runs_with_three_providers(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_full_report_carries_timing(monkeypatch):
-    from free_claude_code.verdict.service import _full_report
+    from llmux.verdict.service import _full_report
 
     settings = _settings_with(
         monkeypatch,
@@ -241,7 +241,7 @@ def test_config_yaml_round_trip(tmp_path):
 
 def test_depth_profile_caps_to_max_rounds():
     config = VerdictConfig(max_rounds=1)
-    from free_claude_code.verdict.models import Depth
+    from llmux.verdict.models import Depth
 
     profile = config.depth_profile(Depth.DEEP)
     assert profile.max_rounds == 1  # hard ceiling wins over the deep preset (3)
@@ -278,7 +278,7 @@ async def test_research_auto_injects_sources_into_context(monkeypatch):
 def test_research_service_uses_brave_key_from_settings_not_process_env(
     monkeypatch,
 ):
-    """Regression: the key lives in ~/.fcc/.env (loaded into Settings), not
+    """Regression: the key lives in ~/.llmux/.env (loaded into Settings), not
     necessarily exported in the process environment. ``_research_service()``
     must read ``settings.brave_search_api_key`` explicitly rather than rely
     on ``resolve_search_backend``'s ``os.getenv`` fallback, or research

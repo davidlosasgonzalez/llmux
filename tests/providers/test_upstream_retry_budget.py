@@ -3,8 +3,8 @@
 import httpx
 import pytest
 
-from free_claude_code.providers.base import ProviderConfig
-from free_claude_code.providers.rate_limit import ProviderRateLimiter
+from llmux.providers.base import ProviderConfig
+from llmux.providers.rate_limit import ProviderRateLimiter
 
 
 def _rate_limited_error() -> httpx.HTTPStatusError:

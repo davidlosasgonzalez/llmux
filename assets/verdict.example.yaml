@@ -1,4 +1,4 @@
-# FCC Council configuration — copy to ~/.fcc/council.yaml
+# LLMux Council configuration — copy to ~/.llmux/council.yaml
 # Every value is optional; delete a key to use its built-in default.
 # The default regime is strictly free-only. Do NOT set ALLOW_PAID_MODELS unless
 # you explicitly accept possible charges (it is an env var, not a file key).

@@ -8,10 +8,10 @@ import httpx
 import openai
 import pytest
 
-from free_claude_code.config.nim import NimSettings
-from free_claude_code.core.failures import ExecutionFailure
-from free_claude_code.providers.base import ProviderConfig
-from free_claude_code.providers.nvidia_nim import NvidiaNimProvider
+from llmux.config.nim import NimSettings
+from llmux.core.failures import ExecutionFailure
+from llmux.providers.base import ProviderConfig
+from llmux.providers.nvidia_nim import NvidiaNimProvider
 from tests.providers.request_factory import make_messages_request
 from tests.providers.support import passthrough_rate_limiter
 

@@ -9,9 +9,9 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from free_claude_code.config.provider_catalog import GROQ_DEFAULT_BASE
-from free_claude_code.providers.base import ProviderConfig
-from free_claude_code.providers.openai_chat.output_cap import (
+from llmux.config.provider_catalog import GROQ_DEFAULT_BASE
+from llmux.providers.base import ProviderConfig
+from llmux.providers.openai_chat.output_cap import (
     clamp_output_tokens,
     parse_output_token_cap,
 )

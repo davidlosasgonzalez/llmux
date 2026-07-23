@@ -1,7 +1,7 @@
 """Anthropic request parsing and public-field serialization."""
 
-from free_claude_code.core.anthropic import dump_messages_request
-from free_claude_code.core.anthropic.models import (
+from llmux.core.anthropic import dump_messages_request
+from llmux.core.anthropic.models import (
     ContentBlockServerToolUse,
     ContentBlockText,
     ContentBlockWebSearchToolResult,
@@ -39,7 +39,7 @@ def test_dump_preserves_public_fields_and_nested_extensions() -> None:
     assert body["output_config"] == {"some": "hint"}
 
 
-def test_dump_excludes_unknown_client_hints_and_fcc_routing_state() -> None:
+def test_dump_excludes_unknown_client_hints_and_llmux_routing_state() -> None:
     request = MessagesRequest.model_validate(
         {
             "model": "m",

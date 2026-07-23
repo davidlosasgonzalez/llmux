@@ -2,8 +2,8 @@
 
 import json
 
-from free_claude_code.observability import format_summary, summarize_turns
-from free_claude_code.observability.turn_trace import iter_records
+from llmux.observability import format_summary, summarize_turns
+from llmux.observability.turn_trace import iter_records
 
 
 def _row(**fields: object) -> str:
@@ -16,8 +16,8 @@ def _slow_turn_lines() -> list[str]:
         _row(
             time="2026-07-21 23:38:00.000000+02:00",
             level="INFO",
-            message="TRACE free_claude_code.api.route.resolved",
-            event="free_claude_code.api.route.resolved",
+            message="TRACE llmux.api.route.resolved",
+            event="llmux.api.route.resolved",
             stage="routing",
             request_id=rid,
             provider_id="cerebras",
@@ -27,7 +27,7 @@ def _slow_turn_lines() -> list[str]:
             time="2026-07-21 23:38:05.000000+02:00",
             level="WARNING",
             message="Provider rate limit set for 8.5s (reactive)",
-            module="free_claude_code.providers.rate_limit",
+            module="llmux.providers.rate_limit",
             request_id=rid,
         ),
         _row(
@@ -40,14 +40,14 @@ def _slow_turn_lines() -> list[str]:
             time="2026-07-21 23:38:30.000000+02:00",
             level="WARNING",
             message="Provider rate limit set for 16.8s (reactive)",
-            module="free_claude_code.providers.rate_limit",
+            module="llmux.providers.rate_limit",
             request_id=rid,
         ),
         _row(
             time="2026-07-21 23:38:45.000000+02:00",
             level="INFO",
-            message="TRACE free_claude_code.api.response.stream_completed",
-            event="free_claude_code.api.response.stream_completed",
+            message="TRACE llmux.api.response.stream_completed",
+            event="llmux.api.response.stream_completed",
             stage="egress",
             outcome="ok",
             stream_chunks=7,
@@ -66,7 +66,7 @@ def _fast_turn_lines() -> list[str]:
             time="2026-07-21 23:40:00.000000+02:00",
             level="INFO",
             message="TRACE received",
-            event="free_claude_code.api.request.received",
+            event="llmux.api.request.received",
             request_id=rid,
             provider_id="groq",
             gateway_model="llama-3.3-70b",
@@ -74,8 +74,8 @@ def _fast_turn_lines() -> list[str]:
         _row(
             time="2026-07-21 23:40:01.200000+02:00",
             level="INFO",
-            message="TRACE free_claude_code.api.response.stream_completed",
-            event="free_claude_code.api.response.stream_completed",
+            message="TRACE llmux.api.response.stream_completed",
+            event="llmux.api.response.stream_completed",
             outcome="ok",
             stream_chunks=3,
             request_id=rid,
