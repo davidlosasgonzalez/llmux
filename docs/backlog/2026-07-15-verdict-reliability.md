@@ -1,4 +1,4 @@
-# Backlog — Fiabilidad del Verdict (free-llmux)
+# Backlog — Fiabilidad del Verdict (llmux-verdict)
 
 > **Histórico / cerrado.** Origen: evaluación Opus vs MCP del 2026-07-15
 > (`docs/verdict-eval-findings.md`). T1–T7 y follow-ups están hechos; no hay

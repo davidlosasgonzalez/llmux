@@ -131,7 +131,7 @@ async def _status() -> dict[str, Any]:
 
 def build_server() -> FastMCP:
     """Construct the FastMCP server with all verdict tools registered."""
-    server = FastMCP("free-llmux")
+    server = FastMCP("llmux-verdict")
 
     @server.tool()
     async def evaluate(
