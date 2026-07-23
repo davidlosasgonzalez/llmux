@@ -1,7 +1,7 @@
 """Flat application settings schema loaded by Pydantic Settings."""
 
 from functools import lru_cache
-from typing import Any
+from typing import Any, Self
 
 from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -344,7 +344,7 @@ class Settings(BaseSettings):
         return v
 
     @model_validator(mode="after")
-    def prefer_dotenv_anthropic_auth_token(self) -> Settings:
+    def prefer_dotenv_anthropic_auth_token(self) -> Self:
         """Let explicit .env auth config override stale shell/client tokens."""
         dotenv_value = env_file_override(self.model_config, ANTHROPIC_AUTH_TOKEN_ENV)
         if dotenv_value is not None:
