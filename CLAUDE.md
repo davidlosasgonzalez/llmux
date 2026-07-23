@@ -51,11 +51,11 @@
 4. **VERIFY**: Run `./scripts/ci.sh` or `.\scripts\ci.ps1`, plus relevant smoke tests when needed. Confirm the fix via logs or output.
 5. **SPECIFICITY**: Do exactly as much as asked; nothing more, nothing less.
 6. **PROPAGATION**: Changes impact multiple files; propagate updates correctly.
-7. **VERSION**: If the commit touches production files on `main`, bump semver in the same commit (see [Versioning](#versioning-main)).
+7. **VERSION**: If the push touches production files on `main`, include exactly one semver bump for the whole push (see [Versioning](#versioning-main)).
 
 ## VERSIONING (MAIN)
 
-Every commit on `main` that changes a **production file** must include a semver bump in **`pyproject.toml`** in the **same commit**. Do not merge or push prod changes without updating the version.
+Every **push** to `main` that changes a **production file** must include exactly **one** semver bump in **`pyproject.toml`**, landed in the final commit of the push. Individual commits within a push do not need their own bump — version per release (push), not per commit. Do not push prod changes without updating the version.
 
 ### Production files
 
@@ -73,32 +73,32 @@ These do **not** require a version bump on their own:
 - Docs and assets: `README.md`, `assets/`, `AGENTS.md`, `CLAUDE.md`
 - CI and repo config: `.github/`, `.gitignore`
 
-If a single commit mixes production and non-production edits, still bump the version.
+If a push mixes production and non-production edits, still bump the version.
 
 ### Semver rules
 
-Use `[project].version` as `MAJOR.MINOR.PATCH`:
+Use `[project].version` as `MAJOR.MINOR.PATCH`. Classify by the highest-impact change in the push:
 
-- **PATCH** (`x.y.Z+1`): bug fixes, refactors with no user-visible behavior change, dependency updates, packaging/install fixes.
-- **MINOR** (`x.Y+1.0`): backward-compatible features—new providers, admin fields, CLI commands, config options, or behavior additions.
-- **MAJOR** (`X+1.0.0`): breaking changes—removed or renamed env vars, incompatible API/CLI/default changes, or migrations users must act on.
+- **PATCH** (`x.y.Z+1`): only bug fixes, refactors with no user-visible behavior change, dependency updates, packaging/install fixes.
+- **MINOR** (`x.Y+1.0`): any backward-compatible feature—new providers, admin fields, CLI commands, config options, or behavior additions.
+- **MAJOR** (`X+1.0.0`): any breaking change—removed or renamed env vars, incompatible API/CLI/default changes, or migrations users must act on.
 
 When unsure between PATCH and MINOR, prefer PATCH for fixes and MINOR for new capability.
 
 ### Required steps
 
-1. Classify the change and choose the bump level.
+1. Classify the whole push and choose the bump level (highest-impact change wins).
 2. Update `version` in `pyproject.toml`.
 3. Run `uv lock` so `uv.lock` reflects the new package version.
-4. Include the version and lockfile updates in the same commit as the production change.
+4. Land the version and lockfile updates in the final commit of the push (in that commit itself if it touches production, or as a dedicated `chore: bump version` commit at the tip).
 
-Example commit on `main` after a packaging fix: bump `1.2.38` → `1.2.39`, run `uv lock`, commit together with the fix.
+Example: a push with two fix commits and one feature commit bumps MINOR once, e.g. `1.2.38` → `1.3.0`, with `uv lock`, in the last commit.
 
 ## COMMIT CONVENTION
 
 - Format: `type: summary` — lowercase imperative summary, no scope, no parentheses, no version in the title.
 - Body: short paragraphs explaining the why; wrap at ~72 columns.
-- The semver bump still lands in `pyproject.toml` in the same commit (see [Versioning](#versioning-main)); mention the new version at the end of the body if useful.
+- The semver bump lands once per push in `pyproject.toml` (see [Versioning](#versioning-main)); mention the new version at the end of that commit's body if useful.
 
 ## SUMMARY STANDARDS
 
