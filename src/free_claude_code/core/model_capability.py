@@ -57,6 +57,35 @@ _FAMILY_TOKENS: tuple[tuple[str, str], ...] = (
 )
 
 
+# Conservative context-window floors by name token, ordered so more specific
+# tokens win. Static on purpose: catalog data is not available to every caller,
+# and a conservative floor only shifts oversized prompts toward larger-window
+# candidates. Unknown models return None and are never filtered on context.
+_CONTEXT_WINDOW_TOKENS: tuple[tuple[str, int], ...] = (
+    ("gemini", 1_048_576),
+    ("minimax", 1_000_000),
+    ("kimi", 262_144),
+    ("command-a", 262_144),
+    ("deepseek", 131_072),
+    ("nemotron", 131_072),
+    ("gpt-oss", 131_072),
+    ("llama", 131_072),
+    ("qwen", 131_072),
+    ("glm", 131_072),
+    ("mistral", 131_072),
+    ("command", 131_072),
+)
+
+
+def known_context_window(model_id: str) -> int | None:
+    """Approximate context window (tokens) for a model id, or None if unknown."""
+    lowered = model_id.lower()
+    for token, window in _CONTEXT_WINDOW_TOKENS:
+        if token in lowered:
+            return window
+    return None
+
+
 def size_billions(model_id: str) -> float | None:
     """Largest parameter count (in billions) parsed from a model id, if any.
 

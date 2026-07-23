@@ -115,3 +115,137 @@ def test_route_for_model_rewrites_provider():
     routed = route_for_model(router, template, "cerebras/gpt-oss-120b")
     assert routed.resolved.provider_id == "cerebras"
     assert routed.request.model == "gpt-oss-120b"
+
+
+@pytest.mark.asyncio
+async def test_precommit_fallback_skips_candidate_too_small_for_context():
+    settings = Settings(
+        model="groq/llama-3.3-70b-versatile",
+        model_fallbacks="gemini/gemini-flash-latest",
+    )
+    router = ModelRouter(settings)
+    request = MessagesRequest(
+        model="claude-sonnet-4-5",
+        max_tokens=64,
+        messages=[Message(role="user", content="hi")],
+    )
+    template = router.resolve_messages_request(request)
+
+    calls: list[str] = []
+
+    async def open_stream(routed: RoutedMessagesRequest):
+        calls.append(routed.resolved.provider_model_ref)
+        yield "event: message_start\ndata: {}\n\n"
+
+    chunks = [
+        chunk
+        async for chunk in stream_with_precommit_fallback(
+            template=template,
+            candidates=[
+                "groq/llama-3.3-70b-versatile",
+                "gemini/gemini-flash-latest",
+            ],
+            router=router,
+            open_stream=open_stream,
+            request_id="test",
+            input_tokens=140_000,
+        )
+    ]
+
+    assert chunks == ["event: message_start\ndata: {}\n\n"]
+    assert calls == ["gemini/gemini-flash-latest"]
+
+
+@pytest.mark.asyncio
+async def test_precommit_fallback_keeps_candidate_when_input_tokens_unknown():
+    settings = Settings(model="groq/llama-3.3-70b-versatile")
+    router = ModelRouter(settings)
+    request = MessagesRequest(
+        model="claude-sonnet-4-5",
+        max_tokens=64,
+        messages=[Message(role="user", content="hi")],
+    )
+    template = router.resolve_messages_request(request)
+
+    calls: list[str] = []
+
+    async def open_stream(routed: RoutedMessagesRequest):
+        calls.append(routed.resolved.provider_model_ref)
+        yield "event: message_start\ndata: {}\n\n"
+
+    chunks = [
+        chunk
+        async for chunk in stream_with_precommit_fallback(
+            template=template,
+            candidates=["groq/llama-3.3-70b-versatile"],
+            router=router,
+            open_stream=open_stream,
+            request_id="test",
+        )
+    ]
+
+    assert chunks == ["event: message_start\ndata: {}\n\n"]
+    assert calls == ["groq/llama-3.3-70b-versatile"]
+
+
+@pytest.mark.asyncio
+async def test_precommit_fallback_keeps_candidate_with_unknown_window():
+    settings = Settings(model="groq/somebrand-newmodel-9000")
+    router = ModelRouter(settings)
+    request = MessagesRequest(
+        model="claude-sonnet-4-5",
+        max_tokens=64,
+        messages=[Message(role="user", content="hi")],
+    )
+    template = router.resolve_messages_request(request)
+
+    calls: list[str] = []
+
+    async def open_stream(routed: RoutedMessagesRequest):
+        calls.append(routed.resolved.provider_model_ref)
+        yield "event: message_start\ndata: {}\n\n"
+
+    chunks = [
+        chunk
+        async for chunk in stream_with_precommit_fallback(
+            template=template,
+            candidates=["groq/somebrand-newmodel-9000"],
+            router=router,
+            open_stream=open_stream,
+            request_id="test",
+            input_tokens=140_000,
+        )
+    ]
+
+    assert chunks == ["event: message_start\ndata: {}\n\n"]
+    assert calls == ["groq/somebrand-newmodel-9000"]
+
+
+@pytest.mark.asyncio
+async def test_precommit_fallback_errors_when_all_windows_too_small():
+    settings = Settings(model="groq/llama-3.3-70b-versatile")
+    router = ModelRouter(settings)
+    request = MessagesRequest(
+        model="claude-sonnet-4-5",
+        max_tokens=64,
+        messages=[Message(role="user", content="hi")],
+    )
+    template = router.resolve_messages_request(request)
+
+    async def open_stream(routed: RoutedMessagesRequest):
+        raise AssertionError("no candidate should be opened")
+        yield  # pragma: no cover
+
+    with pytest.raises(RuntimeError, match="context window"):
+        async for _ in stream_with_precommit_fallback(
+            template=template,
+            candidates=[
+                "groq/llama-3.3-70b-versatile",
+                "cerebras/gpt-oss-120b",
+            ],
+            router=router,
+            open_stream=open_stream,
+            request_id="test",
+            input_tokens=140_000,
+        ):
+            pass

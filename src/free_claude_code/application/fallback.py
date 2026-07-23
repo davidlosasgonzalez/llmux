@@ -12,6 +12,7 @@ from loguru import logger
 
 from free_claude_code.application.routing import ModelRouter, RoutedMessagesRequest
 from free_claude_code.config.model_refs import parse_provider_type
+from free_claude_code.core.model_capability import known_context_window
 from free_claude_code.core.quota import (
     DailyExhaustionStore,
     FailureKind,
@@ -21,6 +22,10 @@ from free_claude_code.core.quota import (
 )
 
 OpenStream = Callable[[RoutedMessagesRequest], AsyncIterator[str]]
+
+# Room kept for the completion when judging whether a prompt fits a model's
+# context window; a prompt that fills the window exactly leaves no output space.
+_OUTPUT_RESERVE_TOKENS = 8_192
 
 _FALLBACK_KINDS = frozenset(
     {
@@ -69,6 +74,7 @@ async def stream_with_precommit_fallback(
     quota: QuotaTracker | None = None,
     exhaustion: DailyExhaustionStore | None = None,
     request_id: str = "",
+    input_tokens: int | None = None,
 ) -> AsyncIterator[str]:
     """Yield from the first candidate that emits a chunk; never switch mid-stream."""
 
@@ -80,6 +86,25 @@ async def stream_with_precommit_fallback(
         provider = parse_provider_type(model_ref)
         if tracker.is_blocked(provider):
             errors.append(f"{model_ref}: blocked ({tracker.block_reason(provider)})")
+            continue
+        window = known_context_window(model_ref)
+        if (
+            input_tokens is not None
+            and window is not None
+            and input_tokens + _OUTPUT_RESERVE_TOKENS > window
+        ):
+            errors.append(
+                f"{model_ref}: context window ~{window} too small for "
+                f"{input_tokens} input tokens"
+            )
+            logger.warning(
+                "precommit_fallback.skip_context request_id={} model={} "
+                "window={} input_tokens={}",
+                request_id,
+                model_ref,
+                window,
+                input_tokens,
+            )
             continue
         if exhaustion is not None:
             day = datetime.now(UTC).strftime("%Y-%m-%d")
