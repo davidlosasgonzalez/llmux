@@ -1,4 +1,4 @@
-# LLMux Verdict — Refinement-Flow Design (our fork)
+# LLMux Verdict — Refinement-Flow Design
 
 This document specifies **how we use LLMux Verdict** and the **changes we want to
 apply** to make it a first-class *refinement flow*. It is the design spec; the

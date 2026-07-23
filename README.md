@@ -64,11 +64,13 @@ Windows PowerShell:
 
 Re-run the same command whenever you want to update. You can review the installers before running them: [install.sh](scripts/install.sh) and [install.ps1](scripts/install.ps1).
 
+<a id="install-from-a-local-checkout"></a>
+
 #### Install From A Local Checkout
 
-If the repository is private (or you already deploy it via `git clone`), the
-one-line installers above return 404 because they download from GitHub without
-authentication. Install from the checkout instead:
+LLMux isn't published to PyPI, so if you'd rather track a specific commit,
+review the source before installing, or deploy to a server via `git clone`,
+install from a checkout instead of the one-line installer:
 
 ```bash
 git clone git@github.com:davidlosasgonzalez/llmux.git
@@ -376,6 +378,14 @@ Windows PowerShell:
 - [Report bugs or request features](https://github.com/davidlosasgonzalez/llmux/issues)
 - [Architecture and extension guide](ARCHITECTURE.md)
 - [Contributing guide](CONTRIBUTING.md)
+
+## Credits
+
+LLMux started from [Alishahryar1/free-claude-code](https://github.com/Alishahryar1/free-claude-code).
+It's published as an independent repository rather than a fork because it has
+since diverged substantially — narrowed scope, a rebuilt provider/routing
+core, the Verdict deliberation layer, and a different test/CI setup — but the
+original project is where the idea came from, and credit belongs there.
 
 ## License
 

@@ -1,41 +1,35 @@
-# Deploy — servidor + Claude Code + SSH (v2)
+# Deploying On A Server
 
-Checklist para controlar un proyecto en un servidor vía Termius → SSH → tmux,
-con LLMux como proxy y Claude Code como TUI diaria.
+How to run LLMux as a persistent background service on a remote server (VPS,
+homelab box, etc.) alongside Claude Code over SSH.
 
-## 1. Base
+## 1. Base setup
 
-1. Instalar [uv](https://docs.astral.sh/uv/) y Python 3.14:
-   `uv python install 3.14.0`
-2. Clonar este repo (o instalar el paquete) en el servidor.
-3. `uv sync` / install script; comprobar `llmux-server --help`, `llmux-claude --help`.
-4. Copiar `.env.example` → `~/.llmux/.env` y rellenar API keys.
-5. Fijar política de modelos (C1):
-   - `MODEL=open_router/moonshotai/kimi-k2.6` (o el ganador del último eval)
-   - `MODEL_FALLBACKS=open_router/deepseek/deepseek-v3.2,cerebras/gpt-oss-120b`
-6. Instalar Claude Code: `curl -fsSL https://claude.ai/install.sh | bash`
+1. Install [uv](https://docs.astral.sh/uv/) and Python 3.14: `uv python install 3.14.0`.
+2. Get LLMux onto the server — either the [one-line installer](../README.md#install)
+   or a `git clone` (see [Install From A Local Checkout](../README.md#install-from-a-local-checkout)).
+3. Copy `.env.example` to `~/.llmux/.env` and fill in provider API keys.
+4. Set `MODEL` and `MODEL_FALLBACKS` (see [Choose A Provider](../README.md#choose-a-provider)).
+5. Install Claude Code: `curl -fsSL https://claude.ai/install.sh | bash`.
 
-## 2. Proxy LLMux (persistente)
+## 2. Run LLMux as a systemd service
 
-Usar la unit versionada `deploy/llmux-server.service`:
+### User-mode (recommended, no root required)
+
+Use the unit shipped at [`deploy/llmux-server.service`](../deploy/llmux-server.service):
 
 ```bash
 mkdir -p ~/.config/systemd/user ~/.llmux/logs ~/.local/bin
-# Asegura que llmux-server esté en ~/.local/bin (uv tool / symlink)
 cp deploy/llmux-server.service ~/.config/systemd/user/
 systemctl --user daemon-reload
 systemctl --user enable --now llmux-server.service
-loginctl enable-linger "$USER"   # sobrevive logout SSH
+loginctl enable-linger "$USER"   # keep it running after SSH logout
 curl -fsS http://127.0.0.1:8082/health
 ```
 
-Alternativa rápida: `tmux new -s llmux` → `llmux-server`.
+Quick alternative without systemd: `tmux new -s llmux` then `llmux-server`.
 
-### 2b. Variante system-mode (root, clone en /opt)
-
-Para un VPS donde `/opt/llmux` es un clone de
-`github.com/davidlosasgonzalez/llmux` (deploy key de solo lectura) y el
-servicio corre como root (verificada en producción, 2026-07-22):
+### Root/system-mode (e.g. a dedicated VPS with the checkout under `/opt`)
 
 ```ini
 # /etc/systemd/system/llmux-server.service
@@ -59,113 +53,90 @@ StandardError=append:/root/.llmux/logs/systemd-server.log
 WantedBy=multi-user.target
 ```
 
-Dos lecciones pagadas con horas de debugging — no las repitas:
+Two gotchas worth knowing before you hit them:
 
-- **`EnvironmentFile=` es obligatorio.** Settings no carga `~/.llmux/.env` en
-  este contexto; sin él, el proxy arranca "healthy" pero responde
-  `X_API_KEY is not set` a cada petición.
-- **`ExecStart` directo al binario del venv, nunca `uv run`.** `uv run` como
-  proceso principal deja un hijo huérfano escuchando el puerto que sobrevive
-  a `systemctl restart` (síntoma: `MainPID=0` con el servicio "active" y
-  fixes de config que "no surten efecto").
-- El `.env` para systemd no debe llevar comillas en los valores
-  (`EnvironmentFile` las pasa literales al proceso).
+- **`EnvironmentFile=` is required.** `Settings` does not load `~/.llmux/.env`
+  in this context; without it, the proxy starts "healthy" but every request
+  answers with `X_API_KEY is not set`.
+- **Point `ExecStart` directly at the venv binary, never at `uv run`.** `uv run`
+  as the main process can leave an orphaned child listening on the port that
+  survives `systemctl restart` (symptom: `MainPID=0` while the unit reports
+  "active", and config changes appear to have no effect).
+- The `.env` file consumed by `EnvironmentFile=` must not quote its values —
+  they're passed to the process literally, quotes included.
 
-Actualización del servidor (tras cada push a `main`):
+Updating after a `git pull`:
 
 ```bash
 cd /opt/llmux
 git pull --ff-only
-export PATH="$HOME/.local/bin:$PATH"   # uv no está en PATH en shell no interactiva
+export PATH="$HOME/.local/bin:$PATH"   # uv isn't on PATH in a non-interactive shell
 uv sync
 systemctl restart llmux-server.service
 sleep 5 && curl -fsS http://127.0.0.1:8082/health
-# Verificación real, nunca solo /health: una petición E2E + llmux-trace --last
+# Always confirm with a real end-to-end request afterward, not just /health.
 ```
 
-## 3. Claude Code
+## 3. Run Claude Code against it
 
 ```bash
 cd /path/to/project
-llmux-claude            # lanza Claude Code contra el proxy local
-llmux-claude -p "responde solo: pong"
+llmux-claude
+llmux-claude -p "reply with just: pong"
 ```
 
-El launcher comprueba que el proxy está vivo e inyecta `ANTHROPIC_BASE_URL` y
-`ANTHROPIC_AUTH_TOKEN` según la config del Admin UI. El picker nativo `/model`
-de Claude Code lista los modelos que LLMux expone.
+The launcher checks that the proxy is up and injects `ANTHROPIC_BASE_URL` and
+`ANTHROPIC_AUTH_TOKEN` from the current Admin UI settings. Claude Code's native
+`/model` picker lists whatever models LLMux exposes.
 
-Para segundas opiniones multi-modelo, registrar el MCP de Verdict en Claude
-Code (stdio):
+Register the Verdict MCP server for multi-model second opinions:
 
 ```bash
 claude mcp add llmux-verdict -- llmux-verdict serve-mcp
 ```
 
-## 4. Flujo remoto (Termius)
+## 4. Remote workflow over SSH
 
-1. SSH al servidor.
-2. Trabajo: `cd proyecto && llmux-claude`.
-3. Admin UI desde el portátil:
-   `ssh -L 8082:127.0.0.1:8082 user@server` → abrir `http://127.0.0.1:8082/admin`
-4. Cuotas por SSH:
+1. SSH into the server.
+2. `cd project && llmux-claude` to work.
+3. Reach the Admin UI from your laptop via an SSH tunnel:
+   `ssh -L 8082:127.0.0.1:8082 user@server`, then open `http://127.0.0.1:8082/admin`.
+4. Check usage over SSH: `llmux-verdict usage`.
+5. Diagnose a specific request: `llmux-trace --last`.
 
-```bash
-llmux-verdict usage
-```
+## 5. Ranking fallbacks
 
-5. Diagnóstico de una petición concreta:
+1. Prefer models with a high success rate / low latency — inspect
+   `llmux-verdict usage --output json` or query `model_stats` directly in
+   `~/.llmux/verdict.db`.
+2. Put the best model as `MODEL`, the next 2–3 as `MODEL_FALLBACKS`.
+3. If the whole `MODEL`/`MODEL_FALLBACKS` chain sits around a similar context
+   window (e.g. all ~131k), set `MODEL_LONG_CONTEXT` to a large-window model
+   (gemini, minimax, kimi) — otherwise a long Claude Code conversation can
+   exhaust the entire chain at once. `llmux-server` warns about this at
+   startup when it's missing, and also prints the recommended
+   `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` for the client based on the chain's real
+   ceiling.
+4. If the static context-window/cap tables are wrong for your account (e.g. a
+   provider's free tier caps context lower than the table assumes), fix it
+   with `CONTEXT_WINDOW_OVERRIDES` (`model_or_ref=tokens`) instead of touching
+   code.
+5. Restart `llmux-server` to apply config changes.
 
-```bash
-llmux-trace --last
-```
+## 6. Checklist (setting up from scratch)
 
-## 5. Ordenar fallbacks con stats del Verdict (C10)
-
-Tras varias deliberaciones:
-
-```bash
-llmux-verdict usage --output json
-# o inspeccionar ~/.llmux/verdict.db model_stats
-```
-
-Procedimiento manual:
-
-1. Preferir modelos con alta tasa de éxito / baja latencia en `model_stats`.
-2. `github_models/*` (tope ~4k tokens/request) ya no hace falta excluirlo a
-   mano: el filtro de contexto lo salta solo cuando el request supera su cap
-   de free tier (`daily_limit(...).max_request_tokens`). Incluirlo solo aporta
-   como fallback de último recurso para requests pequeños.
-3. Poner el mejor como `MODEL`, el resto (2–3) en `MODEL_FALLBACKS` separados
-   por comas.
-4. Si toda la cadena `MODEL`+`MODEL_FALLBACKS` tiene ventana de contexto
-   parecida (p.ej. todos ~131k), fijar `MODEL_LONG_CONTEXT` a un modelo de
-   ventana grande (gemini, minimax, kimi) — si no, una conversación larga de
-   Claude Code puede agotar toda la cadena a la vez. `llmux-server` avisa de
-   esto al arrancar si falta, y también imprime el
-   `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` recomendado para el cliente según el
-   techo real de la cadena.
-5. Si la tabla estática de ventanas/caps se equivoca para tu cuenta concreta
-   (p.ej. Cerebras con menos contexto libre del que la tabla asume), corregirlo
-   con `CONTEXT_WINDOW_OVERRIDES` (`model_or_ref=tokens`) en vez de tocar
-   código.
-6. Contrastar con el último eval C1 (`docs/evals/…`).
-7. Reiniciar `llmux-server` para aplicar la config.
-
-## 6. Checklist v2 (reproducir de cero)
-
-- [ ] `~/.llmux/.env` con keys + `MODEL` + `MODEL_FALLBACKS` + `MODEL_LONG_CONTEXT`
-- [ ] `systemctl --user status llmux-server` active (o tmux)
-- [ ] `curl /health` OK tras reboot / re-login (linger)
-- [ ] `llmux-verdict usage` imprime tabla (aunque esté vacía)
-- [ ] `llmux-claude -p "pong"` completa contra el proxy
-- [ ] Drill fallback: forzar 429 en primario (key inválida temporal) →
-      responde el secundario; logs `precommit_fallback.serving`
-- [ ] Revisar en el log de arranque la línea `Client config:` con el
-      `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` recomendado y aplicarlo si aplica
-- [ ] Drill contexto: request con prompt oversize → responde 400
-      `invalid_request_error` ("prompt is too long") si no hay
-      `MODEL_LONG_CONTEXT`, o sirve desde ahí si lo hay
-- [ ] `/verdict` o MCP `evaluate` en una pregunta de diseño
-- [ ] `llmux-trace --last` resume el turno con el modelo servido
-- [ ] Validación en `~/Documents/advisor` (local) antes del VPS
+- [ ] `~/.llmux/.env` has provider keys plus `MODEL`, `MODEL_FALLBACKS`, and
+      `MODEL_LONG_CONTEXT`
+- [ ] `systemctl --user status llmux-server` (or root-mode equivalent) is active
+- [ ] `curl /health` succeeds after a reboot / re-login (with linger enabled)
+- [ ] `llmux-verdict usage` prints a table (even if empty)
+- [ ] `llmux-claude -p "pong"` completes through the proxy
+- [ ] Fallback drill: force a failure on the primary (e.g. a temporarily
+      invalid key) and confirm the secondary answers; check for
+      `precommit_fallback.serving` in the logs
+- [ ] Check the startup log's `Client config:` line for the recommended
+      `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` and apply it if present
+- [ ] Context drill: an oversized prompt gets a 400 `invalid_request_error`
+      ("prompt is too long") if no `MODEL_LONG_CONTEXT` is set, or is served
+      from that rescue tier if it is
+- [ ] `llmux-trace --last` summarizes the turn with the model that served it
