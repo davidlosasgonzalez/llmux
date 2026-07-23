@@ -125,7 +125,7 @@ Enter the listed setting in the Admin UI, set `MODEL` to a provider-prefixed mod
 | [MiniMax](https://platform.minimax.io/user-center/basic-information/interface-key) | `MINIMAX_API_KEY` | `minimax/MiniMax-M3` |
 | [Cerebras Inference](https://cloud.cerebras.ai/) | `CEREBRAS_API_KEY` | `cerebras/gpt-oss-120b` |
 | [Groq](https://console.groq.com/keys) | `GROQ_API_KEY` | `groq/openai/gpt-oss-120b` |
-| [SambaNova](https://cloud.sambanova.ai/apis) | `SAMBANOVA_API_KEY` | `sambanova/DeepSeek-V3.2` |
+| [SambaNova](https://cloud.sambanova.ai/apis) | `SAMBANOVA_API_KEY` | `sambanova/DeepSeek-V3.1` |
 | [Fireworks AI](https://fireworks.ai/account/api-keys) | `FIREWORKS_API_KEY` | `fireworks/accounts/fireworks/models/kimi-k2p6` |
 | [Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/) | `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` | `cloudflare/@cf/moonshotai/kimi-k2.6` |
 | [Z.ai](https://z.ai/manage-apikey/apikey-list) | `ZAI_API_KEY` | `zai/glm-5.2` |
@@ -161,7 +161,7 @@ Start `llama-server` with its OpenAI-compatible Chat Completions API and enough 
 ### Ollama
 
 ```bash
-ollama pull llama3.1
+ollama pull qwen3-coder:30b
 ollama serve
 ```
 
@@ -198,7 +198,7 @@ through LLMux — these are the combinations that made sense at that date.
 | Model | Providers | Why |
 | --- | --- | --- |
 | `gemini-3.5-flash-lite` / `gemini-3.1-flash-lite` | gemini | Best free request headroom, 1M context |
-| `openai/gpt-oss-20b` | groq | ~1,000 tok/s; Groq's official successor to `llama-3.1-8b-instant` |
+| `openai/gpt-oss-20b` | groq | ~1,000 tok/s; the standard cheap-fast pick on Groq |
 | `openai/gpt-oss-120b` | groq, cerebras | Fast and noticeably smarter; Cerebras free tier caps context around 8K |
 
 **Local (LM Studio, Ollama, llama.cpp):** `qwen3-coder:30b` (fast MoE, strong
@@ -212,8 +212,6 @@ local all-rounder on 24 GB VRAM).
   models on 2026-08-16.
 - `codestral-latest` — a completion/FIM specialist for IDE autocomplete, not an
   agent model; use Devstral for agents.
-- `deepseek-chat` / `deepseek-reasoner` — legacy aliases retired by DeepSeek on
-  2026-07-24; use explicit `deepseek-v4-*` IDs.
 - `gpt-oss-120b` as the main coder — excellent fast tier, but well behind the
   open leaders on SWE-bench.
 - Gemini Pro (`gemini-3.1-pro-preview`) — Pro models left the AI Studio free
