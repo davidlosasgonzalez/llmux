@@ -39,6 +39,10 @@ Run Claude Code with free, paid, or local models. Choose and validate providers 
 - Inspect per-request routing decisions with `llmux-trace`.
 - Serve Claude Code's web search and fetch tools locally via Brave (`ENABLE_WEB_SERVER_TOOLS=true` plus `BRAVE_SEARCH_API_KEY`).
 - Protect the local proxy with optional token authentication.
+- Get advisory warnings at startup and on Admin UI **Validate** when a model
+  combination looks off: a small model in the Opus/Fable slot, a fallback
+  chain that never leaves one provider, duplicate fallback entries, or an
+  oversized classifier model. Warnings never block your choice.
 
 ## Quick Start
 
