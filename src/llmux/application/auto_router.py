@@ -65,7 +65,7 @@ _CLASSIFIER_SYSTEM_PROMPT = (
     "security review, planning large refactors or migrations, mathematical "
     "or algorithmic problem solving.\n\n"
     "Examples:\n"
-    "'hola, ¿qué tal?' -> trivial\n"
+    "'hey, how's it going?' -> trivial\n"
     "'what year did the Berlin Wall fall?' -> trivial\n"
     "'fix this function that crashes on empty lists' -> standard\n"
     "'convert this callback code to async/await' -> standard\n"

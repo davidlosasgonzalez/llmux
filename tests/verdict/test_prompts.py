@@ -19,7 +19,7 @@ def test_synthesis_prompt_carries_context_and_evidence_rule():
         "What is the default?",
         proposals,
         [],
-        context="FUENTES VERIFICADAS (fetched 2026-07-15):\n[S1] https://x/docs",
+        context="VERIFIED SOURCES (fetched 2026-07-15):\n[S1] https://x/docs",
     )
     # The hard rule against resolving factual conflicts by majority is present...
     assert "majority" in system.lower()

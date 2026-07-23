@@ -278,7 +278,7 @@ def test_format_sources_numbers_and_labels():
         backend="fake",
     )
     block = format_sources(result, fetched_on="2026-07-15")
-    assert "FUENTES VERIFICADAS (fetched 2026-07-15)" in block
+    assert "VERIFIED SOURCES (fetched 2026-07-15)" in block
     assert "[S1] https://a.test" in block
     assert "[S2] https://b.test" in block
     assert "alpha" in block and "beta" in block
@@ -308,7 +308,8 @@ def test_mark_unverified_citations_leaves_verified_url_clean():
 def test_mark_unverified_citations_flags_unfetched_url():
     out = mark_unverified_citations("See https://b.test/other for details.", set())
     assert (
-        "https://b.test/other (URL recordada, no verificada en esta ejecución)" in out
+        "https://b.test/other (URL recalled from memory, not verified in this run)"
+        in out
     )
 
 
@@ -316,14 +317,18 @@ def test_mark_unverified_citations_handles_mixed_urls():
     text = "Verified: https://a.test/docs. Unverified: https://b.test/x."
     out = mark_unverified_citations(text, {"https://a.test/docs"})
     assert "https://a.test/docs. " in out  # clean, trailing period preserved outside
-    assert "https://b.test/x (URL recordada, no verificada en esta ejecución)." in out
+    assert (
+        "https://b.test/x (URL recalled from memory, not verified in this run)." in out
+    )
 
 
 def test_mark_unverified_citations_strips_trailing_punctuation_before_marking():
     out = mark_unverified_citations("(see https://b.test/x)", set())
     # The trailing ')' from the char class exclusion is not part of the URL match
     # at all (parens are excluded), so only the marker is appended, cleanly.
-    assert "https://b.test/x (URL recordada, no verificada en esta ejecución)" in out
+    assert (
+        "https://b.test/x (URL recalled from memory, not verified in this run)" in out
+    )
 
 
 def test_mark_unverified_citations_no_urls_is_noop():

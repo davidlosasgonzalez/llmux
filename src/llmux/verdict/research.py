@@ -414,12 +414,12 @@ def _build_query(prompt: str) -> str:
 
 def format_sources(result: ResearchResult, *, fetched_on: str) -> str:
     """Render fetched sources as an authoritative context block for the panel."""
-    lines = [f"FUENTES VERIFICADAS (fetched {fetched_on}):"]
+    lines = [f"VERIFIED SOURCES (fetched {fetched_on}):"]
     for index, source in enumerate(result.sources, start=1):
         lines.append(f"[S{index}] {source.url}\n{source.text}")
     lines.append(
-        "Instrucción: para hechos de versión, límites, precios o fechas, estas "
-        "FUENTES mandan sobre tu memoria de entrenamiento. Cita [S#] al usarlas."
+        "Instruction: for version, limit, price, or date facts, these SOURCES "
+        "override your training memory. Cite [S#] when you use them."
     )
     return "\n\n".join(lines)
 
@@ -430,7 +430,7 @@ def format_sources(result: ResearchResult, *, fetched_on: str) -> str:
 # closing punctuation a URL is commonly followed by in prose.
 _URL_RE = re.compile(r"https?://[^\s)\]}\"'<>]+")
 _TRAILING_PUNCT = ".,;:!?"
-_UNVERIFIED_MARKER = " (URL recordada, no verificada en esta ejecución)"
+_UNVERIFIED_MARKER = " (URL recalled from memory, not verified in this run)"
 
 
 def mark_unverified_citations(text: str, verified_urls: set[str]) -> str:

@@ -9,12 +9,6 @@ Its purpose is to **save Claude Opus/Fable calls and context** on tasks where a
 longer deliberation among free models produces a good-enough result. Quality is
 valued over speed — an evaluation may take several minutes.
 
-> **Design & our refinement-flow intent:** see
-> [`verdict-refinement-design.md`](verdict-refinement-design.md) for how we use
-> Verdict (parallel solve → best-fit refiner → adversarial refine loop), the
-> per-phase agent choices, the recommended amount of refinement, the fallback
-> matrix, and the pending changes to apply.
-
 Verdict does **not** replace `llmux-server` or `llmux-claude`,
 the proxy, the model routing, streaming or tool calling. It is a separate layer
 that reuses the existing provider stack (`create_provider`, `stream_response`,
@@ -39,6 +33,45 @@ the Anthropic SSE aggregator, `ProviderRegistry`/catalogue).
 8. **Refines** — repeats synthesis+critique until the critique passes, the
    quality threshold is met, two rounds show no material improvement, or the
    round cap is hit (default 3, max 5).
+
+## Model selection per phase
+
+Every candidate model gets a 0–1 score (`verdict/scoring.py`) blending:
+
+- A static **capability prior** (`verdict/capability.py`) from parameter size,
+  family reputation, and coder/reasoner hints parsed from the model id —
+  governs selection cold, before any history exists.
+- A **category fit** multiplier that boosts coder-tuned models for
+  `software_engineering`/`code_review`/`debugging` and reasoning-tuned models
+  for `architecture`/`planning`/`research`/`general_reasoning`/`adversarial_review`.
+- **Empirical stats** (reliability, cross-review score, JSON compliance, times
+  picked as the best proposal) once a model has run enough requests —
+  Bayesian shrinkage blends prior and empirical history so a handful of runs
+  already starts to matter.
+- Penalties for high latency, a history of rejected syntheses, low quota, and
+  degraded health.
+
+Selection itself is greedy and diversity-aware
+(`verdict/selector.py`): it repeatedly picks the highest-scoring remaining
+candidate after penalizing overlap with providers, families, and base models
+already on the panel, so proposals stay decorrelated instead of echoing each
+other. The `role` passed to selection (`proponent`/`refiner`/`critic`) applies
+a budget bias: fan-out phases (propose, review) penalize scarce-quota
+providers more heavily so their budget survives for the one or two high-value
+refine/critique calls, which use scarce providers at full weight.
+
+## Fallback behavior
+
+One failing agent never sinks a run:
+
+| Failure | Behavior |
+| --- | --- |
+| A proponent errors (429 / 404 / timeout / bad JSON) | Dropped; the run continues with the remaining proposals (at least one required). |
+| A reviewer fails | That review is dropped; synthesis proceeds from the proposals plus whatever reviews survived (zero reviews is allowed). |
+| The refiner fails | The next best-fit refiner from a different provider is picked; if none is available, the top-ranked proposal's model is promoted to refiner. |
+| The critic fails | The verdict is forced to `revise` rather than an unchecked `pass`; on repeated failure the run stops with an honest low score — a missing adversary never lets a weak answer through silently. |
+| A provider is circuit-broken | Excluded from every later phase until its cool-off elapses (respecting `Retry-After`); it recovers automatically. |
+| Fewer than `minimum_models` / `minimum_distinct_providers` free models remain | The run fails explicitly, listing per-provider reasons (exhausted / unauthenticated / paid-excluded) — it never silently downgrades. |
 
 ## What it does NOT do
 
@@ -113,6 +146,21 @@ Verdict reads `~/.llmux/verdict.yaml` (optional). A versioned example lives at
 ```bash
 mkdir -p ~/.llmux && cp assets/verdict.example.yaml ~/.llmux/verdict.yaml
 ```
+
+### Refinement depth
+
+| Depth | Proponents · Reviewers · Rounds | Use for |
+| --- | --- | --- |
+| `quick` | 2 · 1 · 1 | Cheap sanity check, low stakes |
+| `standard` | 3 · 2 · 2 | Default for most questions |
+| `deep` | 4 · 3 · 3 | Architecture, high-stakes, ambiguous problems |
+
+The sweet spot is 2–3 refine rounds; the hard cap is 5, never unbounded.
+Self-refinement plateaus after ~2–3 iterations — extra rounds rarely change the
+decision and mostly reword, while over-refinement tends to make answers
+blander and drop the concrete specifics that made a proposal useful. A round
+stops early as soon as the critique passes and clears the quality threshold,
+or when two consecutive rounds show no material improvement.
 
 Key settings: `depth` (`quick`/`standard`/`deep`, default `deep`), `max_rounds`
 (≤5), `quality_threshold` (0.85), `convergence_threshold` (0.98 — stop once a
@@ -209,8 +257,8 @@ Default output is Markdown; `--output json` returns the full structured result.
 produced (`confidence_source` is `"critic"` or `"unavailable"` — never a
 fabricated `0.0`). `research` is `null` unless a research pass ran, in which case
 it carries `{backend, queries, sources_fetched, note}`. Any URL in the answer
-that research did **not** fetch is marked `(URL recordada, no verificada en esta
-ejecución)` — a citation is never trusted on the model's word alone.
+that research did **not** fetch is marked `(URL recalled from memory, not
+verified in this run)` — a citation is never trusted on the model's word alone.
 
 The full deliberation (all proposals, reviews, rounds) is written to
 `report_path`, not returned inline.
@@ -256,19 +304,6 @@ times chosen best, times its synthesis was rejected, last used, estimated quota.
 Speed has low weight; quality, reliability, structured-output compliance,
 diversity and available quota dominate. Run `llmux-verdict benchmark` to seed the
 stats with a small, configurable calibration.
-
-## Keeping the fork updated from upstream
-
-```bash
-git remote add upstream https://github.com/Alishahryar1/llmux.git
-git fetch upstream
-git checkout personal/llmux-verdict
-git merge upstream/main         # Verdict lives in its own package; conflicts are rare
-```
-
-Verdict is confined to `src/llmux/verdict/`, one line in
-`[project.scripts]`, one optional-dependency group and the `ALLOW_PAID_MODELS`
-note in `.env.example`, so upstream merges stay clean.
 
 ## What NOT to send to free providers
 

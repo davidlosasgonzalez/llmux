@@ -14,9 +14,9 @@ _JSON_RULES = (
 
 _CITATION_CONTRACT = (
     "Citation rule: you may only cite a URL if it appears in AUTHORISED CONTEXT "
-    "under FUENTES VERIFICADAS. Never cite a URL from memory as if it were "
+    "under VERIFIED SOURCES. Never cite a URL from memory as if it were "
     "verified — if you mention one anyway, label it "
-    "'(URL recordada, no verificada en esta ejecución)'."
+    "'(URL recalled from memory, not verified in this run)'."
 )
 
 

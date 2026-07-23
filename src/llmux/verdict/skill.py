@@ -58,7 +58,7 @@ privacy. When it runs, `research.sources_fetched` lists the URLs that grounded
 the answer.
 
 Any URL in the answer NOT in `research.sources_fetched` was appended by the
-local process with `(URL recordada, no verificada en esta ejecución)` — a
+local process with `(URL recalled from memory, not verified in this run)` — a
 model's memory of a URL is never presented as a verified citation.
 
 ## Presenting the result

@@ -265,7 +265,7 @@ async def test_research_auto_injects_sources_into_context(monkeypatch):
     assert backend.calls == 1
     # The verified sources reached the panel through the context seam.
     prompts = _propose_prompts(service.invoker)
-    assert prompts and all("FUENTES VERIFICADAS" in p for p in prompts)
+    assert prompts and all("VERIFIED SOURCES" in p for p in prompts)
     assert any("https://docs.test/limits" in p for p in prompts)
     # ...and the run records what it fetched.
     assert result.research is not None
@@ -302,13 +302,11 @@ async def test_research_auto_skipped_for_timeless_prompt(monkeypatch):
     research = _research(backend, {"https://x.test": "<p>y</p>"})
     service = _three_provider_service(monkeypatch, research_service=research)
 
-    result, _ = await service.evaluate("Explica el estándar IEEE 754")
+    result, _ = await service.evaluate("Explain the IEEE 754 standard")
 
     assert backend.calls == 0  # no HTTP: the heuristic never fired
     assert result.research is None
-    assert all(
-        "FUENTES VERIFICADAS" not in p for p in _propose_prompts(service.invoker)
-    )
+    assert all("VERIFIED SOURCES" not in p for p in _propose_prompts(service.invoker))
 
 
 @pytest.mark.asyncio
@@ -390,7 +388,7 @@ async def test_material_disagreement_escalates_with_directed_research(monkeypatc
     synthesis_prompts = [
         user for (_k, phase, _s, user) in service.invoker.calls if phase == "synthesis"
     ]
-    assert any("FUENTES VERIFICADAS" in p for p in synthesis_prompts)
+    assert any("VERIFIED SOURCES" in p for p in synthesis_prompts)
 
 
 @pytest.mark.asyncio
@@ -460,10 +458,10 @@ async def test_citation_discipline_marks_unverified_url_but_not_fetched_one(
 
     answer = result.final_synthesis.final_answer
     assert "https://docs.test/limits" in answer
-    assert "https://docs.test/limits (URL recordada" not in answer
+    assert "https://docs.test/limits (URL recalled" not in answer
     assert (
-        "https://other.test/unverified (URL recordada, no verificada en esta "
-        "ejecución)" in answer
+        "https://other.test/unverified (URL recalled from memory, not "
+        "verified in this run)" in answer
     )
 
 
@@ -480,7 +478,7 @@ async def test_citation_discipline_marks_every_url_without_research(monkeypatch)
 
     assert result.research is None  # timeless prompt: research never ran
     assert (
-        "https://x.test/a (URL recordada, no verificada en esta ejecución)"
+        "https://x.test/a (URL recalled from memory, not verified in this run)"
         in result.final_synthesis.final_answer
     )
 

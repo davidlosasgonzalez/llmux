@@ -1,18 +1,22 @@
-# Providers, models, limits & routing (data reference)
+# Providers, Models, Limits & Routing
 
-Ground truth for **which free models each key gives us**, **their limits**, and
-**how that dictates which model plays which role**. Feeds the capability priors
-in `verdict/capability.py` and the routing rules in
-[`verdict-refinement-design.md`](verdict-refinement-design.md).
+Reference for **which free models each provider key gives access to**, **their
+limits**, and **how those limits shape which model plays which role** in
+Verdict's selection. Feeds the capability priors in `verdict/capability.py` and
+the budget-class routing in `verdict/provider_limits.py` (see
+[Model selection per phase](verdict.md#model-selection-per-phase)).
 
-_Model catalogues are live-discovered (`llmux-verdict models --free-only`); limits
-are researched from provider docs and **change often — re-verify periodically.**
-Last researched: 2026-07-15. Partial update 2026-07-23: Groq retiró
-`llama-3.1-8b-instant`, `llama-3.3-70b-versatile` (shutdown 2026-08-16) y
-`qwen/qwen3-32b` (ya apagado) — sucesores oficiales `openai/gpt-oss-20b`/`-120b`
-y `qwen/qwen3.6-27b`; DeepSeek retiró los alias `deepseek-chat`/`deepseek-reasoner`
-(2026-07-24) — usar IDs `deepseek-v4-*` explícitos; GitHub Models retirado para
-clientes nuevos (jun-2026); Gemini Pro fuera del free tier (abr-2026)._
+Model catalogues are live-discovered (`llmux-verdict models --free-only`);
+limits are researched from provider docs and change often — re-verify
+periodically. Last verified: 2026-07-23.
+
+Retired model names to avoid recommending: Groq dropped
+`llama-3.1-8b-instant` and `llama-3.3-70b-versatile` (shutdown 2026-08-16) and
+`qwen/qwen3-32b` (already off); use their official successors
+`openai/gpt-oss-20b`/`-120b` and `qwen/qwen3.6-27b`. DeepSeek dropped the
+`deepseek-chat`/`deepseek-reasoner` aliases (2026-07-24) — use explicit
+`deepseek-v4-*` IDs. GitHub Models stopped onboarding new customers
+(June 2026). Gemini Pro left the free tier (April 2026).
 
 ---
 

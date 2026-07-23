@@ -217,7 +217,7 @@ async def test_unconfigured_tiers_fall_back_along_the_tier_chain():
         await choose_auto_model(
             settings,
             lambda provider_id: trivial_provider,
-            prompt_context="hola",
+            prompt_context="hi",
             request_id="req-1",
         )
         == "llamacpp/model-coder"
