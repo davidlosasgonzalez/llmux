@@ -1,4 +1,4 @@
-# Backlog — Fiabilidad del Verdict (free-llm-verdict)
+# Backlog — Fiabilidad del Verdict (free-llmux)
 
 > **Histórico / cerrado.** Origen: evaluación Opus vs MCP del 2026-07-15
 > (`docs/verdict-eval-findings.md`). T1–T7 y follow-ups están hechos; no hay
@@ -7,7 +7,7 @@
 ## Hecho — backends de research
 
 - **Brave Search API** (`BraveSearchBackend`): se activa con `BRAVE_SEARCH_API_KEY`
-  en `~/.fcc/.env`; si falta, cae a DuckDuckGo HTML (sin key).
+  en `~/.llmux/.env`; si falta, cae a DuckDuckGo HTML (sin key).
 - **Google CSE descartado**: Programmable Search ya no permite activar
   “Buscar en toda la Web” en motores nuevos, así que no sirve como buscador
   general. No se implementa.
@@ -16,14 +16,14 @@
 
 ### Logging MCP + proveedor inválido
 
-- Con logging apuntando a `~/.fcc/logs/verdict-mcp.log` (mismo sink que
-  `fcc-verdict serve-mcp`) y `GROQ_API_KEY` inválida, un invoke real escribió:
+- Con logging apuntando a `~/.llmux/logs/verdict-mcp.log` (mismo sink que
+  `llmux-verdict serve-mcp`) y `GROQ_API_KEY` inválida, un invoke real escribió:
   - `ERROR: GROQ_ERROR: ... AuthenticationError http_status=401`
   - `WARNING: verdict.provider.error model=groq/... Invalid API Key`
 
 ### Prueba B — Cloudflare Workers CPU limits
 
-- `fcc-verdict evaluate --depth quick --research on` con Brave.
+- `llmux-verdict evaluate --depth quick --research on` con Brave.
 - `research.backend=brave`; fuentes incluyen
   `https://developers.cloudflare.com/workers/platform/limits/`.
 - Respuesta compacta (`answer`) con citas `[S#]`:
@@ -41,7 +41,7 @@
 ## Hecho — Brave no se activaba en ejecución real (2026-07-21, re-verificación)
 
 Al reproducir la Prueba B en un shell limpio (sin `BRAVE_SEARCH_API_KEY`
-exportada, solo presente en `~/.fcc/.env`), el research cayó a `ddg` y
+exportada, solo presente en `~/.llmux/.env`), el research cayó a `ddg` y
 devolvió 0 fuentes — el mismo fallo B1 que este backlog daba por resuelto.
 
 - **Causa raíz:** `Settings` (config/settings.py) no tenía un campo
@@ -49,7 +49,7 @@ devolvió 0 fuentes — el mismo fallo B1 que este backlog daba por resuelto.
   `build_research_service()` sin `brave_api_key`, así que
   `resolve_search_backend()` dependía de `os.getenv("BRAVE_SEARCH_API_KEY")`
   directo — la única credencial del proyecto que no pasaba por el pipeline de
-  `Settings`/dotenv que carga `~/.fcc/.env`. La verificación previa del
+  `Settings`/dotenv que carga `~/.llmux/.env`. La verificación previa del
   2026-07-21 debió correr en un shell donde la key sí estaba exportada al
   proceso, no solo en el `.env` gestionado.
 - **Fix:** añadido `Settings.brave_search_api_key` (mismo patrón que

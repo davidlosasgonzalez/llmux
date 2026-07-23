@@ -6,19 +6,19 @@ from unittest.mock import MagicMock, patch
 import pytest
 from fastapi.responses import JSONResponse, StreamingResponse
 
-from free_claude_code.api.handlers import (
+from llmux.api.handlers import (
     MessagesHandler,
     TokenCountHandler,
 )
-from free_claude_code.application.errors import InvalidRequestError
-from free_claude_code.config.settings import Settings
-from free_claude_code.core.anthropic.models import (
+from llmux.application.errors import InvalidRequestError
+from llmux.config.settings import Settings
+from llmux.core.anthropic.models import (
     Message,
     MessagesRequest,
     TokenCountRequest,
 )
-from free_claude_code.core.anthropic.streaming import format_sse_event
-from free_claude_code.core.failures import ExecutionFailure, FailureKind
+from llmux.core.anthropic.streaming import format_sse_event
+from llmux.core.failures import ExecutionFailure, FailureKind
 
 _CLASSIFIER_SYSTEM = (
     "You are a security monitor. Respond with <block>yes</block> or <block>no</block>."
@@ -377,7 +377,7 @@ async def test_messages_handler_forces_no_thinking_for_safety_classifier() -> No
         messages=[Message(role="user", content=_CLASSIFIER_USER)],
     )
 
-    with patch("free_claude_code.api.handlers.messages.trace_event") as trace_mock:
+    with patch("llmux.api.handlers.messages.trace_event") as trace_mock:
         response = await handler.create(request)
         assert isinstance(response, StreamingResponse)
         await _streaming_body_text(response)
@@ -387,11 +387,11 @@ async def test_messages_handler_forces_no_thinking_for_safety_classifier() -> No
     assert provider.requests[0].model == "test-model"
     assert provider.requests[0].system == _CLASSIFIER_SYSTEM
     assert _trace_events(
-        trace_mock, "free_claude_code.api.optimization.safety_classifier_no_thinking"
+        trace_mock, "llmux.api.optimization.safety_classifier_no_thinking"
     ) == [
         {
             "stage": "routing",
-            "event": "free_claude_code.api.optimization.safety_classifier_no_thinking",
+            "event": "llmux.api.optimization.safety_classifier_no_thinking",
             "source": "api",
             "model": "test-model",
             "changed": True,
@@ -419,7 +419,7 @@ async def test_messages_handler_preserves_thinking_for_non_classifier() -> None:
         ],
     )
 
-    with patch("free_claude_code.api.handlers.messages.trace_event") as trace_mock:
+    with patch("llmux.api.handlers.messages.trace_event") as trace_mock:
         response = await handler.create(request)
         assert isinstance(response, StreamingResponse)
         await _streaming_body_text(response)
@@ -429,7 +429,7 @@ async def test_messages_handler_preserves_thinking_for_non_classifier() -> None:
     assert (
         _trace_events(
             trace_mock,
-            "free_claude_code.api.optimization.safety_classifier_no_thinking",
+            "llmux.api.optimization.safety_classifier_no_thinking",
         )
         == []
     )
@@ -447,7 +447,7 @@ async def test_messages_handler_keeps_existing_no_thinking_for_classifier() -> N
         messages=[Message(role="user", content=_CLASSIFIER_USER)],
     )
 
-    with patch("free_claude_code.api.handlers.messages.trace_event") as trace_mock:
+    with patch("llmux.api.handlers.messages.trace_event") as trace_mock:
         response = await handler.create(request)
         assert isinstance(response, StreamingResponse)
         await _streaming_body_text(response)
@@ -455,11 +455,11 @@ async def test_messages_handler_keeps_existing_no_thinking_for_classifier() -> N
     assert provider.preflight_calls[0][1] is False
     assert provider.stream_kwargs[0]["thinking_enabled"] is False
     assert _trace_events(
-        trace_mock, "free_claude_code.api.optimization.safety_classifier_no_thinking"
+        trace_mock, "llmux.api.optimization.safety_classifier_no_thinking"
     ) == [
         {
             "stage": "routing",
-            "event": "free_claude_code.api.optimization.safety_classifier_no_thinking",
+            "event": "llmux.api.optimization.safety_classifier_no_thinking",
             "source": "api",
             "model": "test-model",
             "changed": False,
@@ -481,7 +481,7 @@ async def test_messages_handler_optimization_intercepts_before_provider_executio
     optimized = object()
 
     with patch(
-        "free_claude_code.api.handlers.messages.try_optimizations",
+        "llmux.api.handlers.messages.try_optimizations",
         return_value=optimized,
     ):
         assert await handler.create(request) is optimized
@@ -495,7 +495,7 @@ def test_token_count_handler_routes_and_counts_tokens() -> None:
         token_counter=lambda messages, system, tools: len(messages) + 41,
     )
 
-    with patch("free_claude_code.api.handlers.token_count.trace_event") as trace:
+    with patch("llmux.api.handlers.token_count.trace_event") as trace:
         response = handler.count(
             TokenCountRequest(
                 model="nvidia_nim/test-model",

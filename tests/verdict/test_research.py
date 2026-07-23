@@ -5,7 +5,7 @@ Search backend and fetcher are injected, so nothing here touches the network.
 
 import pytest
 
-from free_claude_code.verdict.research import (
+from llmux.verdict.research import (
     BraveSearchBackend,
     DuckDuckGoBackend,
     ResearchResult,

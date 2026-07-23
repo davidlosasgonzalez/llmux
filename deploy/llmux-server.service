@@ -1,0 +1,18 @@
+[Unit]
+Description=LLMux proxy (llmux-server)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.llmux/.env
+WorkingDirectory=%h
+ExecStart=%h/.local/bin/llmux-server
+Restart=on-failure
+RestartSec=3
+# Keep logs under the managed LLMux directory when possible.
+StandardOutput=append:%h/.llmux/logs/server.log
+StandardError=append:%h/.llmux/logs/server.log
+
+[Install]
+WantedBy=default.target

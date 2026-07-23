@@ -2,12 +2,12 @@
 
 from unittest.mock import patch
 
-from free_claude_code.api.detection import (
+from llmux.api.detection import (
     is_filepath_extraction_request,
     is_prefix_detection_request,
     is_safety_classifier_request,
 )
-from free_claude_code.core.anthropic.models import Message, MessagesRequest
+from llmux.core.anthropic.models import Message, MessagesRequest
 
 
 def _make_request(content: str, **kwargs) -> MessagesRequest:
@@ -45,7 +45,7 @@ class TestIsPrefixDetectionRequest:
                 raise TypeError("bad slice")
 
         with patch(
-            "free_claude_code.api.detection.extract_text_from_content",
+            "llmux.api.detection.extract_text_from_content",
             return_value=BadStr("<policy_spec> Command: x"),
         ):
             is_req, cmd = is_prefix_detection_request(req)

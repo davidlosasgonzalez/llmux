@@ -6,11 +6,11 @@ import openai
 import pytest
 from httpx import Request, Response
 
-from free_claude_code.config.nim import NimSettings
-from free_claude_code.config.provider_catalog import NVIDIA_NIM_DEFAULT_BASE
-from free_claude_code.core.failures import ExecutionFailure
-from free_claude_code.providers.nvidia_nim import NvidiaNimProvider
-from free_claude_code.providers.nvidia_nim.tool_schema import (
+from llmux.config.nim import NimSettings
+from llmux.config.provider_catalog import NVIDIA_NIM_DEFAULT_BASE
+from llmux.core.failures import ExecutionFailure
+from llmux.providers.nvidia_nim import NvidiaNimProvider
+from llmux.providers.nvidia_nim.tool_schema import (
     NIM_TOOL_ARGUMENT_ALIASES_KEY,
 )
 from tests.providers.request_factory import make_messages_request
@@ -102,9 +102,7 @@ def _make_internal_server_error(message: str) -> openai.InternalServerError:
 @pytest.mark.asyncio
 async def test_init(provider_config):
     """Test provider initialization."""
-    with patch(
-        "free_claude_code.providers.openai_chat.provider.AsyncOpenAI"
-    ) as mock_openai:
+    with patch("llmux.providers.openai_chat.provider.AsyncOpenAI") as mock_openai:
         provider = NvidiaNimProvider(
             provider_config,
             nim_settings=NimSettings(),
@@ -118,7 +116,7 @@ async def test_init(provider_config):
 @pytest.mark.asyncio
 async def test_init_uses_configurable_timeouts():
     """Test that provider passes configurable read/write/connect timeouts to client."""
-    from free_claude_code.providers.base import ProviderConfig
+    from llmux.providers.base import ProviderConfig
 
     config = ProviderConfig(
         api_key="test_key",
@@ -127,9 +125,7 @@ async def test_init_uses_configurable_timeouts():
         http_write_timeout=15.0,
         http_connect_timeout=5.0,
     )
-    with patch(
-        "free_claude_code.providers.openai_chat.provider.AsyncOpenAI"
-    ) as mock_openai:
+    with patch("llmux.providers.openai_chat.provider.AsyncOpenAI") as mock_openai:
         NvidiaNimProvider(
             config, nim_settings=NimSettings(), rate_limiter=passthrough_rate_limiter()
         )
@@ -213,7 +209,7 @@ def test_preflight_and_build_request_issue_206_post_tool_text(nim_provider):
                         type="tool_use",
                         id=tool_id,
                         name="echo_smoke",
-                        input={"value": "FCC_206"},
+                        input={"value": "LLMUX_206"},
                     ),
                     block(
                         type="text",
@@ -224,7 +220,7 @@ def test_preflight_and_build_request_issue_206_post_tool_text(nim_provider):
             message(
                 "user",
                 [
-                    block(type="tool_result", tool_use_id=tool_id, content="FCC_206"),
+                    block(type="tool_result", tool_use_id=tool_id, content="LLMUX_206"),
                     block(type="text", text="What was echoed?"),
                 ],
             ),
@@ -562,7 +558,7 @@ async def test_stream_response_restores_aliased_tool_arguments(nim_provider):
     )
     mock_chunk = _tool_call_chunk(
         name="Grep",
-        arguments=json.dumps({"pattern": "needle", "-A": 2, "_fcc_arg_type": "py"}),
+        arguments=json.dumps({"pattern": "needle", "-A": 2, "_llmux_arg_type": "py"}),
     )
 
     async def mock_stream():
@@ -582,13 +578,13 @@ async def test_stream_response_restores_aliased_tool_arguments(nim_provider):
     properties = create_kwargs["tools"][0]["function"]["parameters"]["properties"]
     assert "-A" in properties
     assert "type" not in properties
-    assert "_fcc_arg_A" not in properties
-    assert "_fcc_arg_type" in properties
+    assert "_llmux_arg_A" not in properties
+    assert "_llmux_arg_type" in properties
 
     deltas = _input_json_deltas(events)
     assert len(deltas) == 1
     assert json.loads(deltas[0]) == {"pattern": "needle", "-A": 2, "type": "py"}
-    assert "_fcc_arg_type" not in deltas[0]
+    assert "_llmux_arg_type" not in deltas[0]
 
 
 @pytest.mark.asyncio
@@ -617,7 +613,7 @@ async def test_stream_response_buffers_chunked_aliased_tool_arguments(nim_provid
     )
     second_chunk = _tool_call_chunk(
         name=None,
-        arguments='"_fcc_arg_type": "py"}',
+        arguments='"_llmux_arg_type": "py"}',
         tool_id="call_chunked",
     )
 
@@ -664,7 +660,7 @@ async def test_stream_response_restores_nested_aliased_tool_arguments(nim_provid
     mock_chunk = _tool_call_chunk(
         name="NotionLike",
         arguments=json.dumps(
-            {"parent": {"_fcc_arg_type": "page_id", "id": "page_123"}}
+            {"parent": {"_llmux_arg_type": "page_id", "id": "page_123"}}
         ),
     )
 
@@ -826,7 +822,7 @@ async def test_stream_response_retries_without_reasoning_content(nim_provider):
                         type="tool_use",
                         id="toolu_reasoning",
                         name="echo_smoke",
-                        input={"value": "FCC_TOOL"},
+                        input={"value": "LLMUX_TOOL"},
                     ),
                 ],
             ),

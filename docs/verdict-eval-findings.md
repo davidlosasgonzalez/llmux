@@ -1,4 +1,4 @@
-# Verdict (free-llm-verdict) — Registro de fallos y mejoras
+# Verdict (free-llmux) — Registro de fallos y mejoras
 
 > Documento vivo. Objetivo: acercar el razonamiento del verdict a Opus.
 > Metodología: mismo prompt a Opus (con web) y al MCP; anotar cada fallo del MCP.
@@ -27,8 +27,8 @@
 
 ### A2 🟠 No hay log de errores/excepciones persistente
 - **Síntoma:** si un proveedor cuelga o lanza, solo se ve un contador `failures++` en `model_stats`.
-- **Detalle:** no existe `~/.fcc/logs/`. No se guarda traza, causa, ni qué modelo/timeout falló.
-- **Fix propuesto:** logger a fichero (`~/.fcc/logs/verdict-YYYYMMDD.log`) con nivel, modelo, fase, excepción y duración. Rotación diaria.
+- **Detalle:** no existe `~/.llmux/logs/`. No se guarda traza, causa, ni qué modelo/timeout falló.
+- **Fix propuesto:** logger a fichero (`~/.llmux/logs/verdict-YYYYMMDD.log`) con nivel, modelo, fase, excepción y duración. Rotación diaria.
 
 ### A3 🟠→✅ Modelo lento sin guardia (raíz de los 10 min) — RESUELTO (T2, 2026-07-15)
 - **Evidencia (verdict.db, model_stats):**

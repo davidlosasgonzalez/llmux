@@ -1,6 +1,6 @@
 """Budget-class semantics for provider limits, including paid model splits."""
 
-from free_claude_code.core.provider_limits import (
+from llmux.core.provider_limits import (
     HIGH_THROUGHPUT,
     PAID,
     SCARCE,

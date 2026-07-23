@@ -63,7 +63,7 @@ def test_api_count_tokens_full_payload_e2e(
                         "type": "tool_use",
                         "id": "toolu_smoke",
                         "name": "echo_smoke",
-                        "input": {"value": "FCC"},
+                        "input": {"value": "LLMux"},
                     },
                 ],
             },
@@ -73,7 +73,7 @@ def test_api_count_tokens_full_payload_e2e(
                     {
                         "type": "tool_result",
                         "tool_use_id": "toolu_smoke",
-                        "content": "FCC",
+                        "content": "LLMux",
                     }
                 ],
             },

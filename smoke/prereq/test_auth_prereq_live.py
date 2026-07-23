@@ -12,7 +12,7 @@ pytestmark = [pytest.mark.live, pytest.mark.smoke_target("auth")]
 def test_bearer_auth_is_the_only_supported_header_shape(
     smoke_config: SmokeConfig, tmp_path: Path
 ) -> None:
-    token = "fcc-smoke-token"
+    token = "llmux-smoke-token"
     env_file = tmp_path / "auth.env"
     env_file.write_text(f'ANTHROPIC_AUTH_TOKEN="{token}"\n', encoding="utf-8")
 
@@ -20,7 +20,7 @@ def test_bearer_auth_is_the_only_supported_header_shape(
         smoke_config,
         env_overrides={
             "ANTHROPIC_AUTH_TOKEN": token,
-            "FCC_ENV_FILE": str(env_file),
+            "LLMUX_ENV_FILE": str(env_file),
         },
         name="auth",
     ) as server:

@@ -1,4 +1,4 @@
-"""Tests for cli/entrypoints.py — fcc-init scaffolding logic."""
+"""Tests for cli/entrypoints.py — llmux-init scaffolding logic."""
 
 import json
 import tomllib
@@ -9,7 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from free_claude_code.config.settings import Settings
+from llmux.config.settings import Settings
 
 
 def _launcher_settings(
@@ -29,9 +29,9 @@ def _launcher_settings(
 
 def _run_init(tmp_home: Path) -> tuple[str, Path]:
     """Run init() with home directory redirected to tmp_home. Returns (printed output, env_file path)."""
-    from free_claude_code.cli.entrypoints import init
+    from llmux.cli.entrypoints import init
 
-    env_file = tmp_home / ".fcc" / ".env"
+    env_file = tmp_home / ".llmux" / ".env"
     printed: list[str] = []
 
     with (
@@ -80,8 +80,8 @@ def test_init_copies_template_content(tmp_path: Path) -> None:
 
 
 def test_init_migrates_home_checkout_env_before_template(tmp_path: Path) -> None:
-    """init() preserves users who kept config in ~/free-claude-code/.env."""
-    legacy_env = tmp_path / "free-claude-code" / ".env"
+    """init() preserves users who kept config in ~/llmux/.env."""
+    legacy_env = tmp_path / "llmux" / ".env"
     legacy_env.parent.mkdir(parents=True)
     legacy_env.write_text("MODEL=deepseek/deepseek-chat\n", encoding="utf-8")
 
@@ -92,8 +92,8 @@ def test_init_migrates_home_checkout_env_before_template(tmp_path: Path) -> None
 
 
 def test_init_migrates_legacy_xdg_env_before_template(tmp_path: Path) -> None:
-    """init() preserves users who kept config in ~/.config/free-claude-code/.env."""
-    legacy_env = tmp_path / ".config" / "free-claude-code" / ".env"
+    """init() preserves users who kept config in ~/.config/llmux/.env."""
+    legacy_env = tmp_path / ".config" / "llmux" / ".env"
     legacy_env.parent.mkdir(parents=True)
     legacy_env.write_text("MODEL=open_router/free-model\n", encoding="utf-8")
 
@@ -106,13 +106,13 @@ def test_init_migrates_legacy_xdg_env_before_template(tmp_path: Path) -> None:
 def test_legacy_env_migration_does_not_overwrite_managed_env(
     tmp_path: Path,
 ) -> None:
-    """Legacy migration never overwrites an existing ~/.fcc/.env."""
-    from free_claude_code.cli.entrypoints import _migrate_legacy_env_if_missing
+    """Legacy migration never overwrites an existing ~/.llmux/.env."""
+    from llmux.cli.entrypoints import _migrate_legacy_env_if_missing
 
-    managed_env = tmp_path / ".fcc" / ".env"
+    managed_env = tmp_path / ".llmux" / ".env"
     managed_env.parent.mkdir(parents=True)
     managed_env.write_text("MODEL=nvidia_nim/current\n", encoding="utf-8")
-    legacy_env = tmp_path / "free-claude-code" / ".env"
+    legacy_env = tmp_path / "llmux" / ".env"
     legacy_env.parent.mkdir(parents=True)
     legacy_env.write_text("MODEL=deepseek/legacy\n", encoding="utf-8")
 
@@ -125,7 +125,7 @@ def test_legacy_env_migration_does_not_overwrite_managed_env(
 
 def test_env_template_loader_uses_root_template_in_source_checkout() -> None:
     """Source checkout fallback uses the root .env.example as the single source."""
-    from free_claude_code.config.env_template import load_env_template
+    from llmux.config.env_template import load_env_template
 
     template = (Path(__file__).resolve().parents[2] / ".env.example").read_text(
         encoding="utf-8"
@@ -135,8 +135,8 @@ def test_env_template_loader_uses_root_template_in_source_checkout() -> None:
 
 
 def test_init_creates_parent_directories(tmp_path: Path) -> None:
-    """init() creates ~/.fcc/ even if it doesn't exist."""
-    config_dir = tmp_path / ".fcc"
+    """init() creates ~/.llmux/ even if it doesn't exist."""
+    config_dir = tmp_path / ".llmux"
     assert not config_dir.exists()
 
     _run_init(tmp_path)
@@ -149,7 +149,7 @@ def test_init_skips_if_env_already_exists(tmp_path: Path) -> None:
     # Create it first
     _run_init(tmp_path)
 
-    env_file = tmp_path / ".fcc" / ".env"
+    env_file = tmp_path / ".llmux" / ".env"
     env_file.write_text("existing content", encoding="utf-8")
 
     output, _ = _run_init(tmp_path)
@@ -159,10 +159,10 @@ def test_init_skips_if_env_already_exists(tmp_path: Path) -> None:
 
 
 def test_init_prints_next_step_hint(tmp_path: Path) -> None:
-    """init() tells the user to run fcc-server after editing .env."""
+    """init() tells the user to run llmux-server after editing .env."""
     output, _ = _run_init(tmp_path)
 
-    assert "fcc-server" in output
+    assert "llmux-server" in output
 
 
 def test_cli_scripts_are_registered() -> None:
@@ -173,9 +173,9 @@ def test_cli_scripts_are_registered() -> None:
     )
 
     scripts = pyproject["project"]["scripts"]
-    assert scripts["fcc-server"] == "free_claude_code.cli.entrypoints:serve"
-    assert scripts["free-claude-code"] == "free_claude_code.cli.entrypoints:serve"
-    assert scripts["fcc-claude"] == "free_claude_code.cli.launchers.claude:launch"
+    assert scripts["llmux-server"] == "llmux.cli.entrypoints:serve"
+    assert scripts["llmux"] == "llmux.cli.entrypoints:serve"
+    assert scripts["llmux-claude"] == "llmux.cli.launchers.claude:launch"
 
 
 @pytest.mark.parametrize("entrypoint_name", ["serve", "init"])
@@ -183,12 +183,12 @@ def test_cli_scripts_are_registered() -> None:
     "argv",
     [("--version",), ("--version", "--help"), ("--help", "--version")],
 )
-def test_fcc_owned_entrypoints_report_version_without_side_effects(
+def test_llmux_owned_entrypoints_report_version_without_side_effects(
     entrypoint_name: str,
     argv: tuple[str, ...],
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    from free_claude_code.cli import entrypoints
+    from llmux.cli import entrypoints
 
     with (
         patch.object(entrypoints, "package_version", return_value="9.8.7"),
@@ -205,7 +205,7 @@ def test_fcc_owned_entrypoints_report_version_without_side_effects(
     ):
         getattr(entrypoints, entrypoint_name)(argv)
 
-    assert capsys.readouterr() == ("free-claude-code 9.8.7\n", "")
+    assert capsys.readouterr() == ("llmux 9.8.7\n", "")
     for side_effect in {
         migrate_legacy,
         migrate_keys,
@@ -221,8 +221,8 @@ def test_fcc_owned_entrypoints_report_version_without_side_effects(
 
 def test_schedule_open_admin_browser_opens_when_health_ready() -> None:
     """Opening /admin runs after /health preflight succeeds."""
-    from free_claude_code.cli import entrypoints
-    from free_claude_code.config.server_urls import local_admin_url
+    from llmux.cli import entrypoints
+    from llmux.config.server_urls import local_admin_url
 
     settings = _launcher_settings(port=31337)
     opened_urls: list[str] = []
@@ -251,7 +251,7 @@ def test_schedule_open_admin_browser_opens_when_health_ready() -> None:
 
 
 def test_serve_skips_admin_browser_when_setting_is_disabled() -> None:
-    from free_claude_code.cli import entrypoints
+    from llmux.cli import entrypoints
 
     settings = _launcher_settings(open_admin_browser=False)
     get_settings = MagicMock(return_value=settings)
@@ -270,7 +270,7 @@ def test_serve_skips_admin_browser_when_setting_is_disabled() -> None:
 
 
 def test_serve_supervisor_restarts_when_app_requests_restart() -> None:
-    from free_claude_code.cli import entrypoints
+    from llmux.cli import entrypoints
 
     settings = _launcher_settings()
     get_settings = MagicMock(side_effect=[settings, settings])
@@ -320,7 +320,7 @@ def test_serve_supervisor_restarts_when_app_requests_restart() -> None:
 
 
 def test_serve_supervisor_refuses_restart_after_incomplete_shutdown() -> None:
-    from free_claude_code.cli import entrypoints
+    from llmux.cli import entrypoints
 
     settings = _launcher_settings()
     get_settings = MagicMock(return_value=settings)
@@ -361,9 +361,9 @@ def test_serve_supervisor_refuses_restart_after_incomplete_shutdown() -> None:
 
 
 def test_serve_migrates_legacy_env_before_loading_settings(tmp_path: Path) -> None:
-    from free_claude_code.cli import entrypoints
+    from llmux.cli import entrypoints
 
-    legacy_env = tmp_path / "free-claude-code" / ".env"
+    legacy_env = tmp_path / "llmux" / ".env"
     legacy_env.parent.mkdir(parents=True)
     legacy_env.write_text("MODEL=deepseek/deepseek-chat\n", encoding="utf-8")
     settings = _launcher_settings()
@@ -378,7 +378,7 @@ def test_serve_migrates_legacy_env_before_loading_settings(tmp_path: Path) -> No
     ):
         entrypoints.serve()
 
-    assert (tmp_path / ".fcc" / ".env").read_text("utf-8") == (
+    assert (tmp_path / ".llmux" / ".env").read_text("utf-8") == (
         "MODEL=deepseek/deepseek-chat\n"
     )
     get_settings.assert_called_once_with()
@@ -388,7 +388,7 @@ def test_serve_migrates_hf_token_before_loading_settings(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    from free_claude_code.cli import entrypoints
+    from llmux.cli import entrypoints
 
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -417,12 +417,12 @@ def test_config_env_key_migration_warns_for_explicit_env_file(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    from free_claude_code.cli import entrypoints
+    from llmux.cli import entrypoints
 
     explicit = tmp_path / "custom.env"
     explicit.write_text("HF_TOKEN=legacy-hf\n", encoding="utf-8")
 
-    with patch.dict(entrypoints.os.environ, {"FCC_ENV_FILE": str(explicit)}):
+    with patch.dict(entrypoints.os.environ, {"LLMUX_ENV_FILE": str(explicit)}):
         migrated = entrypoints._migrate_config_env_keys()
 
     assert migrated == ()
@@ -431,7 +431,7 @@ def test_config_env_key_migration_warns_for_explicit_env_file(
 
 
 def test_serve_handles_keyboard_interrupt_without_traceback() -> None:
-    from free_claude_code.cli import entrypoints
+    from llmux.cli import entrypoints
 
     settings = _launcher_settings()
     get_settings = MagicMock(return_value=settings)
@@ -453,7 +453,7 @@ def test_serve_handles_keyboard_interrupt_without_traceback() -> None:
 
 
 def test_claude_child_env_targets_current_proxy_config() -> None:
-    from free_claude_code.cli.claude_env import build_claude_proxy_env
+    from llmux.cli.claude_env import build_claude_proxy_env
 
     env = build_claude_proxy_env(
         proxy_root_url="http://127.0.0.1:9090",
@@ -481,7 +481,7 @@ def test_claude_child_env_targets_current_proxy_config() -> None:
 
 
 def test_claude_child_env_uses_sentinel_for_blank_configured_auth_token() -> None:
-    from free_claude_code.cli.claude_env import build_claude_proxy_env
+    from llmux.cli.claude_env import build_claude_proxy_env
 
     env = build_claude_proxy_env(
         proxy_root_url="http://127.0.0.1:8082",
@@ -492,14 +492,14 @@ def test_claude_child_env_uses_sentinel_for_blank_configured_auth_token() -> Non
         },
     )
 
-    assert env["ANTHROPIC_AUTH_TOKEN"] == "fcc-no-auth"
+    assert env["ANTHROPIC_AUTH_TOKEN"] == "llmux-no-auth"
     assert "ANTHROPIC_API_KEY" not in env
 
 
 def test_launch_claude_passes_args_and_child_env(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    from free_claude_code.cli.launchers.claude import launch
+    from llmux.cli.launchers.claude import launch
 
     monkeypatch.setenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com")
     monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "old-token")
@@ -507,19 +507,15 @@ def test_launch_claude_passes_args_and_child_env(
     settings = _launcher_settings(port=9191, token="proxy-token")
 
     with (
+        patch("llmux.cli.launchers.claude.get_settings", return_value=settings),
+        patch("llmux.cli.launchers.claude.preflight_proxy", return_value=None),
         patch(
-            "free_claude_code.cli.launchers.claude.get_settings", return_value=settings
-        ),
-        patch(
-            "free_claude_code.cli.launchers.claude.preflight_proxy", return_value=None
-        ),
-        patch(
-            "free_claude_code.cli.launchers.common.shutil.which",
+            "llmux.cli.launchers.common.shutil.which",
             return_value="resolved-claude.cmd",
         ),
-        patch("free_claude_code.cli.launchers.common.subprocess.Popen") as popen,
-        patch("free_claude_code.cli.launchers.common.register_pid") as register_pid,
-        patch("free_claude_code.cli.launchers.common.unregister_pid") as unregister_pid,
+        patch("llmux.cli.launchers.common.subprocess.Popen") as popen,
+        patch("llmux.cli.launchers.common.register_pid") as register_pid,
+        patch("llmux.cli.launchers.common.unregister_pid") as unregister_pid,
         pytest.raises(SystemExit) as exc_info,
     ):
         process = popen.return_value
@@ -542,27 +538,21 @@ def test_launch_claude_passes_args_and_child_env(
 
 
 def test_launch_claude_keyboard_interrupt_kills_child_tree() -> None:
-    from free_claude_code.cli.launchers.claude import launch
+    from llmux.cli.launchers.claude import launch
 
     settings = _launcher_settings(port=9191, token="proxy-token")
 
     with (
+        patch("llmux.cli.launchers.claude.get_settings", return_value=settings),
+        patch("llmux.cli.launchers.claude.preflight_proxy", return_value=None),
         patch(
-            "free_claude_code.cli.launchers.claude.get_settings", return_value=settings
-        ),
-        patch(
-            "free_claude_code.cli.launchers.claude.preflight_proxy", return_value=None
-        ),
-        patch(
-            "free_claude_code.cli.launchers.common.shutil.which",
+            "llmux.cli.launchers.common.shutil.which",
             return_value="resolved-claude.cmd",
         ),
-        patch("free_claude_code.cli.launchers.common.subprocess.Popen") as popen,
-        patch("free_claude_code.cli.launchers.common.register_pid"),
-        patch(
-            "free_claude_code.cli.launchers.common.kill_pid_tree_best_effort"
-        ) as kill_tree,
-        patch("free_claude_code.cli.launchers.common.unregister_pid") as unregister_pid,
+        patch("llmux.cli.launchers.common.subprocess.Popen") as popen,
+        patch("llmux.cli.launchers.common.register_pid"),
+        patch("llmux.cli.launchers.common.kill_pid_tree_best_effort") as kill_tree,
+        patch("llmux.cli.launchers.common.unregister_pid") as unregister_pid,
         pytest.raises(KeyboardInterrupt),
     ):
         process = popen.return_value
@@ -578,18 +568,14 @@ def test_launch_claude_keyboard_interrupt_kills_child_tree() -> None:
 def test_launch_claude_exits_when_command_cannot_be_resolved(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    from free_claude_code.cli.launchers.claude import launch
+    from llmux.cli.launchers.claude import launch
 
     settings = _launcher_settings()
     with (
-        patch(
-            "free_claude_code.cli.launchers.claude.get_settings", return_value=settings
-        ),
-        patch(
-            "free_claude_code.cli.launchers.claude.preflight_proxy", return_value=None
-        ),
-        patch("free_claude_code.cli.launchers.common.shutil.which", return_value=None),
-        patch("free_claude_code.cli.launchers.common.subprocess.Popen") as popen,
+        patch("llmux.cli.launchers.claude.get_settings", return_value=settings),
+        patch("llmux.cli.launchers.claude.preflight_proxy", return_value=None),
+        patch("llmux.cli.launchers.common.shutil.which", return_value=None),
+        patch("llmux.cli.launchers.common.subprocess.Popen") as popen,
         pytest.raises(SystemExit) as exc_info,
     ):
         launch([])
@@ -604,18 +590,16 @@ def test_launch_claude_exits_when_command_cannot_be_resolved(
 def test_launch_claude_unreachable_proxy_exits_with_hint(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    from free_claude_code.cli.launchers.claude import launch
+    from llmux.cli.launchers.claude import launch
 
     settings = _launcher_settings(port=9393)
     with (
+        patch("llmux.cli.launchers.claude.get_settings", return_value=settings),
         patch(
-            "free_claude_code.cli.launchers.claude.get_settings", return_value=settings
-        ),
-        patch(
-            "free_claude_code.cli.launchers.claude.preflight_proxy",
+            "llmux.cli.launchers.claude.preflight_proxy",
             return_value="connection refused",
         ),
-        patch("free_claude_code.cli.launchers.common.subprocess.Popen") as popen,
+        patch("llmux.cli.launchers.common.subprocess.Popen") as popen,
         pytest.raises(SystemExit) as exc_info,
     ):
         launch([])
@@ -624,4 +608,4 @@ def test_launch_claude_unreachable_proxy_exits_with_hint(
     popen.assert_not_called()
     captured = capsys.readouterr()
     assert "http://127.0.0.1:9393" in captured.err
-    assert "fcc-server" in captured.err
+    assert "llmux-server" in captured.err

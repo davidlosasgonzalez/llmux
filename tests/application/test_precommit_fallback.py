@@ -4,16 +4,16 @@ from datetime import UTC, datetime
 
 import pytest
 
-from free_claude_code.application.fallback import (
+from llmux.application.fallback import (
     fallback_candidates,
     route_for_model,
     stream_with_precommit_fallback,
 )
-from free_claude_code.application.routing import ModelRouter, RoutedMessagesRequest
-from free_claude_code.config.model_refs import parse_model_fallbacks
-from free_claude_code.config.settings import Settings
-from free_claude_code.core.anthropic import Message, MessagesRequest
-from free_claude_code.core.quota import DailyExhaustionStore, QuotaTracker
+from llmux.application.routing import ModelRouter, RoutedMessagesRequest
+from llmux.config.model_refs import parse_model_fallbacks
+from llmux.config.settings import Settings
+from llmux.core.anthropic import Message, MessagesRequest
+from llmux.core.quota import DailyExhaustionStore, QuotaTracker
 
 
 def test_parse_and_candidates():

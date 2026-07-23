@@ -3,8 +3,8 @@
 import json
 from dataclasses import dataclass, field
 
-from free_claude_code.verdict.invoker import InvocationResult
-from free_claude_code.verdict.models import (
+from llmux.verdict.invoker import InvocationResult
+from llmux.verdict.models import (
     CostStatus,
     Health,
     ModelRef,

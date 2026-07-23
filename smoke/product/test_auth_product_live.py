@@ -16,7 +16,7 @@ def test_api_bearer_auth_contract_e2e(smoke_config: SmokeConfig, tmp_path) -> No
         name="product-auth",
         env_overrides={
             "ANTHROPIC_AUTH_TOKEN": token,
-            "FCC_ENV_FILE": str(env_file),
+            "LLMUX_ENV_FILE": str(env_file),
         },
     ).run() as server:
         unauth = httpx.get(

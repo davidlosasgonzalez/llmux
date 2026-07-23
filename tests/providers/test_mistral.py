@@ -7,10 +7,10 @@ import openai
 import pytest
 from httpx import Request, Response
 
-from free_claude_code.config.provider_catalog import MISTRAL_DEFAULT_BASE
-from free_claude_code.core.failures import ExecutionFailure
-from free_claude_code.providers.base import ProviderConfig
-from free_claude_code.providers.mistral import MistralProvider
+from llmux.config.provider_catalog import MISTRAL_DEFAULT_BASE
+from llmux.core.failures import ExecutionFailure
+from llmux.providers.base import ProviderConfig
+from llmux.providers.mistral import MistralProvider
 from tests.providers.request_factory import make_messages_request
 from tests.providers.support import passthrough_rate_limiter
 
@@ -37,9 +37,7 @@ def mistral_provider(mistral_config):
 
 def test_init(mistral_config):
     """Test provider initialization."""
-    with patch(
-        "free_claude_code.providers.openai_chat.provider.AsyncOpenAI"
-    ) as mock_openai:
+    with patch("llmux.providers.openai_chat.provider.AsyncOpenAI") as mock_openai:
         provider = MistralProvider(
             mistral_config, rate_limiter=passthrough_rate_limiter()
         )
@@ -491,7 +489,7 @@ async def test_stream_response_retries_without_mistral_reasoning_on_rejection(
                         "type": "tool_use",
                         "id": "toolu_reasoning",
                         "name": "echo",
-                        "input": {"value": "FCC_TOOL"},
+                        "input": {"value": "LLMUX_TOOL"},
                     },
                 ],
             },
@@ -559,7 +557,7 @@ async def test_stream_response_reasoning_retry_preserves_visible_text_and_tools(
                         "type": "tool_use",
                         "id": "toolu_reasoning",
                         "name": "echo",
-                        "input": {"value": "FCC_TOOL"},
+                        "input": {"value": "LLMUX_TOOL"},
                     },
                 ],
             },

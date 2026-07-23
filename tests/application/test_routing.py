@@ -4,11 +4,11 @@ from unittest.mock import patch
 
 import pytest
 
-from free_claude_code.application.errors import UnknownProviderError
-from free_claude_code.application.routing import ModelRouter
-from free_claude_code.config.provider_catalog import PROVIDER_CATALOG
-from free_claude_code.config.settings import Settings
-from free_claude_code.core.anthropic.models import (
+from llmux.application.errors import UnknownProviderError
+from llmux.application.routing import ModelRouter
+from llmux.config.provider_catalog import PROVIDER_CATALOG
+from llmux.config.settings import Settings
+from llmux.core.anthropic.models import (
     Message,
     MessagesRequest,
     TokenCountRequest,
@@ -235,7 +235,7 @@ def test_model_router_routes_token_count_request(settings):
 
 
 def test_model_router_logs_mapping(settings):
-    with patch("free_claude_code.application.routing.logger.debug") as mock_log:
+    with patch("llmux.application.routing.logger.debug") as mock_log:
         ModelRouter(settings).resolve("claude-2.1")
 
     mock_log.assert_called()

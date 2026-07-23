@@ -2,9 +2,9 @@
 
 import pytest
 
-from free_claude_code.verdict.models import Critique, Verdict
-from free_claude_code.verdict.scoring import latency_penalty
-from free_claude_code.verdict.storage import ModelStats
+from llmux.verdict.models import Critique, Verdict
+from llmux.verdict.scoring import latency_penalty
+from llmux.verdict.storage import ModelStats
 
 
 def _stats(avg_latency: float) -> ModelStats:

@@ -2,11 +2,11 @@
 
 import pytest
 
-from free_claude_code.core.anthropic.errors import (
+from llmux.core.anthropic.errors import (
     anthropic_error_type_for_failure,
     anthropic_failure_payload,
 )
-from free_claude_code.core.failures import ExecutionFailure, FailureKind
+from llmux.core.failures import ExecutionFailure, FailureKind
 
 
 @pytest.mark.parametrize(

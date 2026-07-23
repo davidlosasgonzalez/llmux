@@ -1,6 +1,6 @@
-# FCC Verdict
+# LLMux Verdict
 
-FCC Verdict is an **optional, additive** deliberation layer for Free Claude Code.
+LLMux Verdict is an **optional, additive** deliberation layer for LLMux.
 It consults several **free** cloud models, has them cross-review each other,
 synthesises a merged answer and adversarially critiques it, repeating until the
 result is refined enough.
@@ -15,7 +15,7 @@ valued over speed — an evaluation may take several minutes.
 > per-phase agent choices, the recommended amount of refinement, the fallback
 > matrix, and the pending changes to apply.
 
-Verdict does **not** replace `fcc-server` or `fcc-claude`,
+Verdict does **not** replace `llmux-server` or `llmux-claude`,
 the proxy, the model routing, streaming or tool calling. It is a separate layer
 that reuses the existing provider stack (`create_provider`, `stream_response`,
 the Anthropic SSE aggregator, `ProviderRegistry`/catalogue).
@@ -100,18 +100,18 @@ endpoint, not the model family.
 | Brave Search (web research) | `BRAVE_SEARCH_API_KEY` | <https://brave.com/search/api/> |
 
 None of the above require a payment card for their free tier at the time of
-writing. Always confirm with `fcc-verdict providers validate`.
+writing. Always confirm with `llmux-verdict providers validate`.
 
-Set keys the same way as the rest of FCC (Admin UI, `~/.fcc/.env`, or your
+Set keys the same way as the rest of LLMux (Admin UI, `~/.llmux/.env`, or your
 shell). Verdict reads them through the shared `Settings`.
 
 ## Configuration
 
-Verdict reads `~/.fcc/verdict.yaml` (optional). A versioned example lives at
+Verdict reads `~/.llmux/verdict.yaml` (optional). A versioned example lives at
 [`../assets/verdict.example.yaml`](../assets/verdict.example.yaml). Copy it:
 
 ```bash
-mkdir -p ~/.fcc && cp assets/verdict.example.yaml ~/.fcc/verdict.yaml
+mkdir -p ~/.llmux && cp assets/verdict.example.yaml ~/.llmux/verdict.yaml
 ```
 
 Key settings: `depth` (`quick`/`standard`/`deep`, default `deep`), `max_rounds`
@@ -145,10 +145,10 @@ redacted and truncated.
 
 ```bash
 # Register the MCP server with Claude Code (mcp ships with the base package)
-claude mcp add fcc-verdict -- fcc-verdict serve-mcp
+claude mcp add llmux-verdict -- llmux-verdict serve-mcp
 
 # 3. Install the deep-verdict skill (explicit; backs up any existing one)
-fcc-verdict install-claude-skill
+llmux-verdict install-claude-skill
 ```
 
 `install-claude-skill` prints exactly which files it creates
@@ -158,18 +158,18 @@ never edits your global Claude Code config automatically.
 ## CLI
 
 ```bash
-fcc-verdict providers            # provider free-access status
-fcc-verdict providers validate   # same, with live auth check (keys never shown)
-fcc-verdict models --free-only   # discovered free-eligible models
-fcc-verdict usage                # approximate requests/tokens per provider vs limits
-fcc-verdict benchmark            # small local calibration
-fcc-verdict evaluate "question"
-fcc-verdict evaluate --depth deep --task-type architecture "question"
-fcc-verdict evaluate --file path/to/file.py "review this"
-fcc-verdict evaluate --research on "current Cloudflare Workers CPU limits"
-fcc-verdict evaluate --output json "question"   # full structured payload
-fcc-verdict serve-mcp            # start the MCP server (stdio)
-fcc-verdict install-claude-skill
+llmux-verdict providers            # provider free-access status
+llmux-verdict providers validate   # same, with live auth check (keys never shown)
+llmux-verdict models --free-only   # discovered free-eligible models
+llmux-verdict usage                # approximate requests/tokens per provider vs limits
+llmux-verdict benchmark            # small local calibration
+llmux-verdict evaluate "question"
+llmux-verdict evaluate --depth deep --task-type architecture "question"
+llmux-verdict evaluate --file path/to/file.py "review this"
+llmux-verdict evaluate --research on "current Cloudflare Workers CPU limits"
+llmux-verdict evaluate --output json "question"   # full structured payload
+llmux-verdict serve-mcp            # start the MCP server (stdio)
+llmux-verdict install-claude-skill
 ```
 
 `--research` accepts `auto` (default — fires only on currency-sensitive
@@ -201,7 +201,7 @@ Default output is Markdown; `--output json` returns the full structured result.
   "quota_failures": [],
   "research": null,
   "elapsed_s": 0.0,
-  "report_path": "~/.fcc/verdict_reports/verdict-....json"
+  "report_path": "~/.llmux/verdict_reports/verdict-....json"
 }
 ```
 
@@ -236,7 +236,7 @@ The sources fetched are recorded under `research.sources_fetched`.
 
 ## Seeing quota and errors
 
-- `fcc-verdict providers validate` shows auth, free status and usability.
+- `llmux-verdict providers validate` shows auth, free status and usability.
 - A failed evaluation lists every provider it could not use and why
   (`quota_failures`).
 - Circuit breaking benches a provider after auth failures, 429s or exhausted
@@ -244,29 +244,29 @@ The sources fetched are recorded under `research.sources_fetched`.
   `Retry-After`).
 - A hard quota exhaustion is remembered per model for the rest of the day, so a
   later run skips that model instead of spending a call to rediscover the 429.
-- `fcc-verdict serve-mcp` logs to `~/.fcc/logs/verdict-mcp.log` (JSON lines,
-  appended across restarts — unlike other FCC logs it is not truncated on
+- `llmux-verdict serve-mcp` logs to `~/.llmux/logs/verdict-mcp.log` (JSON lines,
+  appended across restarts — unlike other LLMux logs it is not truncated on
   start, since the server is long-lived).
 
 ## Empirical model selection
 
-Verdict records per-model, per-category stats in `~/.fcc/verdict.db`: requests,
+Verdict records per-model, per-category stats in `~/.llmux/verdict.db`: requests,
 valid responses, failures, 429s, latency, JSON compliance, cross-review score,
 times chosen best, times its synthesis was rejected, last used, estimated quota.
 Speed has low weight; quality, reliability, structured-output compliance,
-diversity and available quota dominate. Run `fcc-verdict benchmark` to seed the
+diversity and available quota dominate. Run `llmux-verdict benchmark` to seed the
 stats with a small, configurable calibration.
 
 ## Keeping the fork updated from upstream
 
 ```bash
-git remote add upstream https://github.com/Alishahryar1/free-claude-code.git
+git remote add upstream https://github.com/Alishahryar1/llmux.git
 git fetch upstream
-git checkout personal/fcc-verdict
+git checkout personal/llmux-verdict
 git merge upstream/main         # Verdict lives in its own package; conflicts are rare
 ```
 
-Verdict is confined to `src/free_claude_code/verdict/`, one line in
+Verdict is confined to `src/llmux/verdict/`, one line in
 `[project.scripts]`, one optional-dependency group and the `ALLOW_PAID_MODELS`
 note in `.env.example`, so upstream merges stay clean.
 

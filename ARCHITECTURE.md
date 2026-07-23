@@ -1,6 +1,6 @@
 # Architecture
 
-This document is a maintainer-oriented map of Free Claude Code. It explains the
+This document is a maintainer-oriented map of LLMux. It explains the
 runtime boundaries, request flows, provider abstraction, configuration model,
 and verification strategy.
 
@@ -10,7 +10,7 @@ and how contributors should extend it.
 
 ## System Overview
 
-Free Claude Code is a local proxy for agent clients. It accepts Anthropic
+LLMux is a local proxy for agent clients. It accepts Anthropic
 Messages traffic from Claude Code, routes the request to a configured upstream
 provider, and preserves the wire protocol expected by the caller.
 
@@ -18,10 +18,10 @@ There are three runtime surfaces:
 
 - HTTP proxy: FastAPI routes expose Anthropic-compatible, health, model-listing,
   and admin endpoints.
-- CLI launcher: the `fcc-claude` wrapper entrypoint prepares Claude Code
+- CLI launcher: the `llmux-claude` wrapper entrypoint prepares Claude Code
   sessions so they target the local proxy.
-- Standalone tools: `fcc-verdict` (multi-model evaluation CLI and MCP server)
-  and `fcc-trace` (per-turn log summaries) run beside the proxy.
+- Standalone tools: `llmux-verdict` (multi-model evaluation CLI and MCP server)
+  and `llmux-trace` (per-turn log summaries) run beside the proxy.
 
 ```mermaid
 flowchart LR
@@ -39,34 +39,34 @@ flowchart LR
 
 The installable wheel packages are declared in [pyproject.toml](pyproject.toml):
 
-- [src/free_claude_code/application/](src/free_claude_code/application/) is the dependency-leaf application boundary. It
+- [src/llmux/application/](src/llmux/application/) is the dependency-leaf application boundary. It
   owns immutable routing/model-metadata values, model routing, optional
   classifier-driven auto-routing, shared provider execution, the consumer-facing
   `ProviderPort`, request-runtime lease ports, and deterministic
   request/readiness errors. It depends only on configuration and core
   protocol-neutral logic.
-- [src/free_claude_code/api/](src/free_claude_code/api/) is the HTTP adapter. It owns the FastAPI app, routes, API product
+- [src/llmux/api/](src/llmux/api/) is the HTTP adapter. It owns the FastAPI app, routes, API product
   handlers, local optimizations, model-catalog responses, HTTP error mapping,
   response commit timing, and Admin-specific ports. It consumes application and
   protocol types instead of defining use cases or wire schemas.
-- [src/free_claude_code/cli/](src/free_claude_code/cli/) owns console entrypoints, the client CLI launcher,
+- [src/llmux/cli/](src/llmux/cli/) owns console entrypoints, the client CLI launcher,
   the shared Claude proxy environment, and child-process registration.
-- [src/free_claude_code/config/](src/free_claude_code/config/) owns settings, provider metadata, filesystem paths,
+- [src/llmux/config/](src/llmux/config/) owns settings, provider metadata, filesystem paths,
   logging setup, constants, and provider ID catalogs.
-- [src/free_claude_code/core/](src/free_claude_code/core/) owns provider-neutral protocol logic: wire request and response
+- [src/llmux/core/](src/llmux/core/) owns provider-neutral protocol logic: wire request and response
   models, Anthropic conversion, SSE construction,
   canonical execution-failure semantics, credential-safe diagnostics, token
   counting, and structured trace helpers. It never classifies provider SDK or
   HTTP client exceptions.
-- [src/free_claude_code/observability/](src/free_claude_code/observability/) owns the `fcc-trace` CLI, which renders
+- [src/llmux/observability/](src/llmux/observability/) owns the `llmux-trace` CLI, which renders
   per-turn summaries from the managed server log.
-- [src/free_claude_code/providers/](src/free_claude_code/providers/) owns provider construction, the shared OpenAI-chat
+- [src/llmux/providers/](src/llmux/providers/) owns provider construction, the shared OpenAI-chat
   provider, specialized adapters, SDK/HTTP failure classification, retry and
   recovery policy, rate limiting, model listing, and concrete provider adapters.
-- [src/free_claude_code/runtime/](src/free_claude_code/runtime/) is the process composition root. It owns application
+- [src/llmux/runtime/](src/llmux/runtime/) is the process composition root. It owns application
   startup and shutdown, provider generations, Admin runtime operations, and the
   concrete wiring between API and providers.
-- [src/free_claude_code/verdict/](src/free_claude_code/verdict/) owns the `fcc-verdict` multi-model evaluation
+- [src/llmux/verdict/](src/llmux/verdict/) owns the `llmux-verdict` multi-model evaluation
   CLI and its MCP server: provider discovery, capability scoring, orchestration,
   and result storage.
 
@@ -91,8 +91,8 @@ also removes that permission:
 | `runtime` | `api`, `application`, `config`, `core`, `providers` |
 
 There is one exact exception:
-`free_claude_code.cli.entrypoints` imports
-`free_claude_code.runtime.bootstrap` because the installed server executable
+`llmux.cli.entrypoints` imports
+`llmux.runtime.bootstrap` because the installed server executable
 delegates construction to the process composition root. The exception does not
 permit any broader dependency from `cli` to `runtime`. Every new top-level
 package or cross-package edge must be added to the policy deliberately.
@@ -103,17 +103,17 @@ may import dependency leaves to publish supported exports. Code outside
 Deliberate provider factory loading is protected by the provider catalog,
 supported-ID, and factory synchronization contract.
 
-[core/version.py](src/free_claude_code/core/version.py) is the sole runtime owner
-of the FCC release version. It reads installed distribution metadata for
-FastAPI/OpenAPI, FCC-owned CLI `--version` output, and the outbound web-tools
+[core/version.py](src/llmux/core/version.py) is the sole runtime owner
+of the LLMux release version. It reads installed distribution metadata for
+FastAPI/OpenAPI, LLMux-owned CLI `--version` output, and the outbound web-tools
 user agent. A source-only checkout without installed metadata reports the
 explicit `0+unknown` fallback; runtime code never parses `pyproject.toml` or
 duplicates a release literal. Client launcher arguments remain transparent to
 the wrapped client.
 
 The main ownership rule is that Anthropic protocol schemas and
-shared protocol behavior belong in [src/free_claude_code/core/](src/free_claude_code/core/), while request routing and
-provider execution belong in [src/free_claude_code/application/](src/free_claude_code/application/). Routes use core schemas
+shared protocol behavior belong in [src/llmux/core/](src/llmux/core/), while request routing and
+provider execution belong in [src/llmux/application/](src/llmux/application/). Routes use core schemas
 directly for wire validation and call application use cases. Provider modules use
 the same concrete request types and neutral helpers instead of importing the API
 adapter or another provider.
@@ -126,17 +126,17 @@ The model-list schema stays beside its API-owned construction policy in
 
 ## Customer-Facing Contract
 
-FCC optimizes for installed user workflows, not internal compatibility. The
+LLMux optimizes for installed user workflows, not internal compatibility. The
 behavior that must be preserved is that these user-facing surfaces run correctly
 for real prompts against supported providers:
 
-- `fcc-server` and the local Admin UI for configuring supported providers,
+- `llmux-server` and the local Admin UI for configuring supported providers,
   model routing, auth, server tools, and diagnostics.
-- `fcc-claude`, Claude Code, and the Anthropic-compatible proxy behavior Claude
+- `llmux-claude`, Claude Code, and the Anthropic-compatible proxy behavior Claude
   Code relies on, including streaming text, native/interleaved thinking, tool
   use/results, model discovery, token counting, retries/recovery, and supported
   local server-tool behavior.
-- `fcc-verdict`, its MCP server, and `fcc-trace` as installed companion tools.
+- `llmux-verdict`, its MCP server, and `llmux-trace` as installed companion tools.
 - Installation, update, init, and uninstall scripts insofar as they make the
   above workflows available on a user's machine.
 
@@ -155,16 +155,16 @@ The current package boundaries are intentional, but several modules still carry
 large orchestration responsibilities. Treat these as refactor targets, not as
 new places to add unrelated behavior:
 
-- [api/handlers/](src/free_claude_code/api/handlers/) owns customer-facing API product flows:
+- [api/handlers/](src/llmux/api/handlers/) owns customer-facing API product flows:
   Claude Messages and token counting. Keep route handlers
   thin, keep Claude-only behavior in the Messages handler, and use
-  [application/execution.py](src/free_claude_code/application/execution.py) only for shared
+  [application/execution.py](src/llmux/application/execution.py) only for shared
   provider resolution, preflight, tracing, token counting, and streaming.
-- [providers/openai_chat/](src/free_claude_code/providers/openai_chat/) owns the common upstream provider
+- [providers/openai_chat/](src/llmux/providers/openai_chat/) owns the common upstream provider
   behavior. It separates immutable vendor profiles from per-request stream
   execution, recovery, request policy, and tool-call assembly. Shared
-  protocol rules belong in [src/free_claude_code/core/](src/free_claude_code/core/).
-- [config/admin/](src/free_claude_code/config/admin/) owns Admin UI config behavior. Keep
+  protocol rules belong in [src/llmux/core/](src/llmux/core/).
+- [config/admin/](src/llmux/config/admin/) owns Admin UI config behavior. Keep
   provider fields catalog-driven, and keep manifest, source loading, validation,
   env rendering, value presentation, and status metadata in their package owners.
 
@@ -172,21 +172,21 @@ new places to add unrelated behavior:
 
 Console scripts are registered in [pyproject.toml](pyproject.toml):
 
-- `fcc-server` and `free-claude-code` call `free_claude_code.cli.entrypoints:serve`.
-- `fcc-init` calls `free_claude_code.cli.entrypoints:init`.
-- `fcc-claude` calls `free_claude_code.cli.launchers.claude:launch`.
-- `fcc-verdict` calls `free_claude_code.verdict.cli:main`.
-- `fcc-trace` calls `free_claude_code.observability.cli:main`.
+- `llmux-server` and `llmux` call `llmux.cli.entrypoints:serve`.
+- `llmux-init` calls `llmux.cli.entrypoints:init`.
+- `llmux-claude` calls `llmux.cli.launchers.claude:launch`.
+- `llmux-verdict` calls `llmux.verdict.cli:main`.
+- `llmux-trace` calls `llmux.observability.cli:main`.
 
 [scripts/install.sh](scripts/install.sh) and [scripts/install.ps1](scripts/install.ps1)
 install or update the uv tool. [scripts/uninstall.sh](scripts/uninstall.sh)
-and [scripts/uninstall.ps1](scripts/uninstall.ps1) remove only the FCC uv tool and always
-delete the managed `~/.fcc/` tree from [config/paths.py](src/free_claude_code/config/paths.py); they do not remove
+and [scripts/uninstall.ps1](scripts/uninstall.ps1) remove only the LLMux uv tool and always
+delete the managed `~/.llmux/` tree from [config/paths.py](src/llmux/config/paths.py); they do not remove
 uv, Claude Code, or uv-managed Python runtimes. [scripts/ci.sh](scripts/ci.sh) and
 [scripts/ci.ps1](scripts/ci.ps1) mirror [.github/workflows/tests.yml](.github/workflows/tests.yml)
 for local pre-push verification.
 
-[cli/entrypoints.py](src/free_claude_code/cli/entrypoints.py) starts the FastAPI server with Uvicorn.
+[cli/entrypoints.py](src/llmux/cli/entrypoints.py) starts the FastAPI server with Uvicorn.
 `serve()` migrates legacy env files when needed, loads cached settings, runs a
 supervised server instance, and can restart the server after admin config changes.
 An Admin restart constructs the next instance only when the prior
@@ -195,35 +195,35 @@ incomplete ASGI shutdown therefore exits the supervisor instead of overlapping
 old and replacement graphs. On final shutdown it best-effort kills registered
 child processes.
 
-[runtime/bootstrap.py](src/free_claude_code/runtime/bootstrap.py) is the single production composition function. The CLI
+[runtime/bootstrap.py](src/llmux/runtime/bootstrap.py) is the single production composition function. The CLI
 supervisor supplies one settings snapshot and its restart callback; bootstrap
 configures logging, constructs the runtime owners, constructs the explicit
 `ApiServices` composition value, and returns the ASGI application. Provider
 request leases satisfy the consumer-owned ports in
-[application/ports.py](src/free_claude_code/application/ports.py); Admin operations retain
-their inbound-adapter port in [api/ports.py](src/free_claude_code/api/ports.py).
+[application/ports.py](src/llmux/application/ports.py); Admin operations retain
+their inbound-adapter port in [api/ports.py](src/llmux/api/ports.py).
 
-[api/app.py](src/free_claude_code/api/app.py) registers routers and exception
+[api/app.py](src/llmux/api/app.py) registers routers and exception
 handlers around an explicit `ApiServices` value, then wraps the application in a
 pure ASGI correlation boundary. The boundary surrounds the complete wire send;
 it does not proxy streaming responses through `BaseHTTPMiddleware`. The API does
 not read global settings or construct runtime resources.
 `app.state.services` is the only runtime state published to FastAPI.
 
-[runtime/application.py](src/free_claude_code/runtime/application.py) owns process startup and shutdown, Admin pending
+[runtime/application.py](src/llmux/runtime/application.py) owns process startup and shutdown, Admin pending
 state, and the injected restart callback. Shutdown is serialized: it closes the
 provider manager and releases an owner reference only after its cleanup
 succeeds; cancellation or failure leaves the incomplete graph retryable, and the
 ASGI adapter reports that incomplete graph as lifespan shutdown failure. Cleanup
 is completion-driven: generic timeouts do not cancel half-closed external
 resources; the process supervisor owns any force-termination deadline.
-[runtime/asgi.py](src/free_claude_code/runtime/asgi.py) drives that owner from ASGI lifespan messages and preserves
+[runtime/asgi.py](src/llmux/runtime/asgi.py) drives that owner from ASGI lifespan messages and preserves
 the concise startup-failure contract.
 
-[runtime/provider_manager.py](src/free_claude_code/runtime/provider_manager.py) is the only owner that constructs, publishes,
+[runtime/provider_manager.py](src/llmux/runtime/provider_manager.py) is the only owner that constructs, publishes,
 retires, and closes provider generations. Each request acquires a generation
 lease before routing. Non-streaming responses release it after aggregation;
-streaming responses bind it to FCC's response owner, which first closes the
+streaming responses bind it to LLMux's response owner, which first closes the
 entire body chain and then releases the lease on completion, failure,
 cancellation, disconnect, or a response-start send failure. A provider-only
 Admin Apply prepares a candidate and commits configuration before publication.
@@ -242,27 +242,27 @@ Claude clients may independently retain the list they fetched at startup.
 
 ## Configuration Model
 
-[config/settings.py](src/free_claude_code/config/settings.py) owns the flat Pydantic Settings schema:
+[config/settings.py](src/llmux/config/settings.py) owns the flat Pydantic Settings schema:
 raw env fields, validation, and `get_settings()`. It should not own routing,
 model-ref parsing, launcher defaults, or web-tool policy. Dotenv discovery lives
-in [config/env_files.py](src/free_claude_code/config/env_files.py) and uses this order:
+in [config/env_files.py](src/llmux/config/env_files.py) and uses this order:
 
 1. repo-local `.env`;
-2. managed `~/.fcc/.env`;
-3. optional `FCC_ENV_FILE`, appended when present.
+2. managed `~/.llmux/.env`;
+3. optional `LLMUX_ENV_FILE`, appended when present.
 
 Later dotenv files override earlier dotenv files. Process environment variables
 also participate through Pydantic settings resolution. `ANTHROPIC_AUTH_TOKEN`
 has an extra guard after settings are built: if any configured dotenv file
 defines it, that dotenv value replaces a stale inherited shell token. Auth-token
-source detection for startup warnings also belongs to `src/free_claude_code/config/env_files.py`.
+source detection for startup warnings also belongs to `src/llmux/config/env_files.py`.
 
-[config/paths.py](src/free_claude_code/config/paths.py) defines managed paths:
+[config/paths.py](src/llmux/config/paths.py) defines managed paths:
 
-- config directory: `~/.fcc`;
-- managed env file: `~/.fcc/.env`;
-- server log: `~/.fcc/logs/server.log`;
-- Verdict MCP server log: `~/.fcc/logs/verdict-mcp.log`.
+- config directory: `~/.llmux`;
+- managed env file: `~/.llmux/.env`;
+- server log: `~/.llmux/logs/server.log`;
+- Verdict MCP server log: `~/.llmux/logs/verdict-mcp.log`.
 
 Model routing configuration is tiered:
 
@@ -272,16 +272,16 @@ Model routing configuration is tiered:
 - `ENABLE_FABLE_THINKING`, `ENABLE_OPUS_THINKING`, `ENABLE_SONNET_THINKING`, and
   `ENABLE_HAIKU_THINKING` optionally override thinking by tier.
 
-[config/model_refs.py](src/free_claude_code/config/model_refs.py) owns provider-prefixed model ref
+[config/model_refs.py](src/llmux/config/model_refs.py) owns provider-prefixed model ref
 parsing and configured `MODEL*` inventory. API routing and provider validation
 depend on those helpers instead of adding behavior methods to Settings.
 
-[config/admin/](src/free_claude_code/config/admin/) owns the Admin UI config manifest and
+[config/admin/](src/llmux/config/admin/) owns the Admin UI config manifest and
 managed env writes. Provider credential, local URL, proxy, and display-name
-metadata is generated from [config/provider_catalog.py](src/free_claude_code/config/provider_catalog.py);
+metadata is generated from [config/provider_catalog.py](src/llmux/config/provider_catalog.py);
 admin-only help text stays beside the admin manifest. The package splits source
 loading, value presentation, validation, persistence, and provider status into
-separate modules. [api/admin_routes.py](src/free_claude_code/api/admin_routes.py) exposes local-only
+separate modules. [api/admin_routes.py](src/llmux/api/admin_routes.py) exposes local-only
 admin endpoints that load and validate config, then delegate runtime operations
 through `AdminRuntimePort`. Provider-only Apply prepares prospective settings,
 atomically commits the managed env, and publishes a new provider generation.
@@ -289,7 +289,7 @@ Restart-required changes preserve the existing supervisor restart flow and do
 not publish an in-process generation first.
 
 [.env.example](.env.example) is the single install/init/admin template source.
-It is packaged as a [src/free_claude_code/config/](src/free_claude_code/config/) resource for `fcc-init` and Admin UI
+It is packaged as a [src/llmux/config/](src/llmux/config/) resource for `llmux-init` and Admin UI
 template defaults; runtime settings do not read it as a live config file.
 
 Admin routes call `require_loopback_admin()`, which rejects non-loopback clients
@@ -297,7 +297,7 @@ and non-local origins.
 
 ## HTTP Request Flow
 
-[api/routes.py](src/free_claude_code/api/routes.py) exposes the public proxy routes:
+[api/routes.py](src/llmux/api/routes.py) exposes the public proxy routes:
 
 - `POST /v1/messages`: Anthropic Messages-compatible streaming requests.
 - `POST /v1/messages/count_tokens`: Anthropic token counting.
@@ -305,17 +305,17 @@ and non-local origins.
 - `GET /health`: health check.
 - `HEAD` and `OPTIONS` probes for compatibility on supported endpoints.
 
-Admin routes live beside these in [api/admin_routes.py](src/free_claude_code/api/admin_routes.py).
+Admin routes live beside these in [api/admin_routes.py](src/llmux/api/admin_routes.py).
 
 Authentication is handled by `require_proxy_auth()` in
-[api/dependencies.py](src/free_claude_code/api/dependencies.py). If `ANTHROPIC_AUTH_TOKEN` is blank,
-proxy auth is disabled. Otherwise FCC accepts exactly `Authorization: Bearer
+[api/dependencies.py](src/llmux/api/dependencies.py). If `ANTHROPIC_AUTH_TOKEN` is blank,
+proxy auth is disabled. Otherwise LLMux accepts exactly `Authorization: Bearer
 <token>`. Other credential headers are ignored, so a stale provider API key
 cannot mask valid proxy authorization. The complete bearer token is compared
 in constant time; no model suffix or other token mutation is accepted.
 
 HTTP request correlation is owned at ingress. A pure ASGI boundary creates one
-opaque FCC request ID before routing, places it in log context and request state,
+opaque LLMux request ID before routing, places it in log context and request state,
 and adds `request-id` while forwarding the actual `http.response.start` message.
 The shared model catalog also exposes the same
 value as `x-request-id`. Provider execution and trace events receive that
@@ -325,27 +325,27 @@ response lifetime finalization under the concrete response owner. Starlette's
 outer server-error boundary bypasses user middleware for its catch-all 500, so
 that one handler explicitly attaches the same ingress-owned headers.
 
-[api/handlers/](src/free_claude_code/api/handlers/) owns the public API product flows.
+[api/handlers/](src/llmux/api/handlers/) owns the public API product flows.
 `MessagesHandler` validates non-empty messages, resolves models, applies
 Claude-only safety-classifier and local optimization policy, handles local web
 server tools, then streams Anthropic SSE. `TokenCountHandler`
 owns Anthropic token counting. Shared provider execution lives in
-[application/execution.py](src/free_claude_code/application/execution.py). `ProviderExecutor` resolves the narrow
+[application/execution.py](src/llmux/application/execution.py). `ProviderExecutor` resolves the narrow
 consumer-owned `ProviderPort`, synchronously preflights the upstream request,
 emits trace events, counts input tokens, and returns an Anthropic SSE iterator.
 It receives only a provider resolver and the few scalar collaborators it needs;
 it does not depend on FastAPI, provider implementations, or the full settings
 object.
-[api/response_streams.py](src/free_claude_code/api/response_streams.py) owns public streaming egress
+[api/response_streams.py](src/llmux/api/response_streams.py) owns public streaming egress
 commit timing. It waits for the first protocol chunk before returning a
-successful FCC-owned `StreamingResponse`. Its explicit replay iterator owns the
+successful LLMux-owned `StreamingResponse`. Its explicit replay iterator owns the
 prefetched stream even before replay begins. The response itself owns one
 idempotent finalization task: close the body transitively, then release the
 provider-generation lease. This finalizer surrounds the real ASGI send and runs
 to completion even when sending headers or the first body frame fails. A provider
 execution failure before that commit boundary remains a real typed non-2xx JSON
-response. Once FCC has finalized the failure, the response includes
-`x-should-retry: false` so FCC retains ownership of upstream retry/recovery
+response. Once LLMux has finalized the failure, the response includes
+`x-should-retry: false` so LLMux retains ownership of upstream retry/recovery
 without causing a second client retry loop. After the first chunk has escaped,
 HTTP status is committed; Messages emits an Anthropic `event: error` and closes
 without a synthetic `message_stop`. Messages are non-streaming unless the client explicitly
@@ -400,17 +400,17 @@ sequenceDiagram
 
 ## Model Routing
 
-[application/routing.py](src/free_claude_code/application/routing.py) resolves incoming client model names.
+[application/routing.py](src/llmux/application/routing.py) resolves incoming client model names.
 It supports two forms:
 
 - Direct provider model refs such as `nvidia_nim/nvidia/model-name`.
-- Gateway model IDs decoded by [core/gateway_model_ids.py](src/free_claude_code/core/gateway_model_ids.py).
+- Gateway model IDs decoded by [core/gateway_model_ids.py](src/llmux/core/gateway_model_ids.py).
 
 If the incoming model is not direct, `ModelRouter` maps it by Claude tier. Names
 containing `fable`, `opus`, `sonnet`, or `haiku` use the matching tier override when set,
 otherwise they fall back to `MODEL`.
 
-[application/auto_router.py](src/free_claude_code/application/auto_router.py) owns
+[application/auto_router.py](src/llmux/application/auto_router.py) owns
 optional dynamic routing. It is off by default; when `MODEL_ROUTING_MODE=auto`,
 a fast operator-configured classifier model (`MODEL_CLASSIFIER`) picks among the
 operator's already-configured chat models before static resolution. The
@@ -440,15 +440,15 @@ the last useful model list. Discovery failures retain prior entries.
 ## Provider Architecture
 
 Provider metadata is neutral and centralized in
-[config/provider_catalog.py](src/free_claude_code/config/provider_catalog.py). Each
+[config/provider_catalog.py](src/llmux/config/provider_catalog.py). Each
 `ProviderDescriptor` declares provider ID, display name, locality, credential env
 var, default base URL, settings attribute names, and proxy support. It does not
 select a concrete adapter.
 
-[providers/runtime/](src/free_claude_code/providers/runtime/) owns construction details for one
+[providers/runtime/](src/llmux/providers/runtime/) owns construction details for one
 closable provider generation: construction policy, resolved provider
 configuration, lazy provider instances, provider-owned rate limiters, and
-cleanup. [providers/runtime/factory.py](src/free_claude_code/providers/runtime/factory.py)
+cleanup. [providers/runtime/factory.py](src/llmux/providers/runtime/factory.py)
 constructs ordinary provider IDs from `OPENAI_CHAT_PROFILES` and keeps a sparse
 factory mapping only for adapters with real state or algorithms. The union of
 those two construction owners must exactly equal the neutral provider catalog.
@@ -469,18 +469,18 @@ configured-model validation belong to `ProviderRuntimeManager` in the runtime
 package. This separates a single generation's resources from process-lifetime
 state.
 
-[application/model_metadata.py](src/free_claude_code/application/model_metadata.py) owns the immutable
+[application/model_metadata.py](src/llmux/application/model_metadata.py) owns the immutable
 `ProviderModelInfo` value consumed by the application catalog. Provider-specific
 model-list modules retain response parsing and construct that value directly;
 there is no provider-layer alias for the former owner.
 
-[application/ports.py](src/free_claude_code/application/ports.py) defines the two provider operations consumed by request
+[application/ports.py](src/llmux/application/ports.py) defines the two provider operations consumed by request
 execution: synchronous `preflight_stream()` and lazy `stream_response()`. API
 handlers and application execution depend on that structural port, never on a
 provider base class. Provider adapters implement it without registration or a
 compatibility layer.
 
-[providers/base.py](src/free_claude_code/providers/base.py) defines provider-internal construction and lifecycle contracts:
+[providers/base.py](src/llmux/providers/base.py) defines provider-internal construction and lifecycle contracts:
 
 - `ProviderConfig`: shared provider settings such as API key, base URL, rate
   limits, timeouts, proxy, thinking, and logging flags. It is a frozen internal
@@ -489,7 +489,7 @@ compatibility layer.
   explicit preflight, and `stream_response()`.
 
 There is one upstream provider family:
-[providers/openai_chat/](src/free_claude_code/providers/openai_chat/) implements the concrete
+[providers/openai_chat/](src/llmux/providers/openai_chat/) implements the concrete
 `OpenAIChatProvider` used by every OpenAI-compatible `/chat/completions`
 upstream. `OpenAIChatProfile` contains immutable request policy, its standard
 streamed-reasoning field, postprocessors, and base-URL normalization for
@@ -526,10 +526,10 @@ profiles for their thinking, token, and `extra_body` policy. Z.ai is treated as
 the GLM Coding Plan provider and uses Z.ai's Coding Plan OpenAI base.
 Mistral La Plateforme keeps its native `reasoning_effort` and thinking-chunk
 request/stream mapping inside
-[providers/mistral/reasoning.py](src/free_claude_code/providers/mistral/reasoning.py), including its
+[providers/mistral/reasoning.py](src/llmux/providers/mistral/reasoning.py), including its
 fallback retry when a selected Mistral model rejects reasoning fields.
 NIM reasoning budget control is also treated as a provider-owned best-effort
-downgrade: if an upstream NIM deployment rejects explicit budget control, FCC
+downgrade: if an upstream NIM deployment rejects explicit budget control, LLMux
 retries without the budget while preserving thinking enablement.
 
 Shared provider responsibilities include upstream rate limiting, model listing,
@@ -556,14 +556,14 @@ usage quirks such as DeepSeek prompt-cache counters.
 
 ### Adding A Provider
 
-1. Add provider metadata to [config/provider_catalog.py](src/free_claude_code/config/provider_catalog.py).
-2. Add credentials and related settings to [config/settings.py](src/free_claude_code/config/settings.py)
+1. Add provider metadata to [config/provider_catalog.py](src/llmux/config/provider_catalog.py).
+2. Add credentials and related settings to [config/settings.py](src/llmux/config/settings.py)
    and [.env.example](.env.example) when user configurable.
 3. Let Admin UI provider credential, local URL, and proxy fields come from the
    catalog. Add admin-only help text or provider-specific fields under
-   [config/admin/](src/free_claude_code/config/admin/) only when the generated manifest is
+   [config/admin/](src/llmux/config/admin/) only when the generated manifest is
    insufficient.
-4. Add an `OpenAIChatProfile` under [providers/openai_chat/](src/free_claude_code/providers/openai_chat/) when
+4. Add an `OpenAIChatProfile` under [providers/openai_chat/](src/llmux/providers/openai_chat/) when
    request policy fully describes the upstream.
 5. Add a specialized provider package and sparse factory entry only when the
    upstream owns state, model-list behavior, stream events, or retry algorithms
@@ -577,7 +577,7 @@ usage quirks such as DeepSeek prompt-cache counters.
 
 ## Protocol Conversion And Streaming Contracts
 
-[src/free_claude_code/core/anthropic/](src/free_claude_code/core/anthropic/) owns Anthropic-side protocol behavior:
+[src/llmux/core/anthropic/](src/llmux/core/anthropic/) owns Anthropic-side protocol behavior:
 
 - `models.py` defines the permissive Messages and token-count wire requests,
   content/tool/thinking blocks, and Anthropic response envelopes;
@@ -587,7 +587,7 @@ usage quirks such as DeepSeek prompt-cache counters.
 - request serialization primitives shared by provider request policies;
 - tool schema and tool-result handling;
 - thinking block handling;
-- stream lifecycle through `src/free_claude_code/core/anthropic/streaming`, including the neutral
+- stream lifecycle through `src/llmux/core/anthropic/streaming`, including the neutral
   stream ledger, Anthropic SSE emitter, continuation-body construction, and tool repair;
 - token counting and Anthropic-owned failure-kind-to-wire mapping.
 
@@ -599,21 +599,21 @@ while any deliberate provider-specific attachment removal remains explicit
 compatibility policy.
 
 Shared stream behavior lives under
-[src/free_claude_code/core/anthropic/streaming/](src/free_claude_code/core/anthropic/streaming/). The shared layer owns the
+[src/llmux/core/anthropic/streaming/](src/llmux/core/anthropic/streaming/). The shared layer owns the
 Anthropic content-block ledger, SSE serialization, continuation request
 transformations, and tool JSON repair. It does not import `httpx` or the OpenAI
 SDK and does not decide whether an upstream failure is retryable.
 
-[core/failures.py](src/free_claude_code/core/failures.py) defines the immutable,
+[core/failures.py](src/llmux/core/failures.py) defines the immutable,
 protocol-neutral `FailureKind` and `ExecutionFailure`. The exception is the
 value propagated through async iterators; its semantic fields are immutable,
 while Python remains free to attach traceback/cause metadata during unwinding.
-[core/diagnostics.py](src/free_claude_code/core/diagnostics.py) owns bounded error
+[core/diagnostics.py](src/llmux/core/diagnostics.py) owns bounded error
 body/cause extraction, credential redaction, safe traceback formatting, and
 copyable request-ID diagnostics. The Anthropic package maps the canonical kind
 and status to its wire error types.
 
-[providers/failure_policy.py](src/free_claude_code/providers/failure_policy.py)
+[providers/failure_policy.py](src/llmux/providers/failure_policy.py)
 owns generic raw OpenAI SDK and `httpx` exception classification,
 transient status/body inference, stable provider wording, and final diagnostic
 construction for those failures.
@@ -627,11 +627,11 @@ shared redaction and diagnostic path. For NVCF's function-scoped failure this
 deliberately keeps the simple one-limiter-per-provider policy; a degraded NIM
 function can therefore briefly delay other NIM models during backoff. No
 provider-specific marker enters `core/`, another provider, or an API adapter.
-[providers/stream_recovery.py](src/free_claude_code/providers/stream_recovery.py)
+[providers/stream_recovery.py](src/llmux/providers/stream_recovery.py)
 owns the 0.75-second/65,536-byte holdback, four transparent early retries after
 the first attempt, and five midstream recovery attempts. Provider opening keeps
 its existing five-attempt exponential-backoff budget. `ExecutionFailure.retryable`
-records provider-policy eligibility; it never tells the client to retry after FCC
+records provider-policy eligibility; it never tells the client to retry after LLMux
 has finalized the failure.
 
 The OpenAI-chat provider remains an upstream adapter: it converts OpenAI chat
@@ -654,7 +654,7 @@ for shared Anthropic behavior.
 
 ## Local Optimizations And Server Tools
 
-[api/optimization_handlers.py](src/free_claude_code/api/optimization_handlers.py) short-circuits
+[api/optimization_handlers.py](src/llmux/api/optimization_handlers.py) short-circuits
 common low-value client requests before they reach a provider:
 
 - quota probes;
@@ -673,9 +673,9 @@ so Claude Code receives a parser-readable `<block>yes</block>` or
 `<block>no</block>` verdict.
 
 Local `web_search` and `web_fetch` handling lives under
-[api/web_tools/](src/free_claude_code/api/web_tools/). When `ENABLE_WEB_SERVER_TOOLS` is true, the
+[api/web_tools/](src/llmux/api/web_tools/). When `ENABLE_WEB_SERVER_TOOLS` is true, the
 Messages handler can stream local Anthropic server-tool responses without sending the
-request upstream. [api/web_tools/egress.py](src/free_claude_code/api/web_tools/egress.py) enforces URL
+request upstream. [api/web_tools/egress.py](src/llmux/api/web_tools/egress.py) enforces URL
 scheme and private-network restrictions for `web_fetch`.
 
 Anthropic server-tool definitions are never passed to upstream OpenAI Chat
@@ -685,38 +685,38 @@ otherwise the Messages handler rejects them before provider execution.
 
 ## CLI Launcher
 
-[cli/proxy_auth.py](src/free_claude_code/cli/proxy_auth.py) owns the neutral
+[cli/proxy_auth.py](src/llmux/cli/proxy_auth.py) owns the neutral
 proxy-auth token policy shared by client launchers. A blank configured token
-becomes the local-only `fcc-no-auth` sentinel so clients cross their login gates
-while FCC continues to run without API authentication.
+becomes the local-only `llmux-no-auth` sentinel so clients cross their login gates
+while LLMux continues to run without API authentication.
 
-[cli/claude_env.py](src/free_claude_code/cli/claude_env.py) owns the canonical
-Claude Code proxy environment used by every FCC-launched Claude process. It
+[cli/claude_env.py](src/llmux/cli/claude_env.py) owns the canonical
+Claude Code proxy environment used by every LLMux-launched Claude process. It
 strips inherited `ANTHROPIC_*` variables, sets `ANTHROPIC_BASE_URL`, enables
 gateway model discovery, configures the auto-compact window, disables
 nonessential Anthropic traffic, and always sets `ANTHROPIC_AUTH_TOKEN`. Blank
 proxy auth uses the shared local-only sentinel so Claude Code reaches the proxy
 instead of stopping at its login gate.
 
-[cli/launchers/claude.py](src/free_claude_code/cli/launchers/claude.py) owns the installed
-`fcc-claude` launcher:
+[cli/launchers/claude.py](src/llmux/cli/launchers/claude.py) owns the installed
+`llmux-claude` launcher:
 
-- `fcc-claude` applies the shared proxy environment without changing the user's
+- `llmux-claude` applies the shared proxy environment without changing the user's
   Claude command arguments.
 
-[cli/launchers/common.py](src/free_claude_code/cli/launchers/common.py) owns the
+[cli/launchers/common.py](src/llmux/cli/launchers/common.py) owns the
 shared launcher process helpers: the proxy `/health` preflight, client binary
 resolution, and running the wrapped client with child-PID registration through
-[cli/process_registry.py](src/free_claude_code/cli/process_registry.py).
+[cli/process_registry.py](src/llmux/cli/process_registry.py).
 
 ## Observability, Diagnostics, And Safety
 
-[core/trace.py](src/free_claude_code/core/trace.py) emits structured trace events across stages such
+[core/trace.py](src/llmux/core/trace.py) emits structured trace events across stages such
 as ingress, routing, provider, and egress. Trace
 payloads are intended to connect API and provider activity
 without requiring raw transport logs by default.
-[observability/turn_trace.py](src/free_claude_code/observability/turn_trace.py)
-consumes the managed server log to render `fcc-trace` per-turn summaries,
+[observability/turn_trace.py](src/llmux/observability/turn_trace.py)
+consumes the managed server log to render `llmux-trace` per-turn summaries,
 including the model that actually served each turn.
 
 Logging defaults are conservative:
@@ -784,9 +784,9 @@ when maintainers want branch-level assurance.
 
 ### Add An Admin Setting
 
-1. Add or expose the setting in [config/settings.py](src/free_claude_code/config/settings.py).
+1. Add or expose the setting in [config/settings.py](src/llmux/config/settings.py).
 2. Add the template key to [.env.example](.env.example) if users configure it.
-3. Add a `ConfigFieldSpec` under [config/admin/](src/free_claude_code/config/admin/), or add
+3. Add a `ConfigFieldSpec` under [config/admin/](src/llmux/config/admin/), or add
    provider catalog metadata when the setting is provider credential, local URL,
    proxy, or display-name metadata.
 4. Mark `restart_required` or `session_sensitive` when runtime state cannot be
@@ -796,13 +796,13 @@ when maintainers want branch-level assurance.
 ### Add Or Change A Client Surface
 
 1. For an installed wrapper, add or update a launcher under
-   [cli/launchers/](src/free_claude_code/cli/launchers/) and keep credential stripping local to that
+   [cli/launchers/](src/llmux/cli/launchers/) and keep credential stripping local to that
    client.
 2. Add launcher and customer-flow tests under [tests/cli/](tests/cli/).
 
 ### Add Protocol Behavior
 
-1. Put shared Anthropic behavior under [src/free_claude_code/core/anthropic/](src/free_claude_code/core/anthropic/).
+1. Put shared Anthropic behavior under [src/llmux/core/anthropic/](src/llmux/core/anthropic/).
 2. Keep provider-specific request quirks inside the provider profile or specialized
    provider subclass.
 3. Add stream contract tests under [tests/contracts/](tests/contracts/) or
