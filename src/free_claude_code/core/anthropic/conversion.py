@@ -191,6 +191,23 @@ def _openai_user_image_part(block: Any) -> dict[str, Any]:
     return {"type": "image_url", "image_url": {"url": url}}
 
 
+def _openai_user_document_part(block: Any) -> dict[str, Any]:
+    """Convert one Anthropic user document block to a plain text part."""
+    source = get_block_attr(block, "source", {})
+    source_type = get_block_attr(source, "type")
+
+    if source_type == "text":
+        data = get_block_attr(source, "data")
+        if not isinstance(data, str):
+            raise OpenAIConversionError("Text document source requires string data.")
+        return {"type": "text", "text": data}
+
+    raise OpenAIConversionError(
+        f"Unsupported document source type {source_type!r} for OpenAI chat "
+        "conversion; only plain-text documents are supported."
+    )
+
+
 class _OpenAIChatHistoryLedger:
     """Assemble OpenAI chat history while respecting tool-result dependencies."""
 
@@ -552,6 +569,8 @@ class AnthropicToOpenAIConverter:
                 )
             elif block_type == "image":
                 content_parts.append(_openai_user_image_part(block))
+            elif block_type == "document":
+                content_parts.append(_openai_user_document_part(block))
             elif block_type == "tool_result":
                 flush_content()
                 tool_content = get_block_attr(block, "content", "")
