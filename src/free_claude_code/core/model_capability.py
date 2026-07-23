@@ -79,7 +79,12 @@ _CONTEXT_WINDOW_TOKENS: tuple[tuple[str, int], ...] = (
 
 
 def known_context_window(model_id: str) -> int | None:
-    """Approximate context window (tokens) for a model id, or None if unknown."""
+    """Approximate context window (tokens) for a model id, or None if unknown.
+
+    Pass the model name without its provider prefix: a prefix such as
+    ``gemini/`` would otherwise match the ``gemini`` family token and claim
+    a 1M window for any model hosted there.
+    """
     lowered = model_id.lower()
     for token, window in _CONTEXT_WINDOW_TOKENS:
         if token in lowered:

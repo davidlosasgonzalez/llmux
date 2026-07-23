@@ -11,7 +11,7 @@ from datetime import UTC, datetime
 from loguru import logger
 
 from free_claude_code.application.routing import ModelRouter, RoutedMessagesRequest
-from free_claude_code.config.model_refs import parse_provider_type
+from free_claude_code.config.model_refs import parse_model_name, parse_provider_type
 from free_claude_code.core.model_capability import known_context_window
 from free_claude_code.core.quota import (
     DailyExhaustionStore,
@@ -87,7 +87,10 @@ async def stream_with_precommit_fallback(
         if tracker.is_blocked(provider):
             errors.append(f"{model_ref}: blocked ({tracker.block_reason(provider)})")
             continue
-        window = known_context_window(model_ref)
+        # Match on the model name alone: the provider prefix must not decide
+        # the window (e.g. ``gemini/gemma-...`` is not a 1M-context model).
+        model_name = parse_model_name(model_ref) if "/" in model_ref else model_ref
+        window = known_context_window(model_name)
         if (
             input_tokens is not None
             and window is not None
@@ -134,10 +137,10 @@ async def stream_with_precommit_fallback(
                 raise
             kind = classify_failure(exc)
             tracker.note_failure(provider, kind, retry_after=retry_after_seconds(exc))
-            if (
-                kind in {FailureKind.QUOTA_EXHAUSTED, FailureKind.RATE_LIMITED}
-                and exhaustion is not None
-            ):
+            # Only true quota exhaustion is remembered for the rest of the UTC
+            # day; transient rate limits already get the tracker's short
+            # cool-off and must not veto a candidate until midnight.
+            if kind is FailureKind.QUOTA_EXHAUSTED and exhaustion is not None:
                 day = datetime.now(UTC).strftime("%Y-%m-%d")
                 exhaustion.record_exhaustion(model_ref, provider, day)
             if kind not in _FALLBACK_KINDS:

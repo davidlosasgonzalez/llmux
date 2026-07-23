@@ -1,5 +1,7 @@
 """Unit tests for pre-commit model fallback (C2)."""
 
+from datetime import UTC, datetime
+
 import pytest
 
 from free_claude_code.application.fallback import (
@@ -11,7 +13,7 @@ from free_claude_code.application.routing import ModelRouter, RoutedMessagesRequ
 from free_claude_code.config.model_refs import parse_model_fallbacks
 from free_claude_code.config.settings import Settings
 from free_claude_code.core.anthropic import Message, MessagesRequest
-from free_claude_code.core.quota import QuotaTracker
+from free_claude_code.core.quota import DailyExhaustionStore, QuotaTracker
 
 
 def test_parse_and_candidates():
@@ -71,6 +73,55 @@ async def test_precommit_fallback_skips_failing_primary():
     assert chunks == ["event: message_start\ndata: {}\n\n"]
     assert any("llama" in c for c in calls)
     assert any("gpt-oss" in c for c in calls)
+
+
+async def _run_fallback_with_failure(tmp_path, failure_message: str) -> set[str]:
+    """Fail the primary with ``failure_message``; return today's exhausted keys."""
+    settings = Settings(
+        model="groq/llama-3.3-70b-versatile",
+        model_fallbacks="cerebras/gpt-oss-120b",
+    )
+    router = ModelRouter(settings)
+    request = MessagesRequest(
+        model="claude-sonnet-4-5",
+        max_tokens=64,
+        messages=[Message(role="user", content="hi")],
+    )
+    template = router.resolve_messages_request(request)
+    exhaustion = DailyExhaustionStore(tmp_path / "quota.db")
+
+    async def open_stream(routed: RoutedMessagesRequest):
+        if "llama" in routed.resolved.provider_model_ref:
+            raise RuntimeError(failure_message)
+        yield "event: message_start\ndata: {}\n\n"
+
+    async for _ in stream_with_precommit_fallback(
+        template=template,
+        candidates=["groq/llama-3.3-70b-versatile", "cerebras/gpt-oss-120b"],
+        router=router,
+        open_stream=open_stream,
+        exhaustion=exhaustion,
+        request_id="test",
+    ):
+        pass
+    day = datetime.now(UTC).strftime("%Y-%m-%d")
+    exhausted = exhaustion.exhausted_keys(day)
+    exhaustion.close()
+    return exhausted
+
+
+@pytest.mark.asyncio
+async def test_transient_rate_limit_does_not_exhaust_model_for_the_day(tmp_path):
+    exhausted = await _run_fallback_with_failure(tmp_path, "429 rate limit exceeded")
+    assert exhausted == set()
+
+
+@pytest.mark.asyncio
+async def test_quota_exhaustion_is_recorded_for_the_day(tmp_path):
+    exhausted = await _run_fallback_with_failure(
+        tmp_path, "429 rate limit: daily quota exhausted"
+    )
+    assert exhausted == {"groq/llama-3.3-70b-versatile"}
 
 
 @pytest.mark.asyncio
@@ -219,6 +270,41 @@ async def test_precommit_fallback_keeps_candidate_with_unknown_window():
 
     assert chunks == ["event: message_start\ndata: {}\n\n"]
     assert calls == ["groq/somebrand-newmodel-9000"]
+
+
+@pytest.mark.asyncio
+async def test_precommit_fallback_ignores_provider_prefix_for_context_window():
+    """``gemini/gemma-...`` must not inherit gemini's 1M window from the prefix."""
+    settings = Settings(model="gemini/gemma-3-27b-it")
+    router = ModelRouter(settings)
+    request = MessagesRequest(
+        model="claude-sonnet-4-5",
+        max_tokens=64,
+        messages=[Message(role="user", content="hi")],
+    )
+    template = router.resolve_messages_request(request)
+
+    calls: list[str] = []
+
+    async def open_stream(routed: RoutedMessagesRequest):
+        calls.append(routed.resolved.provider_model_ref)
+        yield "event: message_start\ndata: {}\n\n"
+
+    chunks = [
+        chunk
+        async for chunk in stream_with_precommit_fallback(
+            template=template,
+            candidates=["gemini/gemma-3-27b-it"],
+            router=router,
+            open_stream=open_stream,
+            request_id="test",
+            input_tokens=140_000,
+        )
+    ]
+
+    # Unknown window -> the candidate is attempted, never silently skipped.
+    assert chunks == ["event: message_start\ndata: {}\n\n"]
+    assert calls == ["gemini/gemma-3-27b-it"]
 
 
 @pytest.mark.asyncio
