@@ -73,6 +73,21 @@ def usage_int(usage_info: Any, key: str) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) else None
 
 
+def usage_nested_int(usage_info: Any, parent_key: str, key: str) -> int | None:
+    """Extract an integer from a nested usage object (e.g. prompt_tokens_details)."""
+    if usage_info is None:
+        return None
+    if isinstance(usage_info, Mapping):
+        parent = usage_info.get(parent_key)
+    else:
+        parent = getattr(usage_info, parent_key, None)
+        if parent is None:
+            extra = getattr(usage_info, "model_extra", None)
+            if isinstance(extra, Mapping):
+                parent = extra.get(parent_key)
+    return usage_int(parent, key)
+
+
 def _is_bad_request_like(error: Exception) -> bool:
     if isinstance(error, openai.BadRequestError):
         return True

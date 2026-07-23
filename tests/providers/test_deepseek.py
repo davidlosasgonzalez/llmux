@@ -704,8 +704,10 @@ async def test_stream_uses_chat_completions_and_maps_cache_usage(deepseek_provid
     usage = next(
         event.data["usage"] for event in parsed if event.event == "message_delta"
     )
+    # Anthropic semantics: input_tokens excludes cached reads/writes, so the
+    # 30 prompt tokens split fully into hit (10) + miss (20) and input is 0.
     assert usage == {
-        "input_tokens": 30,
+        "input_tokens": 0,
         "output_tokens": 3,
         "cache_read_input_tokens": 10,
         "cache_creation_input_tokens": 20,

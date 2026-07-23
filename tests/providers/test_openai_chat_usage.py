@@ -21,6 +21,7 @@ from free_claude_code.providers.openai_chat.usage import (
     is_stream_usage_rejection,
     request_stream_usage,
     usage_int,
+    usage_nested_int,
 )
 from tests.providers.request_factory import make_messages_request
 from tests.providers.support import passthrough_rate_limiter
@@ -135,6 +136,42 @@ def test_usage_int_reads_dict_object_and_model_extra():
     assert usage_int({"prompt_tokens": True}, "prompt_tokens") is None
 
 
+def test_usage_nested_int_reads_dict_object_and_model_extra():
+    assert (
+        usage_nested_int(
+            {"prompt_tokens_details": {"cached_tokens": 5}},
+            "prompt_tokens_details",
+            "cached_tokens",
+        )
+        == 5
+    )
+    assert (
+        usage_nested_int(
+            SimpleNamespace(prompt_tokens_details=SimpleNamespace(cached_tokens=9)),
+            "prompt_tokens_details",
+            "cached_tokens",
+        )
+        == 9
+    )
+    assert (
+        usage_nested_int(
+            SimpleNamespace(
+                model_extra={"prompt_tokens_details": {"cached_tokens": 2}}
+            ),
+            "prompt_tokens_details",
+            "cached_tokens",
+        )
+        == 2
+    )
+    assert usage_nested_int(None, "prompt_tokens_details", "cached_tokens") is None
+    assert (
+        usage_nested_int(
+            SimpleNamespace(prompt_tokens=3), "prompt_tokens_details", "cached_tokens"
+        )
+        is None
+    )
+
+
 def test_stream_usage_rejection_matches_usage_option_400():
     error = _bad_request(
         "Unrecognized request argument supplied: stream_options",
@@ -187,6 +224,73 @@ async def test_openai_chat_stream_requests_usage_and_uses_provider_prompt_tokens
         event.data["usage"] for event in parsed if event.event == "message_delta"
     )
     assert start_usage["input_tokens"] == 7
+    assert final_usage == {"input_tokens": 22, "output_tokens": 4}
+
+
+@pytest.mark.asyncio
+async def test_openai_chat_stream_reports_cached_tokens_and_uncached_input():
+    """Implicit-cache counters surface as cache_read and are excluded from input."""
+    provider = _UsageTestProvider()
+    request = make_messages_request(model="m")
+    usage = SimpleNamespace(
+        prompt_tokens=1_000,
+        completion_tokens=4,
+        prompt_tokens_details=SimpleNamespace(cached_tokens=600),
+    )
+    create = AsyncMock(
+        return_value=_stream(
+            [
+                _chunk(content="hello"),
+                _chunk(finish_reason="stop"),
+                _chunk(usage=usage),
+            ]
+        )
+    )
+
+    with patch.object(provider._client.chat.completions, "create", create):
+        events = [
+            event async for event in provider.stream_response(request, input_tokens=7)
+        ]
+
+    parsed = parse_sse_text("".join(events))
+    final_usage = next(
+        event.data["usage"] for event in parsed if event.event == "message_delta"
+    )
+    assert final_usage == {
+        "input_tokens": 400,
+        "output_tokens": 4,
+        "cache_read_input_tokens": 600,
+    }
+
+
+@pytest.mark.asyncio
+async def test_openai_chat_stream_omits_cache_fields_when_nothing_cached():
+    provider = _UsageTestProvider()
+    request = make_messages_request(model="m")
+    usage = SimpleNamespace(
+        prompt_tokens=22,
+        completion_tokens=4,
+        prompt_tokens_details=SimpleNamespace(cached_tokens=0),
+    )
+    create = AsyncMock(
+        return_value=_stream(
+            [
+                _chunk(content="hello"),
+                _chunk(finish_reason="stop"),
+                _chunk(usage=usage),
+            ]
+        )
+    )
+
+    with patch.object(provider._client.chat.completions, "create", create):
+        events = [
+            event async for event in provider.stream_response(request, input_tokens=7)
+        ]
+
+    parsed = parse_sse_text("".join(events))
+    final_usage = next(
+        event.data["usage"] for event in parsed if event.event == "message_delta"
+    )
     assert final_usage == {"input_tokens": 22, "output_tokens": 4}
 
 
