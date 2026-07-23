@@ -768,6 +768,52 @@ def test_convert_user_message_image_sources(source, expected_url):
     ]
 
 
+def test_convert_user_message_text_document_becomes_text_part():
+    messages = [
+        MockMessage(
+            "user",
+            [
+                MockBlock(type="text", text="Summarize this file:"),
+                MockBlock(
+                    type="document",
+                    source={
+                        "type": "text",
+                        "media_type": "text/plain",
+                        "data": "line one\nline two",
+                    },
+                ),
+            ],
+        )
+    ]
+
+    result = AnthropicToOpenAIConverter.convert_messages(messages)
+
+    # Text-only parts collapse into one plain string message.
+    assert result == [
+        {"role": "user", "content": "Summarize this file:\nline one\nline two"}
+    ]
+
+
+@pytest.mark.parametrize(
+    "source,error",
+    [
+        (
+            {"type": "base64", "media_type": "application/pdf", "data": "AAAA"},
+            "Unsupported document source type",
+        ),
+        ({"type": "file", "file_id": "file_1"}, "Unsupported document source type"),
+        ({"type": "text", "data": 7}, "string data"),
+        ({}, "Unsupported document source type"),
+    ],
+)
+def test_convert_user_message_rejects_unconvertible_documents(source, error):
+    """Documents must fail loudly instead of being dropped silently."""
+    messages = [MockMessage("user", [MockBlock(type="document", source=source)])]
+
+    with pytest.raises(OpenAIConversionError, match=error):
+        AnthropicToOpenAIConverter.convert_messages(messages)
+
+
 def test_convert_user_message_preserves_interleaved_image_text_order():
     messages = [
         MockMessage(
