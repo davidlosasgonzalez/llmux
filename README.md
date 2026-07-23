@@ -64,6 +64,22 @@ Windows PowerShell:
 
 Re-run the same command whenever you want to update. You can review the installers before running them: [install.sh](scripts/install.sh) and [install.ps1](scripts/install.ps1).
 
+#### Install From A Local Checkout
+
+If the repository is private (or you already deploy it via `git clone`), the
+one-line installers above return 404 because they download from GitHub without
+authentication. Install from the checkout instead:
+
+```bash
+git clone git@github.com:davidlosasgonzalez/llmux.git
+cd llmux
+uv tool install --force --python 3.14.0 .
+```
+
+To update later, run `git pull --ff-only` in the checkout and repeat the
+`uv tool install` command. The commands land in `~/.local/bin`; make sure that
+directory is on your `PATH` (required on servers with non-interactive shells).
+
 ### 2. Start The Server
 
 ```bash
