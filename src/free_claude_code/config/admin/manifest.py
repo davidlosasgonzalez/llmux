@@ -220,8 +220,9 @@ _NON_PROVIDER_FIELDS: tuple[ConfigFieldSpec, ...] = (
         default="4",
         description=(
             "Retries against the same provider on 429/5xx before failing. "
-            "Set 1 when MODEL_FALLBACKS is configured so requests fail over "
-            "to the next provider instead of waiting out long backoffs."
+            "Leave unset for the adaptive default: 4 without MODEL_FALLBACKS, "
+            "1 with MODEL_FALLBACKS so requests fail over to the next "
+            "provider instead of waiting out long backoffs."
         ),
     ),
     ConfigFieldSpec(

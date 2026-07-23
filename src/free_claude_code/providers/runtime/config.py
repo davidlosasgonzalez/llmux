@@ -37,6 +37,23 @@ def require_provider_credential(
     raise ApplicationUnavailableError(message)
 
 
+def effective_upstream_max_retries(settings: Settings) -> int:
+    """Resolve intra-provider retries, defaulting to 1 when fallbacks exist.
+
+    An explicit ``PROVIDER_UPSTREAM_MAX_RETRIES`` always wins. Without one,
+    a configured ``MODEL_FALLBACKS`` chain makes long same-provider backoffs
+    counterproductive: failing over to the next candidate is faster than
+    waiting out exponential retries against a rate-limited provider.
+    """
+    fields_set = getattr(settings, "model_fields_set", None)
+    explicit = (
+        isinstance(fields_set, set) and "provider_upstream_max_retries" in fields_set
+    )
+    if not explicit and string_setting(settings, "model_fallbacks").strip():
+        return 1
+    return settings.provider_upstream_max_retries
+
+
 def build_provider_config(
     descriptor: ProviderDescriptor, settings: Settings
 ) -> ProviderConfig:
@@ -58,7 +75,7 @@ def build_provider_config(
         rate_limit=settings.provider_rate_limit,
         rate_window=settings.provider_rate_window,
         max_concurrency=settings.provider_max_concurrency,
-        upstream_max_retries=settings.provider_upstream_max_retries,
+        upstream_max_retries=effective_upstream_max_retries(settings),
         http_read_timeout=settings.http_read_timeout,
         http_write_timeout=settings.http_write_timeout,
         http_connect_timeout=settings.http_connect_timeout,
