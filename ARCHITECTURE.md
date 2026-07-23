@@ -268,6 +268,10 @@ Model routing configuration is tiered:
 
 - `MODEL` is the fallback provider-prefixed model ref.
 - `MODEL_FABLE`, `MODEL_OPUS`, `MODEL_SONNET`, and `MODEL_HAIKU` override Claude model tiers.
+- `MODEL_FALLBACKS` is a comma-separated pre-commit fallback chain tried only
+  before the first SSE byte (see `application/fallback.py` below).
+- `MODEL_LONG_CONTEXT` is a rescue tier appended after `MODEL_FALLBACKS`, reached
+  only once every earlier candidate's context window is too small for the prompt.
 - `ENABLE_MODEL_THINKING` is the global thinking switch.
 - `ENABLE_FABLE_THINKING`, `ENABLE_OPUS_THINKING`, `ENABLE_SONNET_THINKING`, and
   `ENABLE_HAIKU_THINKING` optionally override thinking by tier.
@@ -336,6 +340,22 @@ emits trace events, counts input tokens, and returns an Anthropic SSE iterator.
 It receives only a provider resolver and the few scalar collaborators it needs;
 it does not depend on FastAPI, provider implementations, or the full settings
 object.
+[application/fallback.py](src/llmux/application/fallback.py) owns pre-commit
+model fallback: `stream_with_precommit_fallback` tries `MODEL`, then
+`MODEL_FALLBACKS`, then `MODEL_LONG_CONTEXT` in order, switching candidates only
+before the first chunk is yielded (never mid-stream). Each candidate is skipped
+if its known context window (`core/model_capability.known_context_window`) is
+too small for the request's input tokens, so an oversized prompt routes past
+narrow-window models straight to the configured long-context rescue tier. If
+every candidate is skipped this way with none ever attempted, it raises
+`ExecutionFailure(kind=INVALID_REQUEST, status_code=400)` with an
+Anthropic-style "prompt is too long" message instead of a bare `RuntimeError`,
+so the client gets a 400 it can act on (e.g. compact) rather than a 500 it
+would retry into the same wall.
+[application/model_lint.py](src/llmux/application/model_lint.py) derives
+advisory (non-blocking) startup warnings from the same static model-name
+heuristics, including one for a configured chain whose every known context
+window sits below 200k with no `MODEL_LONG_CONTEXT` set.
 [api/response_streams.py](src/llmux/api/response_streams.py) owns public streaming egress
 commit timing. It waits for the first protocol chunk before returning a
 successful LLMux-owned `StreamingResponse`. Its explicit replay iterator owns the

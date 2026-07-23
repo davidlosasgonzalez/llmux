@@ -135,18 +135,26 @@ Procedimiento manual:
 2. Excluir `github_models/*` (tope ~4k tokens/request).
 3. Poner el mejor como `MODEL`, el resto (2–3) en `MODEL_FALLBACKS` separados
    por comas.
-4. Contrastar con el último eval C1 (`docs/evals/…`).
-5. Reiniciar `llmux-server` para aplicar la config.
+4. Si toda la cadena `MODEL`+`MODEL_FALLBACKS` tiene ventana de contexto
+   parecida (p.ej. todos ~131k), fijar `MODEL_LONG_CONTEXT` a un modelo de
+   ventana grande (gemini, minimax, kimi) — si no, una conversación larga de
+   Claude Code puede agotar toda la cadena a la vez. `llmux-server` avisa de
+   esto al arrancar si falta.
+5. Contrastar con el último eval C1 (`docs/evals/…`).
+6. Reiniciar `llmux-server` para aplicar la config.
 
 ## 6. Checklist v2 (reproducir de cero)
 
-- [ ] `~/.llmux/.env` con keys + `MODEL` + `MODEL_FALLBACKS`
+- [ ] `~/.llmux/.env` con keys + `MODEL` + `MODEL_FALLBACKS` + `MODEL_LONG_CONTEXT`
 - [ ] `systemctl --user status llmux-server` active (o tmux)
 - [ ] `curl /health` OK tras reboot / re-login (linger)
 - [ ] `llmux-verdict usage` imprime tabla (aunque esté vacía)
 - [ ] `llmux-claude -p "pong"` completa contra el proxy
 - [ ] Drill fallback: forzar 429 en primario (key inválida temporal) →
       responde el secundario; logs `precommit_fallback.serving`
+- [ ] Drill contexto: request con prompt oversize → responde 400
+      `invalid_request_error` ("prompt is too long") si no hay
+      `MODEL_LONG_CONTEXT`, o sirve desde ahí si lo hay
 - [ ] `/verdict` o MCP `evaluate` en una pregunta de diseño
 - [ ] `llmux-trace --last` resume el turno con el modelo servido
 - [ ] Validación en `~/Documents/advisor` (local) antes del VPS
