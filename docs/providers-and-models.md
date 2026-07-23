@@ -57,9 +57,11 @@ discovered (non-chat like embeddings/whisper/guard are filtered out):
 | glm (4.6+) | 200K | Yes (hybrid) | — |
 | mistral-medium | 128K | No | — |
 
-Names we could not verify officially (`qwen3.5-397b`, `gemini-3.5`, `deepseek-v4`,
-`nemotron-3`) are handled by **size/family heuristics** in `capability.py`, never
-by hardcoded claims. Sources: [1]–[11] in the research log.
+`qwen3.5`, `deepseek-v4`, and `nemotron-3` families were verified against the
+live OpenRouter catalog on 2026-07-23 (`nemotron-3-ultra-550b-a55b:free`: 1M
+ctx, NVIDIA first-party hosting, tools + reasoning). Remaining unverified names
+are handled by **size/family heuristics** in `capability.py`, never by
+hardcoded claims. Sources: [1]–[11] in the research log.
 
 ---
 
@@ -82,7 +84,7 @@ parallel propose phase or they exhaust in a few runs.
 ### Hard constraints to respect
 - **Cerebras ≤ ~8K context** → exclude from long-context / large-file roles.
 - **GitHub Models ≤ 8K in / 4K out** → keep refiner prompts compact; cap output ≤4K.
-- **OpenRouter `:free` 50 RPD** → ~25 deep runs/day max if used every round; budget it.
+- **OpenRouter `:free` 50 RPD** (keys with $10+ lifetime credit purchases: 1,000 RPD) → budget it on uncredited keys; on credited keys it can join the fan-out.
 - **Gemini Pro 100 RPD / 5 RPM** → use for high-value refine, not fan-out.
 
 ### Recommended default role→provider map

@@ -42,6 +42,7 @@ Run Claude Code with free, paid, or local models. Choose and validate providers 
 - Connect Claude Code in VS Code or through JetBrains ACP.
 - Ask a free multi-model deliberation for second opinions with `fcc-verdict` (CLI and MCP server).
 - Inspect per-request routing decisions with `fcc-trace`.
+- Serve Claude Code's web search and fetch tools locally via Brave (`ENABLE_WEB_SERVER_TOOLS=true` plus `BRAVE_SEARCH_API_KEY`).
 - Protect the local proxy with optional token authentication.
 
 ## Quick Start
@@ -183,10 +184,9 @@ configured model.
 
 Set `MODEL_ROUTING_MODE=auto` and `MODEL_CLASSIFIER=<provider/model>` (a fast,
 cheap model, e.g. `groq/llama-3.1-8b-instant`) to instead have a classifier
-model pick which of your configured chat models (`MODEL` / `MODEL_FABLE` /
-`MODEL_OPUS` / `MODEL_SONNET` / `MODEL_HAIKU`) handles each request, weighing
-that model's free-tier limits, quota burn, reasoning capability, and
-specialty. This only affects the alias-based tiers — a request that already
+model grade each request's complexity — trivial, standard, or complex — and
+map that grade deterministically to `MODEL_HAIKU`, `MODEL_SONNET`, or
+`MODEL_OPUS`. This only affects the alias-based tiers — a request that already
 names an explicit `provider/model` always bypasses the classifier.
 
 Any classifier failure (unset/invalid `MODEL_CLASSIFIER`, no reachable
