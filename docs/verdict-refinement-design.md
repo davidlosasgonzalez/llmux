@@ -71,8 +71,8 @@ NIM, Gemini, OpenRouter `:free`, GitHub Models).
 
 | Phase | Role goal | Preferred families | Concrete free models (validated) |
 | --- | --- | --- | --- |
-| **Propose** | Breadth, diverse strong generalists | gpt-oss, llama-70b, nemotron-super, deepseek-v3, qwen3-large | `gpt-oss-120b` (groq/cerebras), `llama-3.3-70b` (groq), `nemotron-3-super-120b:free` (or), `deepseek-v3` (github), `qwen3.5-122b` (nim) |
-| **Cross-review** | Sharp reasoning, error-finding | deepseek-r1, nemotron-reasoning, qwen3, glm | `deepseek-r1` (github), `nemotron-3-nano-...-reasoning:free` (or), `qwen3-32b` (groq), `glm-5.2` (nim) |
+| **Propose** | Breadth, diverse strong generalists | gpt-oss, llama-70b, nemotron-super, deepseek-v3, qwen3-large | `gpt-oss-120b` (groq/cerebras), `qwen3.6-27b` (groq), `nemotron-3-super-120b:free` (or), `deepseek-v4-flash` (nim), `qwen3.5-122b` (nim) |
+| **Cross-review** | Sharp reasoning, error-finding | deepseek-r1, nemotron-reasoning, qwen3, glm | `deepseek-v4-pro` thinking (nim), `nemotron-3-nano-...-reasoning:free` (or), `qwen3.6-27b` (groq), `glm-5.2` (nim) |
 | **Synthesize / Refine** | The "most adequate": strong reasoning + long context, category-fit | deepseek-r1, nemotron-super/ultra, gpt-oss-120b, qwen3-coder | see §3.2 per category |
 | **Critique (adversary)** | Break the synthesis; must differ in family+provider from the refiner | any strong family ≠ refiner's | `gpt-oss-120b`, `nemotron-super-120b`, `deepseek-r1`, `glm-5.2` |
 
