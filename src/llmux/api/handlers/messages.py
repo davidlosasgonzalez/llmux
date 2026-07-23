@@ -91,6 +91,7 @@ class MessagesHandler:
             log_raw_payloads=settings.log_raw_api_payloads,
             model_router=self._model_router,
             model_fallbacks=settings.model_fallbacks,
+            long_context_model=settings.model_long_context,
             quota=QuotaTracker(),
             exhaustion=DailyExhaustionStore(config_dir_path() / "proxy_quota.db"),
         )

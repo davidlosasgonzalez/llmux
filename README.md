@@ -31,7 +31,7 @@ Run Claude Code with free, paid, or local models. Choose and validate providers 
 - Route Fable, Opus, Sonnet, Haiku, and fallback traffic to different models.
 - Keep streaming, tool use, reasoning, and image input across compatible models.
 - Fail over automatically when an upstream answers with an error body (e.g. "Connect timeout, please try again later.") instead of a completion.
-- Skip fallback candidates whose context window is too small for the prompt, so oversized requests route to large-window models instead of failing.
+- Skip fallback candidates whose context window is too small for the prompt, so oversized requests route to large-window models instead of failing. Configure `MODEL_LONG_CONTEXT` with a large-window model (e.g. gemini, minimax, kimi) as a rescue tier tried only when every earlier candidate is too small; if the prompt still doesn't fit any configured model, the client gets a 400 `invalid_request_error` ("prompt is too long") instead of a 500.
 - Report upstream prompt-cache hits as Anthropic `cache_read_input_tokens`, with cached tokens excluded from `input_tokens`.
 - Fail over after a single same-provider retry when `MODEL_FALLBACKS` is configured (adaptive `PROVIDER_UPSTREAM_MAX_RETRIES` default).
 - Connect Claude Code in VS Code or through JetBrains ACP.

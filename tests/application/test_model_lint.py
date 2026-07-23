@@ -11,6 +11,10 @@ class FakeModelConfig:
     model_fable: str | None = None
     model_opus: str | None = None
     model_fallbacks: str = ""
+    # Default carries a large-window rescue tier so tests unrelated to the
+    # context-ceiling lint stay isolated from it; that lint has its own tests
+    # below with this explicitly set back to None.
+    model_long_context: str | None = "gemini/models/gemini-3.5-flash"
     model_classifier: str | None = None
 
 
@@ -105,6 +109,44 @@ def test_small_classifier_does_not_warn():
 
 def test_unset_classifier_does_not_warn():
     assert lint_model_config(FakeModelConfig(model_classifier=None)) == []
+
+
+def test_narrow_chain_without_long_context_warns():
+    config = FakeModelConfig(
+        model="nvidia_nim/nvidia/nemotron-3-super-120b-a12b",
+        model_fallbacks="open_router/deepseek/deepseek-v4-flash,cerebras/gpt-oss-120b",
+        model_long_context=None,
+    )
+    warnings = lint_model_config(config)
+    assert len(warnings) == 1
+    assert "MODEL_LONG_CONTEXT" in warnings[0]
+
+
+def test_narrow_chain_with_long_context_does_not_warn():
+    config = FakeModelConfig(
+        model="nvidia_nim/nvidia/nemotron-3-super-120b-a12b",
+        model_fallbacks="open_router/deepseek/deepseek-v4-flash,cerebras/gpt-oss-120b",
+        model_long_context="gemini/models/gemini-3.5-flash",
+    )
+    assert lint_model_config(config) == []
+
+
+def test_chain_with_one_large_window_model_does_not_warn():
+    config = FakeModelConfig(
+        model="nvidia_nim/nvidia/nemotron-3-super-120b-a12b",
+        model_fallbacks="kimi/kimi-k2.6",
+        model_long_context=None,
+    )
+    assert lint_model_config(config) == []
+
+
+def test_chain_with_unknown_window_model_does_not_warn():
+    config = FakeModelConfig(
+        model="cohere/aya-vision-32b",
+        model_fallbacks="",
+        model_long_context=None,
+    )
+    assert lint_model_config(config) == []
 
 
 def test_ref_without_provider_prefix_is_ignored():

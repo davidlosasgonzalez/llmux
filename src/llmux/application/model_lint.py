@@ -14,11 +14,18 @@ from llmux.config.model_refs import (
     parse_model_name,
     parse_provider_type,
 )
-from llmux.core.model_capability import has_small_hint, size_billions
+from llmux.core.model_capability import (
+    has_small_hint,
+    known_context_window,
+    size_billions,
+)
 
 _SMALL_SIZE_BILLIONS = 25.0
 _CLASSIFIER_HEAVY_BILLIONS = 130.0
 _HIGH_TIER_SLOTS = ("MODEL_OPUS", "MODEL_FABLE")
+# Below this, a chain has no room for a Claude Code conversation that has
+# grown for a while; anything smaller needs a MODEL_LONG_CONTEXT rescue tier.
+_LONG_CONTEXT_FLOOR = 200_000
 
 
 class LintableModelConfig(Protocol):
@@ -26,6 +33,7 @@ class LintableModelConfig(Protocol):
     model_fable: str | None
     model_opus: str | None
     model_fallbacks: str
+    model_long_context: str | None
     model_classifier: str | None
 
 
@@ -36,6 +44,7 @@ def lint_model_config(settings: LintableModelConfig) -> list[str]:
     warnings.extend(_small_model_in_high_tier(settings))
     warnings.extend(_fallback_chain_warnings(settings))
     warnings.extend(_heavy_classifier(settings))
+    warnings.extend(_context_ceiling_warning(settings))
     return warnings
 
 
@@ -88,6 +97,33 @@ def _fallback_chain_warnings(settings: LintableModelConfig) -> list[str]:
             "Mix at least one other provider into the chain."
         )
     return warnings
+
+
+def _context_ceiling_warning(settings: LintableModelConfig) -> list[str]:
+    if settings.model_long_context is not None:
+        return []
+
+    fallbacks = parse_model_fallbacks(settings.model_fallbacks)
+    chain = [settings.model, *fallbacks]
+    windows: list[int] = []
+    for model_ref in chain:
+        model_id = parse_model_name(model_ref) if "/" in model_ref else model_ref
+        window = known_context_window(model_id)
+        if window is not None:
+            windows.append(window)
+
+    # An unknown-window model in the chain might already cover long prompts;
+    # only warn when every known window is below the floor.
+    if not windows or max(windows) >= _LONG_CONTEXT_FLOOR:
+        return []
+
+    return [
+        f"Every model in MODEL/MODEL_FALLBACKS has a context window <= "
+        f"~{max(windows)} tokens; a long-running conversation will exhaust "
+        "the whole chain at once with no fallback left. Set "
+        "MODEL_LONG_CONTEXT to a large-window model (e.g. gemini, minimax, "
+        "kimi) as a rescue tier."
+    ]
 
 
 def _heavy_classifier(settings: LintableModelConfig) -> list[str]:

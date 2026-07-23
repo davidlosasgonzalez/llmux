@@ -47,6 +47,7 @@ class ProviderExecutor:
         log_raw_payloads: bool = False,
         model_router: ModelRouter | None = None,
         model_fallbacks: Sequence[str] | str = (),
+        long_context_model: str | None = None,
         quota: QuotaTracker | None = None,
         exhaustion: DailyExhaustionStore | None = None,
     ) -> None:
@@ -61,6 +62,7 @@ class ProviderExecutor:
             self._model_fallbacks = [
                 item.strip() for item in model_fallbacks if item.strip()
             ]
+        self._long_context_model = long_context_model
         self._quota = quota
         self._exhaustion = exhaustion
 
@@ -81,9 +83,12 @@ class ProviderExecutor:
         if self._log_raw_payloads:
             logger.debug(f"{raw_log_label} [{{}}]: {{}}", request_id, raw_log_payload)
 
+        fallbacks = self._model_fallbacks
+        if self._long_context_model is not None:
+            fallbacks = [*fallbacks, self._long_context_model]
         candidates = fallback_candidates(
             routed.resolved.provider_model_ref,
-            self._model_fallbacks,
+            fallbacks,
         )
         use_fallback = self._model_router is not None and len(candidates) > 1
 

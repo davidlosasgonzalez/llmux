@@ -700,7 +700,7 @@ wheels = [
 
 [[package]]
 name = "llmux"
-version = "8.1.1"
+version = "8.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },

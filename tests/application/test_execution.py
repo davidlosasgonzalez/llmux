@@ -1,12 +1,14 @@
 """Application-owned provider execution contracts."""
 
 from collections.abc import AsyncIterator
+from typing import cast
 from unittest.mock import MagicMock
 
 import pytest
 
 from llmux.application.execution import ProviderExecutor
-from llmux.application.routing import ResolvedModel, RoutedMessagesRequest
+from llmux.application.routing import ModelRouter, ResolvedModel, RoutedMessagesRequest
+from llmux.config.settings import Settings
 from llmux.core.anthropic.models import Message, MessagesRequest
 from llmux.core.async_iterators import AsyncCloseable
 
@@ -158,6 +160,99 @@ async def test_stream_construction_failure_remains_deferred_to_iteration() -> No
 
     with pytest.raises(RuntimeError, match="stream construction failed"):
         await anext(stream)
+
+
+def _routed_via_router(router: ModelRouter) -> RoutedMessagesRequest:
+    request = MessagesRequest(
+        model="claude-sonnet-4-5",
+        messages=[Message(role="user", content="hi")],
+    )
+    return router.resolve_messages_request(request)
+
+
+@pytest.mark.asyncio
+async def test_long_context_model_rescues_oversized_prompt() -> None:
+    settings = Settings(
+        model="groq/llama-3.3-70b-versatile",
+        model_fallbacks="cerebras/gpt-oss-120b",
+    )
+    router = ModelRouter(settings)
+    provider = FakeProvider()
+    executor = ProviderExecutor(
+        lambda _provider_id: provider,
+        token_counter=lambda _messages, _system, _tools: 140_000,
+        model_router=router,
+        model_fallbacks=settings.model_fallbacks,
+        long_context_model="gemini/gemini-flash-latest",
+    )
+
+    stream = executor.stream(
+        _routed_via_router(router),
+        wire_api="messages",
+        raw_log_label="FULL_PAYLOAD",
+        raw_log_payload={},
+        request_id="req_long_context",
+    )
+
+    assert [chunk async for chunk in stream] == ["event: message_stop\ndata: {}\n\n"]
+    assert len(provider.stream_calls) == 1
+    served = cast(MessagesRequest, provider.stream_calls[0]["request"])
+    assert served.model == "gemini-flash-latest"
+
+
+@pytest.mark.asyncio
+async def test_long_context_model_deduplicated_when_already_a_fallback() -> None:
+    settings = Settings(
+        model="groq/llama-3.3-70b-versatile",
+        model_fallbacks="gemini/gemini-flash-latest",
+    )
+    router = ModelRouter(settings)
+    provider = FakeProvider()
+    executor = ProviderExecutor(
+        lambda _provider_id: provider,
+        token_counter=lambda _messages, _system, _tools: 140_000,
+        model_router=router,
+        model_fallbacks=settings.model_fallbacks,
+        long_context_model="gemini/gemini-flash-latest",
+    )
+
+    stream = executor.stream(
+        _routed_via_router(router),
+        wire_api="messages",
+        raw_log_label="FULL_PAYLOAD",
+        raw_log_payload={},
+        request_id="req_dedup",
+    )
+
+    assert [chunk async for chunk in stream] == ["event: message_stop\ndata: {}\n\n"]
+    # The duplicate ref must not be attempted twice.
+    assert len(provider.stream_calls) == 1
+
+
+@pytest.mark.asyncio
+async def test_long_context_model_unused_when_prompt_fits_primary() -> None:
+    settings = Settings(model="groq/llama-3.3-70b-versatile")
+    router = ModelRouter(settings)
+    provider = FakeProvider()
+    executor = ProviderExecutor(
+        lambda _provider_id: provider,
+        token_counter=lambda _messages, _system, _tools: 10,
+        model_router=router,
+        long_context_model="gemini/gemini-flash-latest",
+    )
+
+    stream = executor.stream(
+        _routed_via_router(router),
+        wire_api="messages",
+        raw_log_label="FULL_PAYLOAD",
+        raw_log_payload={},
+        request_id="req_small",
+    )
+
+    assert [chunk async for chunk in stream] == ["event: message_stop\ndata: {}\n\n"]
+    assert len(provider.stream_calls) == 1
+    served = cast(MessagesRequest, provider.stream_calls[0]["request"])
+    assert served.model == "llama-3.3-70b-versatile"
 
 
 def test_executor_preflight_failure_stays_before_token_count_and_stream() -> None:

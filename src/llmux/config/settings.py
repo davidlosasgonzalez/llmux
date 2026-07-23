@@ -125,6 +125,12 @@ class Settings(BaseSettings):
         default="",
         validation_alias=AliasChoices("MODEL_FALLBACKS", "model_fallbacks"),
     )
+    # Rescue tier appended after MODEL_FALLBACKS: only reached when every
+    # earlier candidate's context window is too small for the request. Should
+    # be a large-window model (e.g. gemini, minimax, kimi).
+    model_long_context: str | None = Field(
+        default=None, validation_alias="MODEL_LONG_CONTEXT"
+    )
 
     # Valid: "static" (default, unchanged substring routing) | "auto" (a
     # classifier model picks among the configured MODEL/MODEL_* refs per request).
@@ -258,6 +264,7 @@ class Settings(BaseSettings):
         "model_sonnet",
         "model_haiku",
         "model_classifier",
+        "model_long_context",
         "enable_fable_thinking",
         "enable_opus_thinking",
         "enable_sonnet_thinking",
@@ -299,6 +306,7 @@ class Settings(BaseSettings):
         "model_sonnet",
         "model_haiku",
         "model_classifier",
+        "model_long_context",
     )
     @classmethod
     def validate_model_format(cls, v: str | None) -> str | None:

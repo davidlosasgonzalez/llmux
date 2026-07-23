@@ -806,6 +806,45 @@ class TestPerModelMapping:
         with pytest.raises(ValidationError, match="Invalid provider"):
             Settings()
 
+    def test_model_long_context_defaults_none(self):
+        """MODEL_LONG_CONTEXT is unset by default."""
+        from llmux.config.settings import Settings
+
+        s = Settings()
+        assert s.model_long_context is None
+
+    def test_model_long_context_from_env(self, monkeypatch):
+        """MODEL_LONG_CONTEXT env var is loaded."""
+        from llmux.config.settings import Settings
+
+        monkeypatch.setenv("MODEL_LONG_CONTEXT", "gemini/models/gemini-3.5-flash")
+        s = Settings()
+        assert s.model_long_context == "gemini/models/gemini-3.5-flash"
+
+    def test_empty_model_long_context_to_none(self, monkeypatch):
+        """MODEL_LONG_CONTEXT='' is normalized to None."""
+        from llmux.config.settings import Settings
+
+        monkeypatch.setenv("MODEL_LONG_CONTEXT", "")
+        s = Settings()
+        assert s.model_long_context is None
+
+    def test_model_long_context_no_slash_raises(self, monkeypatch):
+        """MODEL_LONG_CONTEXT without provider prefix raises ValidationError."""
+        from llmux.config.settings import Settings
+
+        monkeypatch.setenv("MODEL_LONG_CONTEXT", "noprefix")
+        with pytest.raises(ValidationError, match="provider type"):
+            Settings()
+
+    def test_model_long_context_invalid_provider_raises(self, monkeypatch):
+        """MODEL_LONG_CONTEXT with invalid provider prefix raises ValidationError."""
+        from llmux.config.settings import Settings
+
+        monkeypatch.setenv("MODEL_LONG_CONTEXT", "invalid/model")
+        with pytest.raises(ValidationError, match="Invalid provider"):
+            Settings()
+
     def test_resolve_model_fable_override(self):
         """ModelRouter returns model_fable for Fable model names."""
         from llmux.application.routing import ModelRouter
