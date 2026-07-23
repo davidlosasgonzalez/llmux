@@ -37,6 +37,7 @@ Run Claude Code with free, paid, or local models. Choose and validate providers 
 - Use Claude Code's native model picker with the models FCC exposes.
 - Route Fable, Opus, Sonnet, Haiku, and fallback traffic to different models.
 - Keep streaming, tool use, reasoning, and image input across compatible models.
+- Fail over automatically when an upstream answers with an error body (e.g. "Connect timeout, please try again later.") instead of a completion.
 - Connect Claude Code in VS Code or through JetBrains ACP.
 - Ask a free multi-model deliberation for second opinions with `fcc-verdict` (CLI and MCP server).
 - Inspect per-request routing decisions with `fcc-trace`.

@@ -26,7 +26,7 @@ from free_claude_code.core.anthropic.streaming import (
     parse_complete_tool_input,
     tool_schemas_by_name,
 )
-from free_claude_code.core.failures import ExecutionFailure
+from free_claude_code.core.failures import ExecutionFailure, FailureKind
 from free_claude_code.core.trace import provider_chat_body_snapshot, trace_event
 from free_claude_code.providers.base import BaseProvider, ProviderConfig
 from free_claude_code.providers.failure_policy import classify_provider_failure
@@ -43,6 +43,7 @@ from free_claude_code.providers.stream_recovery import (
     TruncatedProviderStreamError,
     is_retryable_stream_error,
 )
+from free_claude_code.providers.upstream_error_text import UpstreamErrorTextGuard
 
 from .output_cap import clamp_output_tokens, parse_output_token_cap
 from .profiles import OpenAIChatProfile
@@ -328,10 +329,20 @@ class _OpenAIChatStreamRunner:
 
         think_parser = ThinkTagParser()
         heuristic_parser = HeuristicToolParser()
+        error_guard = UpstreamErrorTextGuard()
         finish_reason = None
         usage_info = None
         tool_argument_aliases: dict[str, dict[str, str]] = {}
         tool_argument_alias_buffers: dict[int, str] = {}
+
+        def release_guard_text() -> Iterator[str]:
+            released = error_guard.disarm()
+            if not released:
+                return
+            for event in hold_events(ledger.ensure_text_block()):
+                yield event
+            for event in hold_event(ledger.emit_text_delta(released)):
+                yield event
 
         async with self._provider._rate_limiter.concurrency_slot():
             while True:
@@ -363,6 +374,8 @@ class _OpenAIChatStreamRunner:
 
                         reasoning = self._provider._profile.reasoning_delta(delta)
                         if thinking_enabled and reasoning is not None:
+                            for event in release_guard_text():
+                                yield event
                             for event in hold_events(ledger.ensure_thinking_block()):
                                 yield event
                             if reasoning:
@@ -376,6 +389,8 @@ class _OpenAIChatStreamRunner:
                             ledger,
                             thinking_enabled=thinking_enabled,
                         ):
+                            for out_event in release_guard_text():
+                                yield out_event
                             for out_event in hold_event(event):
                                 yield out_event
 
@@ -399,16 +414,20 @@ class _OpenAIChatStreamRunner:
                                     ) = heuristic_parser.feed(part.content)
 
                                     if filtered_text:
-                                        for event in hold_events(
-                                            ledger.ensure_text_block()
-                                        ):
-                                            yield event
-                                        for event in hold_event(
-                                            ledger.emit_text_delta(filtered_text)
-                                        ):
-                                            yield event
+                                        released = error_guard.feed(filtered_text)
+                                        if released:
+                                            for event in hold_events(
+                                                ledger.ensure_text_block()
+                                            ):
+                                                yield event
+                                            for event in hold_event(
+                                                ledger.emit_text_delta(released)
+                                            ):
+                                                yield event
 
                                     for tool_use in detected_tools:
+                                        for event in release_guard_text():
+                                            yield event
                                         for event in iter_heuristic_tool_use_sse(
                                             ledger, tool_use
                                         ):
@@ -416,6 +435,8 @@ class _OpenAIChatStreamRunner:
                                                 yield out_event
 
                         if delta.tool_calls:
+                            for event in release_guard_text():
+                                yield event
                             for event in hold_events(ledger.close_content_blocks()):
                                 yield event
                             for tool_call in delta.tool_calls:
@@ -443,6 +464,17 @@ class _OpenAIChatStreamRunner:
                         raise TruncatedProviderStreamError(
                             "Provider stream ended without finish_reason."
                         )
+                    error_body = error_guard.matched()
+                    if error_body is not None:
+                        raise ExecutionFailure(
+                            kind=FailureKind.UPSTREAM,
+                            status_code=502,
+                            message=(
+                                "Provider returned an upstream error body as "
+                                f"the completion: {error_body!r}"
+                            ),
+                            retryable=False,
+                        )
                     break
 
                 except asyncio.CancelledError, GeneratorExit:
@@ -464,6 +496,7 @@ class _OpenAIChatStreamRunner:
                         ledger = self._new_ledger()
                         think_parser = ThinkTagParser()
                         heuristic_parser = HeuristicToolParser()
+                        error_guard = UpstreamErrorTextGuard()
                         finish_reason = None
                         usage_info = None
                         tool_argument_aliases = {}
@@ -546,6 +579,9 @@ class _OpenAIChatStreamRunner:
                             provider_name=tag,
                             request_id=self._request_id,
                         )
+
+        for event in release_guard_text():
+            yield event
 
         remaining = think_parser.flush()
         if remaining:
