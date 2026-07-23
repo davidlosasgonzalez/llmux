@@ -99,7 +99,7 @@ Para segundas opiniones multi-modelo, registrar el MCP de Verdict en Claude
 Code (stdio):
 
 ```bash
-claude mcp add free-llmux -- llmux-verdict serve-mcp
+claude mcp add llmux-verdict -- llmux-verdict serve-mcp
 ```
 
 ## 4. Flujo remoto (Termius)

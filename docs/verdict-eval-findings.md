@@ -1,4 +1,4 @@
-# Verdict (free-llmux) — Registro de fallos y mejoras
+# Verdict (llmux-verdict) — Registro de fallos y mejoras
 
 > Documento vivo. Objetivo: acercar el razonamiento del verdict a Opus.
 > Metodología: mismo prompt a Opus (con web) y al MCP; anotar cada fallo del MCP.
