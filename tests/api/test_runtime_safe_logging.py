@@ -4,7 +4,7 @@ import logging
 
 import pytest
 
-from free_claude_code.runtime.application import best_effort
+from llmux.runtime.application import best_effort
 
 
 @pytest.mark.asyncio

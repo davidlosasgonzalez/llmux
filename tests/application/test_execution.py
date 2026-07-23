@@ -5,10 +5,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from free_claude_code.application.execution import ProviderExecutor
-from free_claude_code.application.routing import ResolvedModel, RoutedMessagesRequest
-from free_claude_code.core.anthropic.models import Message, MessagesRequest
-from free_claude_code.core.async_iterators import AsyncCloseable
+from llmux.application.execution import ProviderExecutor
+from llmux.application.routing import ResolvedModel, RoutedMessagesRequest
+from llmux.core.anthropic.models import Message, MessagesRequest
+from llmux.core.async_iterators import AsyncCloseable
 
 
 class FakeProvider:

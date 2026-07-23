@@ -5,9 +5,9 @@ import httpx
 import pytest
 from fastapi.testclient import TestClient
 
-from free_claude_code.config.admin.values import MASKED_SECRET
-from free_claude_code.config.server_urls import local_admin_url
-from free_claude_code.config.settings import Settings
+from llmux.config.admin.values import MASKED_SECRET
+from llmux.config.server_urls import local_admin_url
+from llmux.config.settings import Settings
 from tests.api.support import create_test_app
 
 
@@ -29,14 +29,14 @@ def _clear_process_config(monkeypatch) -> None:
         "OPENROUTER_API_KEY",
         "OLLAMA_API_KEY",
         "ANTHROPIC_AUTH_TOKEN",
-        "FCC_ENV_FILE",
+        "LLMUX_ENV_FILE",
         "CLOUDFLARE_API_TOKEN",
         "CLOUDFLARE_ACCOUNT_ID",
         "GITHUB_MODELS_TOKEN",
         "SAMBANOVA_API_KEY",
         "HOST",
         "PORT",
-        "FCC_OPEN_BROWSER",
+        "LLMUX_OPEN_BROWSER",
         "LOG_FILE",
         "ZAI_BASE_URL",
         "CLAUDE_WORKSPACE",
@@ -78,9 +78,7 @@ def test_admin_page_no_longer_renders_global_status_header(monkeypatch, tmp_path
 
 
 def test_admin_static_no_longer_fetches_global_status_header():
-    script = Path("src/free_claude_code/api/admin_static/admin.js").read_text(
-        encoding="utf-8"
-    )
+    script = Path("src/llmux/api/admin_static/admin.js").read_text(encoding="utf-8")
 
     assert 'api("/admin/api/status")' not in script
     assert "updateHeader" not in script
@@ -90,9 +88,7 @@ def test_admin_static_no_longer_fetches_global_status_header():
 
 
 def test_admin_static_hides_managed_source_label():
-    script = Path("src/free_claude_code/api/admin_static/admin.js").read_text(
-        encoding="utf-8"
-    )
+    script = Path("src/llmux/api/admin_static/admin.js").read_text(encoding="utf-8")
 
     assert 'managed_env: "",' in script
     assert "hasOwnProperty.call(labels, source)" in script
@@ -123,7 +119,7 @@ def test_admin_config_masks_secrets_and_exposes_manifest(monkeypatch, tmp_path):
     assert "SAMBANOVA_API_KEY" in keys
     assert "CEREBRAS_API_KEY" in keys
     assert "OLLAMA_API_KEY" in keys
-    assert "FCC_OPEN_BROWSER" in keys
+    assert "LLMUX_OPEN_BROWSER" in keys
     assert "ZAI_BASE_URL" not in keys
     assert "CLAUDE_WORKSPACE" not in keys
     assert "CLAUDE_CLI_BIN" not in keys
@@ -139,7 +135,7 @@ def test_admin_config_masks_secrets_and_exposes_manifest(monkeypatch, tmp_path):
     )
     assert provider_proxy_field["secret"] is True
     open_browser_field = next(
-        field for field in body["fields"] if field["key"] == "FCC_OPEN_BROWSER"
+        field for field in body["fields"] if field["key"] == "LLMUX_OPEN_BROWSER"
     )
     assert open_browser_field["type"] == "boolean"
     assert open_browser_field["value"] == "true"
@@ -157,7 +153,7 @@ def test_admin_config_masks_secrets_and_exposes_manifest(monkeypatch, tmp_path):
 def test_admin_config_preserves_managed_env_source_contract(monkeypatch, tmp_path):
     _set_home(monkeypatch, tmp_path)
     _clear_process_config(monkeypatch)
-    env_file = tmp_path / ".fcc" / ".env"
+    env_file = tmp_path / ".llmux" / ".env"
     env_file.parent.mkdir(parents=True)
     env_file.write_text("MODEL=open_router/managed-model\n", encoding="utf-8")
     app = create_test_app()
@@ -178,7 +174,7 @@ def test_admin_apply_persists_open_browser_for_next_launch(monkeypatch, tmp_path
 
     response = _local_client(app).post(
         "/admin/api/config/apply",
-        json={"values": {"FCC_OPEN_BROWSER": False}},
+        json={"values": {"LLMUX_OPEN_BROWSER": False}},
     )
 
     assert response.status_code == 200
@@ -191,8 +187,8 @@ def test_admin_apply_persists_open_browser_for_next_launch(monkeypatch, tmp_path
         "admin_url": None,
         "fields": [],
     }
-    managed_env = tmp_path / ".fcc" / ".env"
-    assert "FCC_OPEN_BROWSER=false" in managed_env.read_text(encoding="utf-8")
+    managed_env = tmp_path / ".llmux" / ".env"
+    assert "LLMUX_OPEN_BROWSER=false" in managed_env.read_text(encoding="utf-8")
 
 
 def test_admin_apply_masks_provider_proxy_credentials(monkeypatch, tmp_path):
@@ -211,7 +207,7 @@ def test_admin_apply_masks_provider_proxy_credentials(monkeypatch, tmp_path):
     assert body["applied"] is True
     assert "OPENROUTER_PROXY=********" in body["env_preview"]
     assert proxy_url not in body["env_preview"]
-    env_file = tmp_path / ".fcc" / ".env"
+    env_file = tmp_path / ".llmux" / ".env"
     text = env_file.read_text(encoding="utf-8")
     assert f"OPENROUTER_PROXY={proxy_url}" in text
 
@@ -253,7 +249,7 @@ def test_admin_apply_writes_complete_managed_env_and_masks_preview(
     body = response.json()
     assert body["applied"] is True
     assert "OPENROUTER_API_KEY=********" in body["env_preview"]
-    env_file = tmp_path / ".fcc" / ".env"
+    env_file = tmp_path / ".llmux" / ".env"
     text = env_file.read_text("utf-8")
     assert "MODEL=open_router/test-model" in text
     assert "OPENROUTER_API_KEY=router-secret" in text
@@ -285,7 +281,7 @@ def test_admin_apply_writes_fireworks_key_and_masks_preview(monkeypatch, tmp_pat
     body = response.json()
     assert body["applied"] is True
     assert "FIREWORKS_API_KEY=********" in body["env_preview"]
-    env_file = tmp_path / ".fcc" / ".env"
+    env_file = tmp_path / ".llmux" / ".env"
     text = env_file.read_text(encoding="utf-8")
     assert "MODEL=fireworks/test-model" in text
     assert "FIREWORKS_API_KEY=fw-secret" in text
@@ -310,7 +306,7 @@ def test_admin_apply_writes_gemini_key_and_masks_preview(monkeypatch, tmp_path):
     body = response.json()
     assert body["applied"] is True
     assert "GEMINI_API_KEY=********" in body["env_preview"]
-    env_file = tmp_path / ".fcc" / ".env"
+    env_file = tmp_path / ".llmux" / ".env"
     text = env_file.read_text(encoding="utf-8")
     assert "MODEL=gemini/models/gemini-3.1-flash-lite" in text
     assert "GEMINI_API_KEY=gm-secret" in text
@@ -335,7 +331,7 @@ def test_admin_apply_writes_groq_key_and_masks_preview(monkeypatch, tmp_path):
     body = response.json()
     assert body["applied"] is True
     assert "GROQ_API_KEY=********" in body["env_preview"]
-    env_file = tmp_path / ".fcc" / ".env"
+    env_file = tmp_path / ".llmux" / ".env"
     text = env_file.read_text(encoding="utf-8")
     assert "MODEL=groq/llama-3.3-70b-versatile" in text
     assert "GROQ_API_KEY=gq-secret" in text
@@ -360,7 +356,7 @@ def test_admin_apply_writes_sambanova_key_and_masks_preview(monkeypatch, tmp_pat
     body = response.json()
     assert body["applied"] is True
     assert "SAMBANOVA_API_KEY=********" in body["env_preview"]
-    env_file = tmp_path / ".fcc" / ".env"
+    env_file = tmp_path / ".llmux" / ".env"
     text = env_file.read_text(encoding="utf-8")
     assert "MODEL=sambanova/Meta-Llama-3.3-70B-Instruct" in text
     assert "SAMBANOVA_API_KEY=sn-secret" in text
@@ -385,7 +381,7 @@ def test_admin_apply_writes_cerebras_key_and_masks_preview(monkeypatch, tmp_path
     body = response.json()
     assert body["applied"] is True
     assert "CEREBRAS_API_KEY=********" in body["env_preview"]
-    env_file = tmp_path / ".fcc" / ".env"
+    env_file = tmp_path / ".llmux" / ".env"
     text = env_file.read_text(encoding="utf-8")
     assert "MODEL=cerebras/llama3.1-8b" in text
     assert "CEREBRAS_API_KEY=cb-secret" in text
@@ -412,7 +408,7 @@ def test_admin_apply_writes_cloudflare_fields_and_masks_preview(monkeypatch, tmp
     assert body["applied"] is True
     assert "CLOUDFLARE_API_TOKEN=********" in body["env_preview"]
     assert "CLOUDFLARE_ACCOUNT_ID=cf-account" in body["env_preview"]
-    env_file = tmp_path / ".fcc" / ".env"
+    env_file = tmp_path / ".llmux" / ".env"
     text = env_file.read_text(encoding="utf-8")
     assert "MODEL=cloudflare/@cf/moonshotai/kimi-k2.6" in text
     assert "CLOUDFLARE_API_TOKEN=cf-secret" in text
@@ -439,7 +435,7 @@ def test_admin_apply_writes_huggingface_key_and_masks_preview(monkeypatch, tmp_p
     assert body["applied"] is True
     assert body["pending_fields"] == []
     assert "HUGGINGFACE_API_KEY=********" in body["env_preview"]
-    env_file = tmp_path / ".fcc" / ".env"
+    env_file = tmp_path / ".llmux" / ".env"
     text = env_file.read_text(encoding="utf-8")
     assert "MODEL=huggingface/openai/gpt-oss-120b:fastest" in text
     assert "HUGGINGFACE_API_KEY=hf-secret" in text
@@ -462,7 +458,7 @@ def test_admin_constructor_captured_setting_requires_restart(
 ):
     _set_home(monkeypatch, tmp_path)
     _clear_process_config(monkeypatch)
-    env_file = tmp_path / ".fcc" / ".env"
+    env_file = tmp_path / ".llmux" / ".env"
     env_file.parent.mkdir(parents=True)
     env_file.write_text(f"{key}={initial}\n", encoding="utf-8")
     app = create_test_app()
@@ -503,7 +499,7 @@ def test_admin_apply_writes_cohere_key_and_masks_preview(monkeypatch, tmp_path):
     body = response.json()
     assert body["applied"] is True
     assert "COHERE_API_KEY=********" in body["env_preview"]
-    env_file = tmp_path / ".fcc" / ".env"
+    env_file = tmp_path / ".llmux" / ".env"
     text = env_file.read_text(encoding="utf-8")
     assert "MODEL=cohere/command-a-plus-05-2026" in text
     assert "COHERE_API_KEY=cohere-secret" in text
@@ -530,7 +526,7 @@ def test_admin_apply_writes_github_models_token_and_masks_preview(
     body = response.json()
     assert body["applied"] is True
     assert "GITHUB_MODELS_TOKEN=********" in body["env_preview"]
-    env_file = tmp_path / ".fcc" / ".env"
+    env_file = tmp_path / ".llmux" / ".env"
     text = env_file.read_text(encoding="utf-8")
     assert "MODEL=github_models/openai/gpt-4.1" in text
     assert "GITHUB_MODELS_TOKEN=github-secret" in text
@@ -541,14 +537,14 @@ def test_admin_apply_preserves_hidden_diagnostics_and_smoke_values(
 ):
     _set_home(monkeypatch, tmp_path)
     _clear_process_config(monkeypatch)
-    env_file = tmp_path / ".fcc" / ".env"
+    env_file = tmp_path / ".llmux" / ".env"
     env_file.parent.mkdir(parents=True)
     env_file.write_text(
         "\n".join(
             [
                 "MODEL=nvidia_nim/old-model",
                 "LOG_RAW_API_PAYLOADS=true",
-                "FCC_SMOKE_MODEL_ZAI=zai/smoke-model",
+                "LLMUX_SMOKE_MODEL_ZAI=zai/smoke-model",
                 "",
             ]
         ),
@@ -567,13 +563,13 @@ def test_admin_apply_preserves_hidden_diagnostics_and_smoke_values(
     text = env_file.read_text("utf-8")
     assert "MODEL=open_router/test-model" in text
     assert "LOG_RAW_API_PAYLOADS=true" in text
-    assert "FCC_SMOKE_MODEL_ZAI=zai/smoke-model" in text
+    assert "LLMUX_SMOKE_MODEL_ZAI=zai/smoke-model" in text
 
 
 def test_admin_apply_omits_stale_zai_base_url(monkeypatch, tmp_path):
     _set_home(monkeypatch, tmp_path)
     _clear_process_config(monkeypatch)
-    env_file = tmp_path / ".fcc" / ".env"
+    env_file = tmp_path / ".llmux" / ".env"
     env_file.parent.mkdir(parents=True)
     env_file.write_text(
         "\n".join(
@@ -604,7 +600,7 @@ def test_admin_apply_omits_stale_zai_base_url(monkeypatch, tmp_path):
 def test_admin_apply_omits_stale_fixed_claude_runtime_settings(monkeypatch, tmp_path):
     _set_home(monkeypatch, tmp_path)
     _clear_process_config(monkeypatch)
-    env_file = tmp_path / ".fcc" / ".env"
+    env_file = tmp_path / ".llmux" / ".env"
     env_file.parent.mkdir(parents=True)
     env_file.write_text(
         "\n".join(
@@ -700,7 +696,7 @@ def test_admin_process_env_values_are_locked_and_not_written(monkeypatch, tmp_pa
     )
 
     assert response.status_code == 200
-    env_file = tmp_path / ".fcc" / ".env"
+    env_file = tmp_path / ".llmux" / ".env"
     assert "deepseek/managed-model" not in env_file.read_text("utf-8")
 
 
@@ -725,7 +721,7 @@ def test_admin_first_apply_migrates_repo_env(monkeypatch, tmp_path):
     )
 
     assert response.status_code == 200
-    managed_text = (tmp_path / ".fcc" / ".env").read_text("utf-8")
+    managed_text = (tmp_path / ".llmux" / ".env").read_text("utf-8")
     assert "MODEL=deepseek/deepseek-chat" in managed_text
     assert "DEEPSEEK_API_KEY=deepseek-secret" in managed_text
 
@@ -748,7 +744,7 @@ def test_admin_local_provider_status_reports_reachable(monkeypatch, tmp_path):
         async def get(self, url: str):
             return httpx.Response(200, json={"data": []})
 
-    with patch("free_claude_code.api.admin_routes.httpx.AsyncClient", FakeAsyncClient):
+    with patch("llmux.api.admin_routes.httpx.AsyncClient", FakeAsyncClient):
         response = _local_client(app).get("/admin/api/providers/local-status")
 
     assert response.status_code == 200

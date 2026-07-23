@@ -1,0 +1,68 @@
+"""Mistral La Plateforme provider implementation (OpenAI-compatible chat completions)."""
+
+from typing import Any
+
+from loguru import logger
+
+from llmux.core.anthropic.models import MessagesRequest
+from llmux.providers.base import ProviderConfig
+from llmux.providers.openai_chat import (
+    OpenAIChatProfile,
+    OpenAIChatProvider,
+    OpenAIChatRequestPolicy,
+    build_openai_chat_request_body,
+)
+from llmux.providers.rate_limit import ProviderRateLimiter
+
+from .reasoning import (
+    apply_mistral_reasoning_request_shape,
+    clone_body_without_mistral_reasoning,
+    is_mistral_reasoning_rejection,
+    normalize_mistral_stream,
+)
+
+_REQUEST_POLICY = OpenAIChatRequestPolicy(provider_name="MISTRAL")
+_PROFILE = OpenAIChatProfile(_REQUEST_POLICY)
+
+
+class MistralProvider(OpenAIChatProvider):
+    """Mistral API using ``https://api.mistral.ai/v1/chat/completions``."""
+
+    def __init__(self, config: ProviderConfig, *, rate_limiter: ProviderRateLimiter):
+        super().__init__(
+            config,
+            profile=_PROFILE,
+            rate_limiter=rate_limiter,
+        )
+
+    def _build_request_body(
+        self, request: MessagesRequest, thinking_enabled: bool | None = None
+    ) -> dict:
+        effective_thinking_enabled = self._is_thinking_enabled(
+            request, thinking_enabled
+        )
+        body = build_openai_chat_request_body(
+            request,
+            thinking_enabled=effective_thinking_enabled,
+            policy=_REQUEST_POLICY,
+        )
+        apply_mistral_reasoning_request_shape(
+            body, thinking_enabled=effective_thinking_enabled
+        )
+        return body
+
+    def _get_retry_request_body(self, error: Exception, body: dict) -> dict | None:
+        """Retry once without Mistral reasoning fields when a model rejects them."""
+        if not is_mistral_reasoning_rejection(error):
+            return None
+        retry_body = clone_body_without_mistral_reasoning(body)
+        if retry_body is None:
+            return None
+        logger.warning(
+            "MISTRAL_STREAM: retrying without reasoning after upstream rejection"
+        )
+        return retry_body
+
+    async def _create_stream(self, body: dict) -> tuple[Any, dict]:
+        stream, final_body = await super()._create_stream(body)
+        return normalize_mistral_stream(stream), final_body

@@ -12,9 +12,9 @@ from typing import Any
 import httpx
 import pytest
 
-from free_claude_code.cli.claude_env import build_claude_proxy_env
-from free_claude_code.config.provider_catalog import SUPPORTED_PROVIDER_IDS
-from free_claude_code.core.anthropic.stream_contracts import (
+from llmux.cli.claude_env import build_claude_proxy_env
+from llmux.config.provider_catalog import SUPPORTED_PROVIDER_IDS
+from llmux.core.anthropic.stream_contracts import (
     SSEEvent,
     assert_anthropic_stream_contract,
     event_index,
@@ -82,7 +82,7 @@ class ConversationDriver:
         self,
         text: str,
         *,
-        model: str = "fcc-smoke-default",
+        model: str = "llmux-smoke-default",
         max_tokens: int = 256,
         extra: dict[str, Any] | None = None,
         headers: dict[str, str] | None = None,
@@ -170,9 +170,9 @@ class ProviderMatrixDriver:
             )
 
         models = self.config.provider_smoke_models()
-        if not models and os.getenv("FCC_ALLOW_NO_PROVIDER_SMOKE") != "1":
+        if not models and os.getenv("LLMUX_ALLOW_NO_PROVIDER_SMOKE") != "1":
             fail_missing_env(
-                "no configured provider smoke models; set FCC_ALLOW_NO_PROVIDER_SMOKE=1 "
+                "no configured provider smoke models; set LLMUX_ALLOW_NO_PROVIDER_SMOKE=1 "
                 "only for no-provider smoke collection"
             )
         return models
@@ -219,7 +219,7 @@ class ClientProtocolDriver:
                         {"type": "text", "text": "Hello."},
                     ],
                 },
-                {"role": "user", "content": "Reply with exactly FCC_SMOKE_CLIENT"},
+                {"role": "user", "content": "Reply with exactly LLMUX_SMOKE_CLIENT"},
             ],
             "thinking": {"type": "adaptive", "budget_tokens": 1024},
         }
@@ -238,7 +238,7 @@ class ClientProtocolDriver:
                             "type": "tool_use",
                             "id": "toolu_client_smoke",
                             "name": "echo_smoke",
-                            "input": {"value": "FCC_SMOKE_CLIENT"},
+                            "input": {"value": "LLMUX_SMOKE_CLIENT"},
                         }
                     ],
                 },
@@ -248,7 +248,7 @@ class ClientProtocolDriver:
                         {
                             "type": "tool_result",
                             "tool_use_id": "toolu_client_smoke",
-                            "content": "FCC_SMOKE_CLIENT",
+                            "content": "LLMUX_SMOKE_CLIENT",
                         }
                     ],
                 },

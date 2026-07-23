@@ -5,14 +5,14 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from free_claude_code.core.anthropic.stream_contracts import (
+from llmux.core.anthropic.stream_contracts import (
     parse_sse_text,
     text_content,
 )
-from free_claude_code.core.failures import ExecutionFailure, FailureKind
-from free_claude_code.providers.base import ProviderConfig
-from free_claude_code.providers.open_router import OpenRouterProvider
-from free_claude_code.providers.upstream_error_text import (
+from llmux.core.failures import ExecutionFailure, FailureKind
+from llmux.providers.base import ProviderConfig
+from llmux.providers.open_router import OpenRouterProvider
+from llmux.providers.upstream_error_text import (
     UPSTREAM_ERROR_COMPLETIONS,
     UpstreamErrorTextGuard,
 )

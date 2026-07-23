@@ -3,12 +3,12 @@
 from collections.abc import Callable
 from typing import Any
 
-from free_claude_code.providers.base import ProviderConfig
-from free_claude_code.providers.openai_chat import (
+from llmux.providers.base import ProviderConfig
+from llmux.providers.openai_chat import (
     OpenAIChatProvider,
     create_openai_chat_provider,
 )
-from free_claude_code.providers.rate_limit import ProviderRateLimiter
+from llmux.providers.rate_limit import ProviderRateLimiter
 
 
 class PassthroughProviderRateLimiter(ProviderRateLimiter):

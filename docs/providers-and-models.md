@@ -5,7 +5,7 @@ Ground truth for **which free models each key gives us**, **their limits**, and
 in `verdict/capability.py` and the routing rules in
 [`verdict-refinement-design.md`](verdict-refinement-design.md).
 
-_Model catalogues are live-discovered (`fcc-verdict models --free-only`); limits
+_Model catalogues are live-discovered (`llmux-verdict models --free-only`); limits
 are researched from provider docs and **change often — re-verify periodically.**
 Last researched: 2026-07-15._
 

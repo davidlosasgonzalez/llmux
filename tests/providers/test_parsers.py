@@ -1,6 +1,6 @@
 import pytest
 
-from free_claude_code.core.anthropic import (
+from llmux.core.anthropic import (
     ContentType,
     HeuristicToolParser,
     ThinkTagParser,

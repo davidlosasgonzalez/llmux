@@ -1,6 +1,6 @@
-# FCC Verdict — Refinement-Flow Design (our fork)
+# LLMux Verdict — Refinement-Flow Design (our fork)
 
-This document specifies **how we use FCC Verdict** and the **changes we want to
+This document specifies **how we use LLMux Verdict** and the **changes we want to
 apply** to make it a first-class *refinement flow*. It is the design spec; the
 user-facing manual is [`verdict.md`](verdict.md).
 
@@ -8,7 +8,7 @@ user-facing manual is [`verdict.md`](verdict.md).
 
 ## 1. How our use differs from upstream
 
-**The FCC proxy** lets **one** coding agent (Claude Code) run on free or local
+**The LLMux proxy** lets **one** coding agent (Claude Code) run on free or local
 models, with routing, streaming and tool calling. One model answers each
 request.
 
@@ -164,14 +164,14 @@ Status of each design point against the current implementation:
       strong-but-scarce models (deepseek-r1, nemotron-ultra) are spent on the 1–2
       high-value calls, not the parallel fan-out. *(implemented + tested)*
 - [x] **Usage tracking (`/usage`-style).** Every call records requests + tokens
-      per model/provider/day in SQLite (`usage_log`). `fcc-verdict usage` and the
+      per model/provider/day in SQLite (`usage_log`). `llmux-verdict usage` and the
       `get_usage` MCP tool show requests vs the approximate free RPD limit and
       tokens spent. Approximate by design (provider-reported tokens where
       available). *(implemented + tested)*
 - [ ] **Role-capability config per category** (`roles:` in `verdict.yaml`) wired
       fully into selection so §3.2 preferences hold without relying on stats.
 - [ ] **Optional second-pass meta-refinement** flag (`--second-pass`).
-- [ ] Seed stats with `fcc-verdict benchmark` on first setup so selection is warm.
+- [ ] Seed stats with `llmux-verdict benchmark` on first setup so selection is warm.
 
 ## 6b. MCP + Claude Code integration architecture
 
@@ -182,7 +182,7 @@ free models without spending Opus/Fable context.
 Claude Code (Opus/Fable)
   │  calls MCP tool  evaluate(prompt, depth, files, privacy)
   ▼
-fcc-verdict serve-mcp   (stdio, local-only)         ← already implemented
+llmux-verdict serve-mcp   (stdio, local-only)         ← already implemented
   │  VerdictService.create()  (the shared core)
   ▼
 Discovery → free-only gate → capability+budget selection
@@ -195,8 +195,8 @@ Discovery → free-only gate → capability+budget selection
 Setup (one-time):
 
 ```bash
-claude mcp add fcc-verdict -- fcc-verdict serve-mcp  # mcp ships with the base package
-fcc-verdict install-claude-skill                # optional: the deep-verdict skill
+claude mcp add llmux-verdict -- llmux-verdict serve-mcp  # mcp ships with the base package
+llmux-verdict install-claude-skill                # optional: the deep-verdict skill
 ```
 
 Design choices that make this safe and cheap for Claude Code:

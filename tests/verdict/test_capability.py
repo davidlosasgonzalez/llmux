@@ -1,14 +1,14 @@
 """Capability priors and the cold-start selection fix."""
 
-from free_claude_code.verdict.capability import (
+from llmux.verdict.capability import (
     capability_prior,
     category_fit,
     size_billions,
 )
-from free_claude_code.verdict.config import VerdictConfig
-from free_claude_code.verdict.models import CostStatus, ModelRef
-from free_claude_code.verdict.selector import select_models
-from free_claude_code.verdict.storage import ModelStats
+from llmux.verdict.config import VerdictConfig
+from llmux.verdict.models import CostStatus, ModelRef
+from llmux.verdict.selector import select_models
+from llmux.verdict.storage import ModelStats
 
 
 def _model(provider: str, model_id: str, family: str, *, reasoning: bool = False):

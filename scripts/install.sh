@@ -1,7 +1,7 @@
 #!/bin/sh
 set -eu
 
-REPO_ARCHIVE_URL="https://github.com/davidlosasgonzalez/llm-verdict/archive/refs/heads/main.zip"
+REPO_ARCHIVE_URL="https://github.com/davidlosasgonzalez/llmux/archive/refs/heads/main.zip"
 PYTHON_VERSION="3.14.0"
 MIN_UV_VERSION="0.11.0"
 CLAUDE_INSTALL_URL="https://claude.ai/install.sh"
@@ -14,7 +14,7 @@ show_usage() {
     cat <<'USAGE'
 Usage: install.sh [options]
 
-Installs Claude Code if missing, ensures a compatible uv, and installs or updates Free Claude Code.
+Installs Claude Code if missing, ensures a compatible uv, and installs or updates LLMux.
 
 Options:
   --dry-run                Print commands without running them.
@@ -116,7 +116,7 @@ download_and_run() {
         return 0
     fi
 
-    temporary_script=$(mktemp "${TMPDIR:-/tmp}/fcc-install.XXXXXX") || fail "Unable to create a temporary file for $label."
+    temporary_script=$(mktemp "${TMPDIR:-/tmp}/llmux-install.XXXXXX") || fail "Unable to create a temporary file for $label."
     print_command curl -fsSL "$url" -o "$temporary_script"
     if curl -fsSL "$url" -o "$temporary_script"; then
         :
@@ -274,17 +274,17 @@ parse_args() {
     done
 }
 
-install_free_claude_code() {
-    run uv tool install --force --refresh-package free-claude-code --python "$PYTHON_VERSION" "free-claude-code @ $REPO_ARCHIVE_URL"
+install_llmux() {
+    run uv tool install --force --refresh-package llmux --python "$PYTHON_VERSION" "llmux @ $REPO_ARCHIVE_URL"
 }
 
-configure_and_verify_free_claude_code() {
+configure_and_verify_llmux() {
     run uv tool update-shell
 
     if [ "$dry_run" -eq 1 ]; then
         print_command uv tool dir --bin
-        printf '+ verify fcc-server and fcc-claude in the uv tool bin directory\n'
-        print_command fcc-server --version
+        printf '+ verify llmux-server and llmux-claude in the uv tool bin directory\n'
+        print_command llmux-server --version
         return 0
     fi
 
@@ -301,11 +301,11 @@ configure_and_verify_free_claude_code() {
     export PATH
     hash -r 2>/dev/null || true
 
-    for command_name in fcc-server fcc-claude; do
-        [ -x "$tool_bin/$command_name" ] || fail "Free Claude Code installation did not create $tool_bin/$command_name."
+    for command_name in llmux-server llmux-claude; do
+        [ -x "$tool_bin/$command_name" ] || fail "LLMux installation did not create $tool_bin/$command_name."
     done
 
-    run "$tool_bin/fcc-server" --version
+    run "$tool_bin/llmux-server" --version
 }
 
 parse_args "$@"
@@ -323,15 +323,15 @@ ensure_claude
 step "Ensuring uv $MIN_UV_VERSION or newer is installed"
 ensure_uv
 
-step "Installing or updating Free Claude Code"
-install_free_claude_code
+step "Installing or updating LLMux"
+install_llmux
 
-step "Configuring PATH and verifying Free Claude Code"
-configure_and_verify_free_claude_code
+step "Configuring PATH and verifying LLMux"
+configure_and_verify_llmux
 
 if [ "$dry_run" -eq 1 ]; then
     printf '\nDry run complete. No changes were made.\n'
 else
-    printf '\nFree Claude Code is installed and verified. Start the proxy with: fcc-server\n'
-    printf 'Run Claude Code with: fcc-claude\n'
+    printf '\nLLMux is installed and verified. Start the proxy with: llmux-server\n'
+    printf 'Run Claude Code with: llmux-claude\n'
 fi

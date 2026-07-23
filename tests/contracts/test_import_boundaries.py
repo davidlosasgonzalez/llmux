@@ -7,8 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_PACKAGE_ROOT = _REPO_ROOT / "src" / "free_claude_code"
-_PACKAGE_NAME = "free_claude_code"
+_PACKAGE_ROOT = _REPO_ROOT / "src" / "llmux"
+_PACKAGE_NAME = "llmux"
 
 ALLOWED_PACKAGE_DEPENDENCIES: dict[str, set[str]] = {
     "config": set(),
@@ -30,8 +30,8 @@ ALLOWED_PACKAGE_DEPENDENCIES: dict[str, set[str]] = {
 
 IMPORT_EXCEPTIONS: dict[tuple[str, str], str] = {
     (
-        "free_claude_code.cli.entrypoints",
-        "free_claude_code.runtime.bootstrap",
+        "llmux.cli.entrypoints",
+        "llmux.runtime.bootstrap",
     ): (
         "Owner: installed server entrypoint. "
         "Reason: the executable delegates construction to the process composition root."
@@ -39,7 +39,7 @@ IMPORT_EXCEPTIONS: dict[tuple[str, str], str] = {
 }
 
 FACADE_ONLY_BOUNDARIES = {
-    "free_claude_code.providers.openai_chat",
+    "llmux.providers.openai_chat",
 }
 
 OPTIONAL_IMPORT_OWNERS: dict[str, str] = {}
@@ -213,16 +213,15 @@ def test_provider_backchannel_detector_reports_untyped_private_access(
 
 def test_legacy_first_party_import_detector_rejects_bare_owner_names() -> None:
     record = ImportRecord(
-        importer="free_claude_code.api.routes",
+        importer="llmux.api.routes",
         imported="core.anthropic",
-        path="free_claude_code/api/routes.py",
+        path="llmux/api/routes.py",
         line=7,
         inside_function=False,
     )
 
     assert _legacy_first_party_import_offenders([record], {"api", "core"}) == [
-        "free_claude_code/api/routes.py:7: "
-        "free_claude_code.api.routes -> core.anthropic"
+        "llmux/api/routes.py:7: llmux.api.routes -> core.anthropic"
     ]
 
 
@@ -429,8 +428,7 @@ def test_core_does_not_import_provider_transport_sdks() -> None:
         record.describe()
         for record in _scan_imports(_PACKAGE_ROOT)
         if (
-            record.importer == "free_claude_code.core"
-            or record.importer.startswith("free_claude_code.core.")
+            record.importer == "llmux.core" or record.importer.startswith("llmux.core.")
         )
         and record.imported.split(".", 1)[0] in forbidden_roots
     ]
@@ -492,8 +490,8 @@ def test_runtime_imports_without_optional_voice_dependencies() -> None:
             "            raise ModuleNotFoundError(fullname)",
             "        return None",
             "sys.meta_path.insert(0, Blocker())",
-            "import free_claude_code.runtime.bootstrap",
-            "import free_claude_code.api.app",
+            "import llmux.runtime.bootstrap",
+            "import llmux.api.app",
         )
     )
 

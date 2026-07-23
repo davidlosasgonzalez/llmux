@@ -2,12 +2,12 @@
 
 import pytest
 
-from free_claude_code.verdict import provider_policy as pp
-from free_claude_code.verdict.config import VerdictConfig
-from free_claude_code.verdict.discovery import discover_models
-from free_claude_code.verdict.models import CostStatus
-from free_claude_code.verdict.selector import select_models
-from free_claude_code.verdict.storage import ModelStats
+from llmux.verdict import provider_policy as pp
+from llmux.verdict.config import VerdictConfig
+from llmux.verdict.discovery import discover_models
+from llmux.verdict.models import CostStatus
+from llmux.verdict.selector import select_models
+from llmux.verdict.storage import ModelStats
 from tests.verdict.support import make_model
 
 
@@ -87,7 +87,7 @@ def test_selector_prefers_distinct_providers_and_families():
 
 @pytest.mark.asyncio
 async def test_discovery_skips_unauthenticated_and_paid(monkeypatch):
-    from free_claude_code.config.settings import Settings
+    from llmux.config.settings import Settings
 
     monkeypatch.setenv("GROQ_API_KEY", "k")
     monkeypatch.delenv("NVIDIA_NIM_API_KEY", raising=False)

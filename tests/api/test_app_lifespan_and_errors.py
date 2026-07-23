@@ -7,20 +7,20 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from free_claude_code.application.errors import (
+from llmux.application.errors import (
     ApplicationUnavailableError,
     InvalidRequestError,
 )
-from free_claude_code.config.settings import Settings
-from free_claude_code.providers.nvidia_nim.client import NvidiaNimProvider
-from free_claude_code.runtime.application import (
+from llmux.config.settings import Settings
+from llmux.providers.nvidia_nim.client import NvidiaNimProvider
+from llmux.runtime.application import (
     ApplicationRuntime,
     startup_failure_message,
     warn_if_process_auth_token,
 )
-from free_claude_code.runtime.asgi import RuntimeASGIApp
-from free_claude_code.runtime.bootstrap import build_asgi_app
-from free_claude_code.runtime.provider_manager import ProviderRuntimeManager
+from llmux.runtime.asgi import RuntimeASGIApp
+from llmux.runtime.bootstrap import build_asgi_app
+from llmux.runtime.provider_manager import ProviderRuntimeManager
 from tests.api.support import create_test_app
 
 
@@ -29,7 +29,7 @@ def _settings(**updates: object) -> Settings:
 
 
 @pytest.fixture(autouse=True)
-def _redirect_fcc_home(monkeypatch, tmp_path):
+def _redirect_llmux_home(monkeypatch, tmp_path):
     home = tmp_path / "home"
     monkeypatch.setenv("HOME", str(home))
     monkeypatch.setenv("USERPROFILE", str(home))
@@ -39,7 +39,7 @@ def test_warn_if_process_auth_token_logs_warning(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "process-token")
     monkeypatch.setitem(Settings.model_config, "env_file", ())
 
-    with patch("free_claude_code.runtime.application.logger.warning") as warning:
+    with patch("llmux.runtime.application.logger.warning") as warning:
         warn_if_process_auth_token(Settings.model_construct())
 
     warning.assert_called_once()
@@ -52,7 +52,7 @@ def test_warn_if_process_auth_token_skips_explicit_dotenv_config(monkeypatch, tm
     monkeypatch.setenv("ANTHROPIC_AUTH_TOKEN", "process-token")
     monkeypatch.setitem(Settings.model_config, "env_file", (env_file,))
 
-    with patch("free_claude_code.runtime.application.logger.warning") as warning:
+    with patch("llmux.runtime.application.logger.warning") as warning:
         warn_if_process_auth_token(Settings.model_construct())
 
     warning.assert_not_called()
@@ -112,7 +112,7 @@ def test_application_error_handler_does_not_log_error_message():
     async def _raise_application_secret():
         raise InvalidRequestError(secret)
 
-    with patch("free_claude_code.api.app.logger.error") as log_error:
+    with patch("llmux.api.app.logger.error") as log_error:
         response = TestClient(app).get("/raise_application_secret")
 
     assert response.status_code == 400
@@ -147,7 +147,7 @@ def test_general_exception_default_log_excludes_exception_message():
     async def _raise_secret():
         raise ValueError(secret)
 
-    with patch("free_claude_code.api.app.logger.error") as log_error:
+    with patch("llmux.api.app.logger.error") as log_error:
         response = TestClient(app, raise_server_exceptions=False).get("/raise_secret")
 
     assert response.status_code == 500
@@ -288,10 +288,10 @@ def test_bootstrap_configures_default_log_and_publishes_only_services(tmp_path):
 
     with (
         patch(
-            "free_claude_code.runtime.bootstrap.server_log_path",
+            "llmux.runtime.bootstrap.server_log_path",
             return_value=log_path,
         ),
-        patch("free_claude_code.runtime.bootstrap.configure_logging") as configure,
+        patch("llmux.runtime.bootstrap.configure_logging") as configure,
     ):
         asgi_app = build_asgi_app(settings)
 
@@ -308,7 +308,7 @@ def test_bootstrap_honors_process_log_file_override(monkeypatch, tmp_path):
     log_path = tmp_path / "custom.log"
     monkeypatch.setenv("LOG_FILE", str(log_path))
 
-    with patch("free_claude_code.runtime.bootstrap.configure_logging") as configure:
+    with patch("llmux.runtime.bootstrap.configure_logging") as configure:
         build_asgi_app(_settings())
 
     assert configure.call_args.args[0] == log_path
@@ -318,7 +318,7 @@ def test_bootstrap_honors_process_log_file_override(monkeypatch, tmp_path):
 async def test_bootstrap_constructs_isolated_runtime_resource_graphs() -> None:
     settings = _settings(model="nvidia_nim/test-model")
 
-    with patch("free_claude_code.runtime.bootstrap.configure_logging"):
+    with patch("llmux.runtime.bootstrap.configure_logging"):
         first = build_asgi_app(settings)
         second = build_asgi_app(settings)
 

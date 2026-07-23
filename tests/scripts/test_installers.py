@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 _REPO_ARCHIVE_URL = (
-    "https://github.com/davidlosasgonzalez/llm-verdict/archive/refs/heads/main.zip"
+    "https://github.com/davidlosasgonzalez/llmux/archive/refs/heads/main.zip"
 )
 
 
@@ -58,15 +58,15 @@ if [ "${{1:-}}" = "--version" ]; then
     exit 0
 fi
 if [ "${{1:-}}" = "tool" ] && [ "${{2:-}}" = "install" ]; then
-    if [ "$FAIL_STEP" = "fcc-install" ]; then
+    if [ "$FAIL_STEP" = "llmux-install" ]; then
         exit 33
     fi
     mkdir -p "$FAKE_TOOL_BIN"
-    cp "$FAKE_FIXTURES/fcc-command.sh" "$FAKE_TOOL_BIN/fcc-server"
-    if [ "$FAIL_STEP" != "fcc-missing" ]; then
-        cp "$FAKE_FIXTURES/fcc-command.sh" "$FAKE_TOOL_BIN/fcc-claude"
+    cp "$FAKE_FIXTURES/llmux-command.sh" "$FAKE_TOOL_BIN/llmux-server"
+    if [ "$FAIL_STEP" != "llmux-missing" ]; then
+        cp "$FAKE_FIXTURES/llmux-command.sh" "$FAKE_TOOL_BIN/llmux-claude"
     fi
-    chmod +x "$FAKE_TOOL_BIN"/fcc-*
+    chmod +x "$FAKE_TOOL_BIN"/llmux-*
     exit 0
 fi
 if [ "${{1:-}}" = "tool" ] && [ "${{2:-}}" = "update-shell" ]; then
@@ -181,15 +181,15 @@ chmod +x "$HOME/.local/bin/uv"
     _write_executable(fixtures / "claude-command.sh", _posix_command("claude"))
     _write_executable(fixtures / "uv-command.sh", _posix_uv_command("0.11.28"))
     _write_executable(
-        fixtures / "fcc-command.sh",
+        fixtures / "llmux-command.sh",
         """#!/bin/sh
 name=${0##*/}
 echo "$name:$*" >> "$CALL_LOG"
-if [ "$FAIL_STEP" = "fcc-verify" ]; then
+if [ "$FAIL_STEP" = "llmux-verify" ]; then
     exit 36
 fi
-if [ "$name" = "fcc-server" ] && [ "${1:-}" = "--version" ]; then
-    echo "free-claude-code 6.0.0"
+if [ "$name" = "llmux-server" ] && [ "${1:-}" = "--version" ]; then
+    echo "llmux 6.0.0"
 fi
 """,
     )
@@ -213,14 +213,14 @@ def test_install_sh_fresh_install_is_verified(posix_harness: PosixHarness) -> No
     result = posix_harness.run()
 
     assert result.returncode == 0, result.stderr
-    assert "Free Claude Code is installed and verified." in result.stdout
+    assert "LLMux is installed and verified." in result.stdout
     calls = posix_harness.calls()
     assert calls.index("claude-install") < calls.index("claude:--version")
     assert calls.index("uv-install") < calls.index("uv:--version")
     assert any(
         call.startswith(
-            "uv:tool install --force --refresh-package free-claude-code "
-            f"--python 3.14.0 free-claude-code @ {_REPO_ARCHIVE_URL}"
+            "uv:tool install --force --refresh-package llmux "
+            f"--python 3.14.0 llmux @ {_REPO_ARCHIVE_URL}"
         )
         for call in calls
     )
@@ -228,7 +228,7 @@ def test_install_sh_fresh_install_is_verified(posix_harness: PosixHarness) -> No
     assert calls[-3:] == [
         "uv:tool update-shell",
         "uv:tool dir --bin",
-        "fcc-server:--version",
+        "llmux-server:--version",
     ]
 
 
@@ -265,10 +265,10 @@ def test_install_sh_replaces_obsolete_uv(posix_harness: PosixHarness) -> None:
         "uv-download",
         "uv-install",
         "uv-verify",
-        "fcc-install",
+        "llmux-install",
         "path-update",
-        "fcc-missing",
-        "fcc-verify",
+        "llmux-missing",
+        "llmux-verify",
     ],
 )
 def test_install_sh_stops_without_success_on_each_failure(
@@ -278,7 +278,7 @@ def test_install_sh_stops_without_success_on_each_failure(
     result = posix_harness.run(fail_step=failure)
 
     assert result.returncode != 0
-    assert "Free Claude Code is installed and verified." not in result.stdout
+    assert "LLMux is installed and verified." not in result.stdout
     forbidden = {
         "claude-download": "claude-install",
         "claude-install": "claude:--version",
@@ -286,9 +286,9 @@ def test_install_sh_stops_without_success_on_each_failure(
         "uv-download": "uv-install",
         "uv-install": "uv:--version",
         "uv-verify": "uv:tool install",
-        "fcc-install": "uv:tool update-shell",
+        "llmux-install": "uv:tool update-shell",
         "path-update": "uv:tool dir --bin",
-        "fcc-missing": "fcc-server:--version",
+        "llmux-missing": "llmux-server:--version",
     }.get(failure)
     if forbidden is not None:
         assert not any(forbidden in call for call in posix_harness.calls())
@@ -302,7 +302,7 @@ def test_install_sh_dry_run_never_executes_commands(
     assert result.returncode == 0, result.stderr
     assert posix_harness.calls() == []
     assert "Dry run complete. No changes were made." in result.stdout
-    assert "Free Claude Code is installed and verified." not in result.stdout
+    assert "LLMux is installed and verified." not in result.stdout
 
 
 def test_install_sh_rejects_broken_existing_client_without_replacing_it(
@@ -364,10 +364,10 @@ if "%FAIL_STEP%"=="uv-verify" exit /b 52
 echo uv {version}
 exit /b 0
 :install
-if "%FAIL_STEP%"=="fcc-install" exit /b 53
+if "%FAIL_STEP%"=="llmux-install" exit /b 53
 if not exist "%FAKE_TOOL_BIN%" mkdir "%FAKE_TOOL_BIN%"
-copy /y "%FAKE_FIXTURES%\fcc-command.cmd" "%FAKE_TOOL_BIN%\fcc-server.cmd" >nul
-if not "%FAIL_STEP%"=="fcc-missing" copy /y "%FAKE_FIXTURES%\fcc-command.cmd" "%FAKE_TOOL_BIN%\fcc-claude.cmd" >nul
+copy /y "%FAKE_FIXTURES%\llmux-command.cmd" "%FAKE_TOOL_BIN%\llmux-server.cmd" >nul
+if not "%FAIL_STEP%"=="llmux-missing" copy /y "%FAKE_FIXTURES%\llmux-command.cmd" "%FAKE_TOOL_BIN%\llmux-claude.cmd" >nul
 exit /b 0
 :update_shell
 if "%FAIL_STEP%"=="path-update" exit /b 54
@@ -445,12 +445,12 @@ def powershell_harness(
         _batch_client("claude"), encoding="utf-8"
     )
     (fixtures / "uv-command.cmd").write_text(_batch_uv("0.11.28"), encoding="utf-8")
-    (fixtures / "fcc-command.cmd").write_text(
+    (fixtures / "llmux-command.cmd").write_text(
         """@echo off
-for %%I in ("%~f0") do set "FCC_NAME=%%~nI"
-echo %FCC_NAME%:%*>>"%CALL_LOG%"
-if "%FAIL_STEP%"=="fcc-verify" exit /b 55
-if "%FCC_NAME%"=="fcc-server" if "%1"=="--version" echo free-claude-code 6.0.0
+for %%I in ("%~f0") do set "LLMUX_NAME=%%~nI"
+echo %LLMUX_NAME%:%*>>"%CALL_LOG%"
+if "%FAIL_STEP%"=="llmux-verify" exit /b 55
+if "%LLMUX_NAME%"=="llmux-server" if "%1"=="--version" echo llmux 6.0.0
 exit /b 0
 """,
         encoding="utf-8",
@@ -500,7 +500,7 @@ function Invoke-RestMethod {
     }
     Copy-Item -LiteralPath $source -Destination $OutFile -Force
 }
-$installer = [scriptblock]::Create([IO.File]::ReadAllText($env:FCC_INSTALLER))
+$installer = [scriptblock]::Create([IO.File]::ReadAllText($env:LLMUX_INSTALLER))
 & $installer @args
 """,
         encoding="utf-8",
@@ -520,7 +520,7 @@ $installer = [scriptblock]::Create([IO.File]::ReadAllText($env:FCC_INSTALLER))
             "CALL_LOG": str(log),
             "FAKE_FIXTURES": str(fixtures),
             "FAKE_TOOL_BIN": str(tool_bin),
-            "FCC_INSTALLER": str(_repo_root() / "scripts" / "install.ps1"),
+            "LLMUX_INSTALLER": str(_repo_root() / "scripts" / "install.ps1"),
             "FAIL_STEP": "",
         }
     )
@@ -535,14 +535,14 @@ def test_install_ps1_fresh_install_is_verified(
     result = powershell_harness.run()
 
     assert result.returncode == 0, result.stderr
-    assert "Free Claude Code is installed and verified." in result.stdout
+    assert "LLMux is installed and verified." in result.stdout
     calls = powershell_harness.calls()
     assert calls.index("claude-install") < calls.index("claude:--version")
     assert calls.index("uv-install") < calls.index("uv:--version")
     assert any(
         call.startswith(
-            "uv:tool install --force --refresh-package free-claude-code "
-            f'--python 3.14.0 "free-claude-code @ {_REPO_ARCHIVE_URL}"'
+            "uv:tool install --force --refresh-package llmux "
+            f'--python 3.14.0 "llmux @ {_REPO_ARCHIVE_URL}"'
         )
         for call in calls
     )
@@ -550,7 +550,7 @@ def test_install_ps1_fresh_install_is_verified(
     assert calls[-3:] == [
         "uv:tool update-shell",
         "uv:tool dir --bin",
-        "fcc-server:--version",
+        "llmux-server:--version",
     ]
 
 
@@ -589,10 +589,10 @@ def test_install_ps1_replaces_obsolete_uv(
         "uv-download",
         "uv-install",
         "uv-verify",
-        "fcc-install",
+        "llmux-install",
         "path-update",
-        "fcc-missing",
-        "fcc-verify",
+        "llmux-missing",
+        "llmux-verify",
     ],
 )
 def test_install_ps1_stops_without_success_on_each_failure(
@@ -602,7 +602,7 @@ def test_install_ps1_stops_without_success_on_each_failure(
     result = powershell_harness.run(fail_step=failure)
 
     assert result.returncode != 0
-    assert "Free Claude Code is installed and verified." not in result.stdout
+    assert "LLMux is installed and verified." not in result.stdout
     forbidden = {
         "claude-download": "claude-install",
         "claude-install": "claude:--version",
@@ -610,9 +610,9 @@ def test_install_ps1_stops_without_success_on_each_failure(
         "uv-download": "uv-install",
         "uv-install": "uv:--version",
         "uv-verify": "uv:tool install",
-        "fcc-install": "uv:tool update-shell",
+        "llmux-install": "uv:tool update-shell",
         "path-update": "uv:tool dir --bin",
-        "fcc-missing": "fcc-server:--version",
+        "llmux-missing": "llmux-server:--version",
     }.get(failure)
     if forbidden is not None:
         assert not any(forbidden in call for call in powershell_harness.calls())
@@ -640,7 +640,7 @@ def test_install_ps1_dry_run_never_executes_commands(
     assert result.returncode == 0, result.stderr
     assert powershell_harness.calls() == []
     assert "Dry run complete. No changes were made." in result.stdout
-    assert "Free Claude Code is installed and verified." not in result.stdout
+    assert "LLMux is installed and verified." not in result.stdout
 
 
 def test_install_ps1_rejects_broken_existing_client_without_replacing_it(

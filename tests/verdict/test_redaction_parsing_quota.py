@@ -5,19 +5,19 @@ from typing import ClassVar
 
 import pytest
 
-from free_claude_code.core.quota import (
+from llmux.core.quota import (
     QuotaTracker,
     classify_failure,
     retry_after_seconds,
 )
-from free_claude_code.verdict.models import FailureKind, Privacy
-from free_claude_code.verdict.parsing import (
+from llmux.verdict.models import FailureKind, Privacy
+from llmux.verdict.parsing import (
     extract_json_object,
     parse_critique,
     parse_proposal,
     parse_review,
 )
-from free_claude_code.verdict.redaction import (
+from llmux.verdict.redaction import (
     PathPolicy,
     apply_privacy,
     contains_secret,

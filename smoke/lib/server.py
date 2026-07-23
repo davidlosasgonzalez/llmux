@@ -11,7 +11,7 @@ from pathlib import Path
 
 import httpx
 
-from .child_process import cmd_free_claude_code_serve
+from .child_process import cmd_llmux_serve
 from .config import SmokeConfig, redacted
 
 
@@ -50,14 +50,14 @@ def start_server(
             "HOST": "127.0.0.1",
             "PORT": str(port),
             "LOG_FILE": str(log_path),
-            "FCC_OPEN_BROWSER": "0",
+            "LLMUX_OPEN_BROWSER": "0",
             "PYTHONUNBUFFERED": "1",
         }
     )
     if env_overrides:
         env.update(env_overrides)
 
-    cmd = command or cmd_free_claude_code_serve()
+    cmd = command or cmd_llmux_serve()
 
     with log_path.open("ab") as log_file:
         process = subprocess.Popen(

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from free_claude_code.config.env_migrations import (
+from llmux.config.env_migrations import (
     HUGGINGFACE_API_KEY_ENV,
     HUGGINGFACE_TOKEN_MIGRATION,
     LEGACY_HUGGINGFACE_TOKEN_ENV,
@@ -58,7 +58,7 @@ def test_migrate_owned_env_files_rewrites_repo_and_managed_env(
 ) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
-    managed = tmp_path / ".fcc" / ".env"
+    managed = tmp_path / ".llmux" / ".env"
     managed.parent.mkdir()
     (repo / ".env").write_text("HF_TOKEN=repo-token\n", encoding="utf-8")
     managed.write_text("HF_TOKEN=managed-token\n", encoding="utf-8")
@@ -83,7 +83,7 @@ def test_explicit_env_file_huggingface_warning_does_not_rewrite(
     explicit = tmp_path / "custom.env"
     explicit.write_text("HF_TOKEN=explicit-token\n", encoding="utf-8")
 
-    warning = explicit_env_file_huggingface_warning({"FCC_ENV_FILE": str(explicit)})
+    warning = explicit_env_file_huggingface_warning({"LLMUX_ENV_FILE": str(explicit)})
 
     assert warning is not None
     assert str(explicit) in warning

@@ -2,12 +2,12 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from free_claude_code.api.command_utils import extract_filepaths_from_command
-from free_claude_code.api.detection import (
+from llmux.api.command_utils import extract_filepaths_from_command
+from llmux.api.detection import (
     is_filepath_extraction_request,
     is_suggestion_mode_request,
 )
-from free_claude_code.core.anthropic.models import Message, MessagesRequest
+from llmux.core.anthropic.models import Message, MessagesRequest
 
 
 def _mk_req(messages, tools=None, system=None):
@@ -67,7 +67,7 @@ class TestFilepathExtractionDetection:
 
     def test_detects_filepath_extraction_via_system_block(self):
         """Command: + Output: in user, no filepaths in user; system has extract instructions."""
-        msg = _mk_msg("user", "Command: ls\nOutput: avazu-ctr\nfree-claude-code")
+        msg = _mk_msg("user", "Command: ls\nOutput: avazu-ctr\nllmux")
         req = _mk_req(
             [msg],
             tools=None,
@@ -77,7 +77,7 @@ class TestFilepathExtractionDetection:
         assert ok is True
         assert cmd == "ls"
         assert "avazu-ctr" in out
-        assert "free-claude-code" in out
+        assert "llmux" in out
 
     def test_extracts_command_and_output_and_cleans_output(self):
         msg = _mk_msg(
