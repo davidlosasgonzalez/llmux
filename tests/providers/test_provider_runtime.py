@@ -4,6 +4,7 @@ import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from pydantic_settings import SettingsConfigDict
 
 from free_claude_code.application.errors import UnknownProviderError
 from free_claude_code.config.nim import NimSettings
@@ -18,6 +19,7 @@ from free_claude_code.config.provider_catalog import (
     VERCEL_AI_GATEWAY_DEFAULT_BASE,
     ZAI_DEFAULT_BASE,
 )
+from free_claude_code.config.settings import Settings
 from free_claude_code.providers.cloudflare import CloudflareProvider
 from free_claude_code.providers.deepseek import DeepSeekProvider
 from free_claude_code.providers.gemini import GeminiProvider
@@ -36,6 +38,7 @@ from free_claude_code.providers.runtime import (
     build_provider_config,
     create_provider,
 )
+from free_claude_code.providers.runtime.config import effective_upstream_max_retries
 
 
 def _make_settings(**overrides):
@@ -311,6 +314,39 @@ def test_build_provider_config_github_models_uses_token_and_proxy() -> None:
 
     assert config.api_key == "github-token"
     assert config.proxy == "http://proxy.test:8080"
+
+
+class _NoEnvFileSettings(Settings):
+    """Settings isolated from on-disk .env files for deterministic tests."""
+
+    model_config = SettingsConfigDict(env_file=None, extra="ignore")
+
+
+def _clean_retry_env(monkeypatch) -> None:
+    monkeypatch.delenv("PROVIDER_UPSTREAM_MAX_RETRIES", raising=False)
+    monkeypatch.delenv("MODEL_FALLBACKS", raising=False)
+
+
+def test_upstream_retries_default_is_one_with_fallbacks(monkeypatch) -> None:
+    _clean_retry_env(monkeypatch)
+    settings = _NoEnvFileSettings(model_fallbacks="cerebras/gpt-oss-120b")
+
+    assert effective_upstream_max_retries(settings) == 1
+
+
+def test_upstream_retries_default_stays_four_without_fallbacks(monkeypatch) -> None:
+    _clean_retry_env(monkeypatch)
+    settings = _NoEnvFileSettings()
+
+    assert effective_upstream_max_retries(settings) == 4
+
+
+def test_upstream_retries_explicit_value_wins_over_fallbacks(monkeypatch) -> None:
+    _clean_retry_env(monkeypatch)
+    monkeypatch.setenv("PROVIDER_UPSTREAM_MAX_RETRIES", "4")
+    settings = _NoEnvFileSettings(model_fallbacks="cerebras/gpt-oss-120b")
+
+    assert effective_upstream_max_retries(settings) == 4
 
 
 def test_create_provider_uses_openai_chat_openrouter_by_default():
