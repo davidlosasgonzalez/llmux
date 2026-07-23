@@ -106,7 +106,11 @@ _POLICY: dict[str, ProviderFreeAccess] = {
         tier=TIER_B,
         requires_card=False,
         default_enabled=False,
-        free_daily="Free with a GitHub account, daily request limits, no card.",
+        free_daily=(
+            "Free with a GitHub account, daily request limits, no card. "
+            "Hard ~4k-token cap per request truncates long deliberation "
+            "proposals; prefer other tiers for verdict panels."
+        ),
     ),
     "cloudflare": ProviderFreeAccess(
         provider="cloudflare",
