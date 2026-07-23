@@ -440,7 +440,7 @@ async def test_messages_handler_keeps_existing_no_thinking_for_classifier() -> N
     provider = FakeProvider()
     handler = MessagesHandler(Settings(), provider_resolver=lambda _: provider)
     request = MessagesRequest(
-        model="claude-3-freecc-no-thinking/nvidia_nim/test-model",
+        model="claude-3-llmux-no-thinking/nvidia_nim/test-model",
         max_tokens=100,
         stream=True,
         system=_CLASSIFIER_SYSTEM,

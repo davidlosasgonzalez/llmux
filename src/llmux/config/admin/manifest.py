@@ -182,7 +182,7 @@ _NON_PROVIDER_FIELDS: tuple[ConfigFieldSpec, ...] = (
         "runtime",
         "secret",
         settings_attr="anthropic_auth_token",
-        default="freecc",
+        default="llmux",
         secret=True,
         restart_required=True,
         description="Bearer token protecting Claude/API access. It is not admin-page login.",

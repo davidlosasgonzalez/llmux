@@ -15,7 +15,7 @@ from llmux.config.settings import Settings
 def _launcher_settings(
     *,
     port: int = 8082,
-    token: str = "freecc",
+    token: str = "llmux",
     open_admin_browser: bool = True,
 ) -> Settings:
     return Settings.model_construct(
