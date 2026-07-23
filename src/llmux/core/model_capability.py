@@ -113,6 +113,12 @@ def family_of(model_id: str) -> str:
     return "unknown"
 
 
+def has_small_hint(model_id: str) -> bool:
+    """True when the model id carries an explicit small-tier hint."""
+    lowered = model_id.lower()
+    return any(token in lowered for token in _SMALL_TOKENS)
+
+
 def is_coder_model(model_id: str) -> bool:
     """True when the model id carries a coder/code-tuned hint."""
     lowered = model_id.lower()

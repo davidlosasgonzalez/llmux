@@ -10,8 +10,9 @@ from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
+from llmux.application.model_lint import lint_model_config
 from llmux.config.admin.manifest import FIELD_BY_KEY
-from llmux.config.admin.persistence import validate_updates
+from llmux.config.admin.persistence import prepare_admin_update
 from llmux.config.admin.values import load_config_response
 
 from .dependencies import get_services
@@ -94,7 +95,12 @@ async def get_admin_config(request: Request):
 @router.post("/admin/api/config/validate")
 async def validate_admin_config(payload: AdminConfigPayload, request: Request):
     require_loopback_admin(request)
-    return validate_updates(_filtered_values(payload.values))
+    prepared = prepare_admin_update(_filtered_values(payload.values))
+    response = prepared.validation_response()
+    response["warnings"] = (
+        lint_model_config(prepared.settings) if prepared.settings else []
+    )
+    return response
 
 
 @router.post("/admin/api/config/apply")

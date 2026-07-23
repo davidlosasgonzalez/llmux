@@ -9,6 +9,7 @@ from typing import Any
 from loguru import logger
 
 from llmux.application.errors import ApplicationUnavailableError
+from llmux.application.model_lint import lint_model_config
 from llmux.config.admin.persistence import (
     PreparedAdminUpdate,
     commit_prepared_admin_update,
@@ -117,6 +118,8 @@ class ApplicationRuntime:
         try:
             warn_if_process_auth_token(self.settings)
             await self._validate_configured_models_best_effort()
+            for lint_warning in lint_model_config(self.settings):
+                logger.warning("Model config lint: {}", lint_warning)
             self.provider_manager.start_model_list_refresh()
             logging.getLogger("uvicorn.error").info(
                 "Admin UI: %s (local-only)",

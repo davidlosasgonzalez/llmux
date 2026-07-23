@@ -4,6 +4,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from typing import Literal
 
+from pydantic import AliasChoices
+
 from llmux.config.settings import Settings
 
 from .provider_manifest import provider_field_specs
@@ -552,6 +554,11 @@ def field_input_key(field: ConfigFieldSpec) -> str | None:
     model_field = Settings.model_fields[field.settings_attr]
     alias = model_field.validation_alias
     if alias is None:
+        return field.settings_attr
+    if isinstance(alias, AliasChoices):
+        first_choice = alias.choices[0]
+        if isinstance(first_choice, str):
+            return first_choice
         return field.settings_attr
     return str(alias)
 

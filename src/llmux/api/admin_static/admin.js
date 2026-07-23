@@ -372,10 +372,15 @@ async function validate(showResult = true) {
 }
 
 function showValidationResult(result) {
-  if (result.valid) {
-    showMessage("Config shape is valid", "ok");
-  } else {
+  if (!result.valid) {
     showMessage(result.errors.join("; "), "error");
+    return;
+  }
+  const warnings = result.warnings || [];
+  if (warnings.length > 0) {
+    showMessage(`Valid, with warnings: ${warnings.join(" | ")}`, "warn");
+  } else {
+    showMessage("Config shape is valid", "ok");
   }
 }
 
