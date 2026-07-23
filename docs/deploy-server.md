@@ -11,7 +11,7 @@ con LLMux como proxy y Claude Code como TUI diaria.
 3. `uv sync` / install script; comprobar `llmux-server --help`, `llmux-claude --help`.
 4. Copiar `.env.example` → `~/.llmux/.env` y rellenar API keys.
 5. Fijar política de modelos (C1):
-   - `MODEL=open_router/moonshotai/kimi-k2.5` (o el ganador del último eval)
+   - `MODEL=open_router/moonshotai/kimi-k2.6` (o el ganador del último eval)
    - `MODEL_FALLBACKS=open_router/deepseek/deepseek-v3.2,cerebras/gpt-oss-120b`
 6. Instalar Claude Code: `curl -fsSL https://claude.ai/install.sh | bash`
 

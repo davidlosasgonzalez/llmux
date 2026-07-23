@@ -7,7 +7,12 @@ in `verdict/capability.py` and the routing rules in
 
 _Model catalogues are live-discovered (`llmux-verdict models --free-only`); limits
 are researched from provider docs and **change often — re-verify periodically.**
-Last researched: 2026-07-15._
+Last researched: 2026-07-15. Partial update 2026-07-23: Groq retiró
+`llama-3.1-8b-instant`, `llama-3.3-70b-versatile` (shutdown 2026-08-16) y
+`qwen/qwen3-32b` (ya apagado) — sucesores oficiales `openai/gpt-oss-20b`/`-120b`
+y `qwen/qwen3.6-27b`; DeepSeek retiró los alias `deepseek-chat`/`deepseek-reasoner`
+(2026-07-24) — usar IDs `deepseek-v4-*` explícitos; GitHub Models retirado para
+clientes nuevos (jun-2026); Gemini Pro fuera del free tier (abr-2026)._
 
 ---
 
@@ -18,11 +23,11 @@ discovered (non-chat like embeddings/whisper/guard are filtered out):
 
 | Provider | Env var | Free chat models | Standout models |
 | --- | --- | --- | --- |
-| Groq | `GROQ_API_KEY` | ~10 | gpt-oss-120b, llama-3.3-70b, qwen3-32b |
+| Groq | `GROQ_API_KEY` | ~10 | gpt-oss-120b, gpt-oss-20b, qwen3.6-27b |
 | Cerebras | `CEREBRAS_API_KEY` | ~3 | gpt-oss-120b, zai-glm-4.7 |
 | Gemini | `GEMINI_API_KEY` | ~49 | gemini-2.5/3-pro, gemini-flash (1M ctx) |
 | NVIDIA NIM | `NVIDIA_NIM_API_KEY` | ~94 | nemotron-3-super-120b, nemotron-ultra-550b, qwen3.5-397b, deepseek-v4, glm-5.2 |
-| OpenRouter `:free` | `OPENROUTER_API_KEY` | ~16 | nemotron-super/ultra `:free`, qwen3-coder `:free`, llama-3.3-70b `:free` |
+| OpenRouter `:free` | `OPENROUTER_API_KEY` | ~16 | nemotron-super/ultra `:free`, qwen3-coder `:free`, kimi-k2.6 `:free` |
 | GitHub Models | `GITHUB_MODELS_TOKEN` | ~20 | deepseek-r1, deepseek-v3, llama-4-maverick, mistral-medium |
 
 **192 free chat models total.** The pool covers every role we need.
@@ -90,7 +95,7 @@ parallel propose phase or they exhaust in a few runs.
 ### Recommended default role→provider map
 | Role | Providers (priority) | Models |
 | --- | --- | --- |
-| Propose (×3-4) | groq, cerebras, nvidia_nim, gemini-flash | gpt-oss-120b, llama-3.3-70b, qwen3, nemotron-super |
+| Propose (×3-4) | groq, cerebras, nvidia_nim, gemini-flash | gpt-oss-120b, qwen3.6-27b, nemotron-super |
 | Review (×2-3) | groq, nvidia_nim, gemini-flash-lite | qwen3, gpt-oss-120b, nemotron |
 | **Refine** | github_models, open_router:free, nvidia_nim | **deepseek-r1**, nemotron-ultra-550b, qwen3-coder (code) |
 | **Critique** | open_router:free, groq, nvidia_nim | nemotron-super, gpt-oss-120b (≠ refiner family) |
