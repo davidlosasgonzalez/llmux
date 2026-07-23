@@ -19,7 +19,7 @@
 - Do not add `from __future__ import annotations`; Python 3.14 native lazy annotations are the project standard.
 - All 5 check IDs are represented in `scripts/ci.sh` / `scripts/ci.ps1` and enforced in `tests.yml` on push/merge (parallel jobs: suppression grep, ruff-format, ruff-check, ty, pytest).
 - GitHub CI runs on `push`, `pull_request`, and `merge_group` so required checks validate merge queue candidates before they land.
-- Repository protection should use rulesets: a non-bypassable main integrity ruleset requires pull requests, merge queue, required checks, and blocks direct/force pushes to `main`; a separate review ruleset may allow `Alishahryar1`/admins to bypass review only.
+- Repository protection uses rulesets (configured, see `gh api repos/davidlosasgonzalez/llmux/rulesets`): a non-bypassable "Main integrity" ruleset requires pull requests and the 5 required status checks, and blocks direct/force pushes plus branch deletion on `main`; a separate "Review" ruleset requires 1 approving review but lets repo admins bypass that review requirement only. No merge queue — GitHub's `merge_queue` ruleset rule kept rejecting valid-looking parameters with an opaque 422, and it's not worth fighting for a solo/two-collaborator repo.
 - Required status checks: set **required status checks** to **all** of those statuses (e.g. **Ban suppressions and legacy annotations**, **ruff-format**, **ruff-check**, **ty**, **pytest**—use the exact labels GitHub shows, which may be prefixed with **CI /**). Remove **ci** from required checks if it was previously added for the old gate job.
 
 ## IDENTITY & CONTEXT

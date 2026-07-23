@@ -1,21 +1,21 @@
 # Contributing
 
-Thanks for helping improve LLMux. Keep changes focused, test the behavior you change, and preserve the public Claude Code workflow.
+LLMux is maintained solo, on personal time, and pull requests from other users
+are not actively monitored or reviewed. If you want to change something —
+fix a bug, add a provider, adjust behavior — fork the repo or clone it and
+run your own copy; see the setup below. Bug reports and feature requests are
+still welcome as [issues](https://github.com/davidlosasgonzalez/llmux/issues),
+even though there's no guarantee of a timely response.
 
-## Before Opening A Pull Request
-
-- Open an issue before proposing README changes.
-- Do not open Docker integration pull requests.
-- For bugs, include every model mapping, the active model when the failure occurred, the complete error, and reproducible steps.
-- Add focused tests for behavior changes and relevant edge cases.
-- Read [ARCHITECTURE.md](ARCHITECTURE.md) before changing package boundaries, providers, protocol conversion, or the launcher.
+The rest of this document (setup, quality checks, project standards) is for
+anyone working on their own fork or checkout.
 
 ## Development Setup
 
 Install [uv](https://docs.astral.sh/uv/) and Python 3.14, then run directly from the checkout:
 
 ```bash
-git clone https://github.com/Alishahryar1/llmux.git
+git clone https://github.com/davidlosasgonzalez/llmux.git
 cd llmux
 uv python install 3.14.0
 uv run llmux-server
