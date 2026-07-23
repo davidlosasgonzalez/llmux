@@ -61,6 +61,7 @@ from .usage import (
     is_stream_usage_rejection,
     request_stream_usage,
     usage_int,
+    usage_nested_int,
 )
 
 
@@ -165,7 +166,15 @@ class OpenAIChatProvider(BaseProvider):
         return {}
 
     def _anthropic_usage_fields(self, usage_info: Any) -> dict[str, int]:
-        """Return provider-specific Anthropic usage fields for final SSE usage."""
+        """Return Anthropic usage fields for final SSE usage.
+
+        Default: surface the OpenAI-compatible implicit-cache counter
+        (``prompt_tokens_details.cached_tokens``) as ``cache_read_input_tokens``.
+        Providers with richer native fields override this (e.g. DeepSeek).
+        """
+        cached = usage_nested_int(usage_info, "prompt_tokens_details", "cached_tokens")
+        if cached is not None and cached > 0:
+            return {"cache_read_input_tokens": cached}
         return {}
 
     async def _create_stream(self, body: dict) -> tuple[Any, dict]:
@@ -651,6 +660,17 @@ class _OpenAIChatStreamRunner:
         input_tokens = (
             provider_input if provider_input is not None else self._input_tokens
         )
+        usage_fields = self._provider._anthropic_usage_fields(usage_info)
+        if provider_input is not None:
+            # Anthropic usage semantics: ``input_tokens`` excludes cached
+            # reads/writes, while OpenAI ``prompt_tokens`` includes them.
+            cached_total = sum(
+                value
+                for key, value in usage_fields.items()
+                if key in ("cache_read_input_tokens", "cache_creation_input_tokens")
+            )
+            if cached_total:
+                input_tokens = max(0, input_tokens - cached_total)
         trace_event(
             stage="provider",
             event="provider.response.completed",
@@ -667,7 +687,7 @@ class _OpenAIChatStreamRunner:
                 ledger.final_stop_reason(map_stop_reason(finish_reason)),
                 output_tokens,
                 input_tokens=input_tokens,
-                usage_fields=self._provider._anthropic_usage_fields(usage_info),
+                usage_fields=usage_fields,
             )
         ):
             yield event
