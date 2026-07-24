@@ -122,6 +122,15 @@ The launcher uses the current Admin UI settings. Use Claude Code's model picker 
 llmux-claude -p "hello"
 ```
 
+Optional: install Claude Code edit-safety hooks into the current project (Python
+syntax check after Edit/Write, plus a circuit-breaker rule). Explicit, like
+`llmux-verdict install-claude-skill` — does not run automatically on launch:
+
+```bash
+llmux-claude install-hooks
+# or: llmux-claude install-hooks --path /path/to/project
+```
+
 ## Choose A Provider
 
 Enter the listed setting in the Admin UI, set `MODEL` to a provider-prefixed model ID, then click **Validate** and **Apply**. Provider names link to their key, model, or setup pages.
