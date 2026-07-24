@@ -59,22 +59,25 @@ Enforced by `.claude/hooks/llmux_edit_breaker.py` — not optional markdown:
 5. **Bash must not rewrite Python** — `sed -i`, redirects into `*.py`,
    `ruff format` / `ruff check --fix`, `black`, `isort` are **blocked**.
    Use Edit/Write so dirty-path tracking works.
-6. **Commit claim guard** — `git commit` messages that name `src/`/`tests/`
+6. **Read without progress** — reading the same path 3+ times with no
+   intervening Edit/Write/Bash success is **blocked** (mandatory re-read after
+   a dirty Edit does not count).
+7. **Commit claim guard** — `git commit` messages that name `src/`/`tests/`
    paths or claim done/fixed work are denied unless the staged diff matches
    (also advisor weight / market-value overlays).
-7. **pytest via uv** — bare `pytest` / `python -m pytest` is **blocked**;
+8. **pytest via uv** — bare `pytest` / `python -m pytest` is **blocked**;
    use `uv run pytest …`.
 
 ## Soft signals (still apply)
 
-1. **Read without progress** — same file read 3+ times with no edit/output.
+None currently — former soft loop signals are hard-enforced above.
 
 | Signal | Threshold | Action |
 |--------|-----------|--------|
 | Same Bash + same stderr | 3 | Deny tool (`BLOCKED: loop detected`) |
 | Edit+revert same file | 2 cycles | Deny until Read + new direction |
 | Bash mutates `*.py` | any | Deny; use Edit/Write |
-| Read same file, no output | 3 | Stop with a short diagnosis |
+| Read same file, no progress | 3 | Deny further Read of that path |
 | Edit after dirty path / failed Edit x2 | -- | Deny until Read |
 
 ## Behavioural guards
@@ -159,7 +162,7 @@ def pytest_guard_pre_entry() -> dict[str, Any]:
 
 def breaker_post_entry() -> dict[str, Any]:
     return {
-        "matcher": "Edit|Write",
+        "matcher": "Edit|Write|Bash",
         "hooks": [{"type": "command", "command": breaker_hook_command()}],
     }
 
