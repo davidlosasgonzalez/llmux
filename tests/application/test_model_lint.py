@@ -13,6 +13,8 @@ class FakeModelConfig:
     model: str = "nvidia_nim/nvidia/nemotron-3-super-120b-a12b"
     model_fable: str | None = None
     model_opus: str | None = None
+    model_sonnet: str | None = None
+    model_haiku: str | None = None
     model_fallbacks: str = ""
     # Default carries a large-window rescue tier so tests unrelated to the
     # context-ceiling lint stay isolated from it; that lint has its own tests
@@ -24,6 +26,23 @@ class FakeModelConfig:
 
 def test_clean_default_config_has_no_warnings():
     assert lint_model_config(FakeModelConfig()) == []
+
+
+def test_flash_model_in_sonnet_slot_warns():
+    config = FakeModelConfig(model_sonnet="open_router/deepseek/deepseek-v4-flash")
+    warnings = lint_model_config(config)
+    assert any("MODEL_SONNET" in w and "cheap" in w for w in warnings)
+
+
+def test_strong_model_in_sonnet_slot_does_not_warn():
+    config = FakeModelConfig(model_sonnet="open_router/moonshotai/kimi-k2.6")
+    assert lint_model_config(config) == []
+
+
+def test_cheap_default_model_warns_when_sonnet_unset():
+    config = FakeModelConfig(model="open_router/deepseek/deepseek-v4-flash")
+    warnings = lint_model_config(config)
+    assert any("MODEL=" in w and "MODEL_SONNET is unset" in w for w in warnings)
 
 
 def test_small_hint_model_in_opus_slot_warns():
@@ -52,10 +71,10 @@ def test_unset_high_tier_slots_do_not_warn():
 
 def test_single_provider_fallback_chain_warns():
     config = FakeModelConfig(
-        model="open_router/deepseek/deepseek-v4-flash",
+        model="open_router/moonshotai/kimi-k2.6",
         model_fallbacks=(
             "open_router/nvidia/nemotron-3-ultra-550b-a55b:free,"
-            "open_router/moonshotai/kimi-k2.6"
+            "open_router/deepseek/deepseek-v4-flash"
         ),
     )
     warnings = lint_model_config(config)
@@ -66,8 +85,8 @@ def test_single_provider_fallback_chain_warns():
 
 def test_multi_provider_fallback_chain_does_not_warn():
     config = FakeModelConfig(
-        model="open_router/deepseek/deepseek-v4-flash",
-        model_fallbacks="gemini/models/gemini-3.5-flash,kimi/kimi-k2.6",
+        model="open_router/moonshotai/kimi-k2.6",
+        model_fallbacks="gemini/models/gemini-3.5-flash,cohere/command-a-plus-05-2026",
     )
     assert lint_model_config(config) == []
 

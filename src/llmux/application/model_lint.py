@@ -16,6 +16,7 @@ from llmux.config.model_refs import (
     parse_provider_type,
 )
 from llmux.core.model_capability import (
+    has_cheap_coding_hint,
     has_small_hint,
     known_context_window,
     size_billions,
@@ -37,6 +38,8 @@ class LintableModelConfig(Protocol):
     model: str
     model_fable: str | None
     model_opus: str | None
+    model_sonnet: str | None
+    model_haiku: str | None
     model_fallbacks: str
     model_long_context: str | None
     context_window_overrides: str
@@ -48,6 +51,7 @@ def lint_model_config(settings: LintableModelConfig) -> list[str]:
 
     warnings: list[str] = []
     warnings.extend(_small_model_in_high_tier(settings))
+    warnings.extend(_cheap_model_in_coding_tier(settings))
     warnings.extend(_fallback_chain_warnings(settings))
     warnings.extend(_heavy_classifier(settings))
     warnings.extend(_context_ceiling_warning(settings))
@@ -62,6 +66,10 @@ def _looks_small(model_ref: str) -> bool:
     return size is not None and size < _SMALL_SIZE_BILLIONS
 
 
+def _looks_cheap_for_coding(model_ref: str) -> bool:
+    return has_cheap_coding_hint(parse_model_name(model_ref))
+
+
 def _small_model_in_high_tier(settings: LintableModelConfig) -> list[str]:
     warnings: list[str] = []
     slots = (("MODEL_OPUS", settings.model_opus), ("MODEL_FABLE", settings.model_fable))
@@ -74,6 +82,29 @@ def _small_model_in_high_tier(settings: LintableModelConfig) -> list[str]:
                 "hardest-tier slot; complex requests may underperform. "
                 "Consider a larger or reasoning-tuned model."
             )
+    return warnings
+
+
+def _cheap_model_in_coding_tier(settings: LintableModelConfig) -> list[str]:
+    """Warn when Sonnet (or default MODEL) is a flash/haiku-class model."""
+
+    warnings: list[str] = []
+    sonnet = settings.model_sonnet
+    if sonnet and "/" in sonnet and _looks_cheap_for_coding(sonnet):
+        warnings.append(
+            f"MODEL_SONNET={sonnet} looks like a cheap/high-throughput tier. "
+            "Claude Code routes most coding agent turns here; flash/haiku-class "
+            "models thrash on Edit/Bash loops. Prefer a stronger coding model "
+            "(e.g. kimi-k2.6, deepseek-v4-pro, glm-5.x) and keep flash on "
+            "MODEL_HAIKU."
+        )
+    # If Sonnet is unset, Claude's sonnet alias falls through to MODEL.
+    if (sonnet is None or sonnet == "") and _looks_cheap_for_coding(settings.model):
+        warnings.append(
+            f"MODEL={settings.model} looks cheap and MODEL_SONNET is unset, so "
+            "coding turns inherit it. Set MODEL_SONNET to a stronger coding "
+            "model or raise MODEL."
+        )
     return warnings
 
 

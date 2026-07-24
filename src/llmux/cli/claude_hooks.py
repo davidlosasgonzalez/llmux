@@ -10,6 +10,8 @@ Installed hooks:
   **not** run formatters — silent rewrites break the next Edit's ``old_string``.
 - PreToolUse / PostToolUse / PostToolUseFailure circuit-breaker: require Read
   between edits on the same path; stop after repeated Edit or Bash failures.
+- PreToolUse commit-claim guard: deny ``git commit`` when the message claims
+  weight unification / market-value fixes the staged diff does not contain.
 """
 
 import argparse
@@ -23,9 +25,11 @@ from typing import Any
 
 HOOK_MARKER = "llmux-python-syntax-hook"
 BREAKER_MARKER = "llmux-edit-breaker"
+COMMIT_GUARD_MARKER = "llmux-commit-claim-guard"
 
 SYNTAX_SCRIPT_NAME = "llmux_python_syntax.py"
 BREAKER_SCRIPT_NAME = "llmux_edit_breaker.py"
+COMMIT_GUARD_SCRIPT_NAME = "llmux_commit_claim_guard.py"
 
 EDIT_SAFETY_RULE_NAME = "llmux-edit-safety.md"
 
@@ -45,6 +49,9 @@ Enforced by `.claude/hooks/llmux_edit_breaker.py` — not optional markdown:
    edits on that path are **blocked**.
 3. After 3 identical Bash failures (same command + same error), that command
    is **blocked**.
+4. **Commit claim guard** — `git commit` messages that claim weight unification
+   or market-value fixes are denied unless the staged diff actually contains
+   those changes (blocks false-close commits).
 
 ## Soft signals (still apply)
 
@@ -98,6 +105,13 @@ def breaker_hook_command() -> str:
     )
 
 
+def commit_guard_hook_command() -> str:
+    return (
+        f"${{CLAUDE_PROJECT_DIR}}/.claude/hooks/{COMMIT_GUARD_SCRIPT_NAME}  "
+        f"# {COMMIT_GUARD_MARKER}"
+    )
+
+
 def syntax_hook_entry() -> dict[str, Any]:
     return {
         "matcher": "Edit|Write",
@@ -109,6 +123,13 @@ def breaker_pre_entry() -> dict[str, Any]:
     return {
         "matcher": "Read|Edit|Write|Bash",
         "hooks": [{"type": "command", "command": breaker_hook_command()}],
+    }
+
+
+def commit_guard_pre_entry() -> dict[str, Any]:
+    return {
+        "matcher": "Bash",
+        "hooks": [{"type": "command", "command": commit_guard_hook_command()}],
     }
 
 
@@ -184,6 +205,7 @@ def merge_hooks(
     hooks_root: dict[str, Any] = dict(hooks_raw) if isinstance(hooks_raw, dict) else {}
 
     pre = _strip_marker_entries(_ensure_list(hooks_root, "PreToolUse"), BREAKER_MARKER)
+    pre = _strip_marker_entries(pre, COMMIT_GUARD_MARKER)
     post = _strip_marker_entries(_ensure_list(hooks_root, "PostToolUse"), HOOK_MARKER)
     post = _strip_marker_entries(post, BREAKER_MARKER)
     fail = _strip_marker_entries(
@@ -194,6 +216,7 @@ def merge_hooks(
         post = [entry for entry in post if not _is_ruff_autofix_post_entry(entry)]
 
     pre.append(breaker_pre_entry())
+    pre.append(commit_guard_pre_entry())
     post.append(syntax_hook_entry())
     post.append(breaker_post_entry())
     fail.append(breaker_failure_entry())
@@ -219,7 +242,7 @@ def install_hook_scripts(project_root: Path) -> list[Path]:
     dest_dir = hooks_dir(project_root)
     dest_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
-    for name in (SYNTAX_SCRIPT_NAME, BREAKER_SCRIPT_NAME):
+    for name in (SYNTAX_SCRIPT_NAME, BREAKER_SCRIPT_NAME, COMMIT_GUARD_SCRIPT_NAME):
         dest = dest_dir / name
         dest.write_text(_asset_text(name), encoding="utf-8")
         dest.chmod(dest.stat().st_mode | 0o111)
