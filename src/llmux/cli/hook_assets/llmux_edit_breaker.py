@@ -10,6 +10,8 @@ Enforces rules models ignore under pressure:
   is counted; 2 cycles → deny until Read.
 - Bash that silently mutates ``*.py`` (sed -i, redirects, ruff --fix/format,
   etc.) is denied — use the Edit tool so the dirty-path breaker can track it.
+- After 3 Reads of the same path with no intervening Edit/Write/Bash progress,
+  further Reads of that path are denied (Read-without-progress loop).
 
 State is per Claude ``session_id`` under the system temp dir.
 """
@@ -26,6 +28,7 @@ from typing import Any
 EDIT_FAIL_LIMIT = 2
 BASH_FAIL_LIMIT = 3
 REVERT_CYCLE_LIMIT = 2
+READ_STREAK_LIMIT = 3
 
 _MARKER = "llmux-edit-breaker"
 
@@ -59,6 +62,7 @@ def _load(session_id: str) -> dict[str, Any]:
         "bash_fails": {},
         "last_edit": {},
         "revert_cycles": {},
+        "read_streak": {},
     }
     if not path.is_file():
         return empty
@@ -184,8 +188,23 @@ def _handle_pre(payload: dict[str, Any], state: dict[str, Any]) -> int:
     tool = str(payload.get("tool_name") or "")
     if tool == "Read":
         path = _file_path(payload)
-        if path:
-            _clear_path(state, path)
+        if not path:
+            return 0
+        was_dirty = bool(state["dirty"].get(path))
+        _clear_path(state, path)
+        # Mandatory re-read after a successful Edit counts as progress, not a
+        # stuck Read loop.
+        if was_dirty:
+            state["read_streak"][path] = 0
+            return 0
+        streak = int(state["read_streak"].get(path) or 0)
+        if streak >= READ_STREAK_LIMIT:
+            return _deny(
+                f"BLOCKED: loop detected — Read {path} {streak}+ times with no "
+                f"Edit/Write/Bash progress. Stop re-reading; diagnose or edit. "
+                f"({_MARKER})"
+            )
+        state["read_streak"][path] = streak + 1
         return 0
 
     if tool in ("Edit", "Write"):
@@ -259,6 +278,10 @@ def _handle_pre(payload: dict[str, Any], state: dict[str, Any]) -> int:
 
 def _handle_post_success(payload: dict[str, Any], state: dict[str, Any]) -> int:
     tool = str(payload.get("tool_name") or "")
+    if tool == "Bash":
+        # Any successful Bash is treated as progress → reset Read streaks.
+        state["read_streak"] = {}
+        return 0
     if tool not in ("Edit", "Write"):
         return 0
     path = _file_path(payload)
@@ -266,6 +289,7 @@ def _handle_post_success(payload: dict[str, Any], state: dict[str, Any]) -> int:
         return 0
     state["dirty"][path] = True
     state["edit_fails"].pop(path, None)
+    state["read_streak"][path] = 0
     if tool == "Edit":
         old_s, new_s = _edit_strings(payload)
         if old_s or new_s:

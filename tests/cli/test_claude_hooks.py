@@ -214,6 +214,57 @@ def test_breaker_allows_sed_on_non_python() -> None:
     assert proc.returncode == 0
 
 
+def test_breaker_blocks_read_without_progress(tmp_path: Path) -> None:
+    target = str((tmp_path / "stuck.py").resolve())
+    session = "test-session-read-streak"
+
+    for i in range(3):
+        proc = _run_asset(
+            BREAKER_SCRIPT_NAME,
+            {
+                "session_id": session,
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Read",
+                "tool_input": {"file_path": target},
+            },
+        )
+        assert proc.returncode == 0, i
+
+    blocked = _run_asset(
+        BREAKER_SCRIPT_NAME,
+        {
+            "session_id": session,
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Read",
+            "tool_input": {"file_path": target},
+        },
+    )
+    assert blocked.returncode == 2
+    assert b"no Edit/Write/Bash progress" in blocked.stderr
+
+    # Successful Bash resets streaks.
+    post = _run_asset(
+        BREAKER_SCRIPT_NAME,
+        {
+            "session_id": session,
+            "hook_event_name": "PostToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"command": "uv run pytest -q"},
+        },
+    )
+    assert post.returncode == 0
+    allowed = _run_asset(
+        BREAKER_SCRIPT_NAME,
+        {
+            "session_id": session,
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Read",
+            "tool_input": {"file_path": target},
+        },
+    )
+    assert allowed.returncode == 0
+
+
 def test_breaker_blocks_edit_revert_cycle(tmp_path: Path) -> None:
     target = str((tmp_path / "rev.py").resolve())
     session = "test-session-revert"
