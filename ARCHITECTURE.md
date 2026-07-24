@@ -468,7 +468,10 @@ decision; provider catalog metadata does not cross the application boundary.
 - configured provider model refs;
 - cached provider-discovered models;
 - no-thinking variants when appropriate;
-- built-in Claude model IDs for compatibility with Claude clients.
+- built-in Claude model IDs for compatibility with Claude clients;
+- `max_input_tokens` from known context windows / overrides so Claude Code
+  clients can set autocompact windows above the ~200k Anthropic default
+  (Claude aliases inherit the window of their configured tier backend).
 
 Provider model discovery and optional thinking metadata live in the
 application-level catalog owned by `ProviderRuntimeManager`.

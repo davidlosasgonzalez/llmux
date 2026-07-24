@@ -299,7 +299,9 @@ Install the [Claude Code extension](https://marketplace.visualstudio.com/items?i
 Match the port and authentication token to the Admin UI, then reload the extension.
 Prefer `llmux-claude` in a terminal when possible: it derives
 `CLAUDE_CODE_AUTO_COMPACT_WINDOW` / `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` from
-`MODEL_SONNET` (or `MODEL`) automatically. Strategy: set the window to your
+`MODEL_SONNET` (or `MODEL`) automatically. `GET /v1/models` also advertises
+`max_input_tokens` from the backend window so Claude Code does not cap the
+env WINDOW at Anthropic's ~200k default. Strategy: set the window to your
 coding model's real size, then a **lower** PCT on narrower backends (e.g. ~52%
 for 131k, ~85% for 262k) so Claude Code compacts *earlier and more often* —
 smaller summaries stay useful longer than one late dump at 90%+.

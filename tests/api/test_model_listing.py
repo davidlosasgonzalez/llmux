@@ -10,14 +10,17 @@ def _settings(
     model: str = "deepseek/deepseek-chat",
     model_fable: str | None = None,
     model_opus: str | None = "open_router/anthropic/claude-opus",
+    model_sonnet: str | None = None,
     model_haiku: str | None = "deepseek/deepseek-chat",
+    context_window_overrides: str = "",
 ) -> Settings:
     return Settings.model_construct(
         model=model,
         model_fable=model_fable,
         model_opus=model_opus,
-        model_sonnet=None,
+        model_sonnet=model_sonnet,
         model_haiku=model_haiku,
+        context_window_overrides=context_window_overrides,
         anthropic_auth_token="",
     )
 
@@ -145,3 +148,26 @@ def test_models_list_works_with_empty_discovery_catalog():
         "claude-3-llmux-no-thinking/open_router/anthropic/claude-opus",
     ]
     assert "claude-sonnet-4-20250514" in ids
+
+
+def test_models_list_advertises_backend_max_input_tokens_on_aliases():
+    app = create_test_app(
+        _settings(
+            model="nvidia_nim/nvidia/nemotron-3-super-120b-a12b",
+            model_sonnet="open_router/moonshotai/kimi-k2.6",
+            model_opus=None,
+            model_haiku="open_router/deepseek/deepseek-v4-flash",
+        )
+    )
+
+    response = TestClient(app).get("/v1/models")
+    assert response.status_code == 200
+    by_id = {item["id"]: item for item in response.json()["data"]}
+
+    # Sonnet alias follows MODEL_SONNET (kimi ~262k), not Claude's default 200k.
+    assert by_id["claude-sonnet-4-20250514"]["max_input_tokens"] == 262_144
+    # Haiku alias follows MODEL_HAIKU (deepseek ~131k).
+    assert by_id["claude-haiku-4-20250514"]["max_input_tokens"] == 131_072
+    # Configured kimi ref also advertises its window.
+    kimi_id = "anthropic/open_router/moonshotai/kimi-k2.6"
+    assert by_id[kimi_id]["max_input_tokens"] == 262_144
