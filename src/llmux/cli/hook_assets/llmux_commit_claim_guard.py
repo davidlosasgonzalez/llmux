@@ -129,12 +129,15 @@ def _check_market_claim(staged: dict[str, str]) -> str | None:
             f"BLOCKED: commit claims market-value fix but neither gateway.py nor "
             f"radar_cmd.py is staged. ({MARKER})"
         )
-    if gateway and "portfolio()" not in gateway:
-        if "src/services/ibkr/gateway.py" in staged:
-            return (
-                f"BLOCKED: commit claims marketValue from broker, but staged "
-                f"gateway.py does not call portfolio(). ({MARKER})"
-            )
+    if (
+        gateway
+        and "portfolio()" not in gateway
+        and "src/services/ibkr/gateway.py" in staged
+    ):
+        return (
+            f"BLOCKED: commit claims marketValue from broker, but staged "
+            f"gateway.py does not call portfolio(). ({MARKER})"
+        )
     if radar and re.search(
         r"shares[^\n]{0,40}\*\s*(market_value|marketValue|pos\.get\(\s*[\"']market",
         radar,
