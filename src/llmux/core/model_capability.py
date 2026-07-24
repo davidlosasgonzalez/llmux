@@ -30,6 +30,17 @@ _FAMILY_BASE: dict[str, float] = {
 }
 
 _SMALL_TOKENS = ("nano", "mini", "-lite", "lite-", "tiny", "-small", "small-", "guard")
+# Cheap / high-throughput tiers — fine for Haiku, foot-guns in MODEL_SONNET/OPUS.
+_CHEAP_CODING_TOKENS = (
+    "flash",
+    "haiku",
+    "instant",
+    "turbo",
+    "fast",
+    "lite",
+    "nano",
+    "mini",
+)
 _CODER_TOKENS = ("coder", "code", "devstral", "codestral", "codellama", "starcoder")
 _REASONING_TOKENS = ("reason", "think", "r1", "o1", "deepseek", "nemotron")
 
@@ -117,6 +128,18 @@ def has_small_hint(model_id: str) -> bool:
     """True when the model id carries an explicit small-tier hint."""
     lowered = model_id.lower()
     return any(token in lowered for token in _SMALL_TOKENS)
+
+
+def has_cheap_coding_hint(model_id: str) -> bool:
+    """True when the model id looks like a cheap/high-throughput tier.
+
+    Claude Code maps most agent coding turns to the Sonnet slot. Putting a
+    ``flash``/``haiku``/``instant`` model there (or in Opus) silently degrades
+    Edit/Bash reliability — observed on advisor 2026-07-24 with
+    ``MODEL_SONNET=.../deepseek-v4-flash``.
+    """
+    lowered = model_id.lower()
+    return any(token in lowered for token in _CHEAP_CODING_TOKENS)
 
 
 def is_coder_model(model_id: str) -> bool:
