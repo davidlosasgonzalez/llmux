@@ -123,8 +123,8 @@ llmux-claude -p "hello"
 ```
 
 Optional: install Claude Code edit-safety hooks into the current project
-(`ast.parse` after Edit/Write, hard edit/bash circuit-breaker, commit-claim
-guard, plus a rule).
+(`ast.parse` after Edit/Write, hard edit/bash circuit-breaker including Edit↔revert
+and Bash-must-not-rewrite-Python, commit-claim + pytest-via-uv guards, plus a rule).
 Does **not** run silent formatters on PostToolUse (those caused Edit loops).
 Explicit, like `llmux-verdict install-claude-skill` — does not run
 automatically on launch:

@@ -34,6 +34,12 @@ def test_flash_model_in_sonnet_slot_warns():
     assert any("MODEL_SONNET" in w and "cheap" in w for w in warnings)
 
 
+def test_weak_model_in_sonnet_slot_warns():
+    config = FakeModelConfig(model_sonnet="cerebras/gpt-oss-120b")
+    warnings = lint_model_config(config)
+    assert any("MODEL_SONNET" in w and "weak for agent coding" in w for w in warnings)
+
+
 def test_strong_model_in_sonnet_slot_does_not_warn():
     config = FakeModelConfig(model_sonnet="open_router/moonshotai/kimi-k2.6")
     assert lint_model_config(config) == []

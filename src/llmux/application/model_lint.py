@@ -18,6 +18,7 @@ from llmux.config.model_refs import (
 from llmux.core.model_capability import (
     has_cheap_coding_hint,
     has_small_hint,
+    has_weak_coding_hint,
     known_context_window,
     size_billions,
 )
@@ -85,8 +86,12 @@ def _small_model_in_high_tier(settings: LintableModelConfig) -> list[str]:
     return warnings
 
 
+def _looks_weak_for_coding(model_ref: str) -> bool:
+    return has_weak_coding_hint(parse_model_name(model_ref))
+
+
 def _cheap_model_in_coding_tier(settings: LintableModelConfig) -> list[str]:
-    """Warn when Sonnet (or default MODEL) is a flash/haiku-class model."""
+    """Warn when Sonnet (or default MODEL) is flash-class or weak for agents."""
 
     warnings: list[str] = []
     sonnet = settings.model_sonnet
@@ -98,12 +103,25 @@ def _cheap_model_in_coding_tier(settings: LintableModelConfig) -> list[str]:
             "(e.g. kimi-k2.6, deepseek-v4-pro, glm-5.x) and keep flash on "
             "MODEL_HAIKU."
         )
+    elif sonnet and "/" in sonnet and _looks_weak_for_coding(sonnet):
+        warnings.append(
+            f"MODEL_SONNET={sonnet} looks weak for agent coding (chat/general "
+            "tier, not a strong Edit/Bash model). Prefer a coding-tuned model "
+            "(e.g. kimi-k2.6, deepseek-v4-pro, glm-5.x); keep lighter models "
+            "on MODEL_HAIKU or fallbacks."
+        )
     # If Sonnet is unset, Claude's sonnet alias falls through to MODEL.
     if (sonnet is None or sonnet == "") and _looks_cheap_for_coding(settings.model):
         warnings.append(
             f"MODEL={settings.model} looks cheap and MODEL_SONNET is unset, so "
             "coding turns inherit it. Set MODEL_SONNET to a stronger coding "
             "model or raise MODEL."
+        )
+    elif (sonnet is None or sonnet == "") and _looks_weak_for_coding(settings.model):
+        warnings.append(
+            f"MODEL={settings.model} looks weak for agent coding and "
+            "MODEL_SONNET is unset, so coding turns inherit it. Set "
+            "MODEL_SONNET to a stronger coding model."
         )
     return warnings
 

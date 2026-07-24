@@ -15,6 +15,8 @@ from llmux.cli.claude_hooks import (
     COMMIT_GUARD_SCRIPT_NAME,
     EDIT_SAFETY_RULE_NAME,
     HOOK_MARKER,
+    PYTEST_GUARD_MARKER,
+    PYTEST_GUARD_SCRIPT_NAME,
     SYNTAX_SCRIPT_NAME,
     install_hooks,
     install_hooks_cli,
@@ -179,6 +181,115 @@ def test_breaker_blocks_repeated_bash_failures() -> None:
     assert b"same Bash command failed" in blocked.stderr
 
 
+def test_breaker_blocks_bash_python_mutation() -> None:
+    for command in (
+        "sed -i 's/a/b/' src/foo.py",
+        "ruff format src/",
+        "ruff check --fix src/foo.py",
+        "echo x > src/foo.py",
+    ):
+        proc = _run_asset(
+            BREAKER_SCRIPT_NAME,
+            {
+                "session_id": f"bash-mutate-{hash(command)}",
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Bash",
+                "tool_input": {"command": command},
+            },
+        )
+        assert proc.returncode == 2, command
+        assert b"silently rewrite Python" in proc.stderr
+
+
+def test_breaker_allows_sed_on_non_python() -> None:
+    proc = _run_asset(
+        BREAKER_SCRIPT_NAME,
+        {
+            "session_id": "bash-sed-txt",
+            "hook_event_name": "PreToolUse",
+            "tool_name": "Bash",
+            "tool_input": {"command": "sed -i 's/a/b/' notes.txt"},
+        },
+    )
+    assert proc.returncode == 0
+
+
+def test_breaker_blocks_edit_revert_cycle(tmp_path: Path) -> None:
+    target = str((tmp_path / "rev.py").resolve())
+    session = "test-session-revert"
+
+    def post_edit(old: str, new: str) -> None:
+        proc = _run_asset(
+            BREAKER_SCRIPT_NAME,
+            {
+                "session_id": session,
+                "hook_event_name": "PostToolUse",
+                "tool_name": "Edit",
+                "tool_input": {
+                    "file_path": target,
+                    "old_string": old,
+                    "new_string": new,
+                },
+            },
+        )
+        assert proc.returncode == 0
+
+    def read() -> None:
+        proc = _run_asset(
+            BREAKER_SCRIPT_NAME,
+            {
+                "session_id": session,
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Read",
+                "tool_input": {"file_path": target},
+            },
+        )
+        assert proc.returncode == 0
+
+    def pre_edit(old: str, new: str) -> subprocess.CompletedProcess[bytes]:
+        return _run_asset(
+            BREAKER_SCRIPT_NAME,
+            {
+                "session_id": session,
+                "hook_event_name": "PreToolUse",
+                "tool_name": "Edit",
+                "tool_input": {
+                    "file_path": target,
+                    "old_string": old,
+                    "new_string": new,
+                },
+            },
+        )
+
+    # A→B
+    assert pre_edit("A", "B").returncode == 0
+    post_edit("A", "B")
+    read()
+    # B→A (revert cycle 1)
+    assert pre_edit("B", "A").returncode == 0
+    post_edit("B", "A")
+    read()
+    # A→B (revert cycle 2 → deny)
+    blocked = pre_edit("A", "B")
+    assert blocked.returncode == 2
+    assert b"Edit" in blocked.stderr and b"revert" in blocked.stderr
+
+
+def test_pytest_guard_blocks_bare_pytest() -> None:
+    blocked = _run_asset(
+        PYTEST_GUARD_SCRIPT_NAME,
+        {"tool_name": "Bash", "tool_input": {"command": "pytest -q"}},
+    )
+    assert blocked.returncode == 2
+    assert b"uv run pytest" in blocked.stderr
+
+    allowed = _run_asset(
+        PYTEST_GUARD_SCRIPT_NAME,
+        {"tool_name": "Bash", "tool_input": {"command": "uv run pytest -q"}},
+    )
+    assert allowed.returncode == 0
+
+
 def test_commit_guard_blocks_false_weight_claim(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
@@ -236,6 +347,73 @@ def test_commit_guard_allows_unrelated_commit_message() -> None:
     assert proc.returncode == 0
 
 
+def test_commit_guard_blocks_unstaged_path_claim(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "t@example.com"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "t"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    )
+    other = repo / "README.md"
+    other.write_text("hi\n", encoding="utf-8")
+    subprocess.run(["git", "add", "README.md"], cwd=repo, check=True)
+
+    ref = files("llmux.cli.hook_assets").joinpath(COMMIT_GUARD_SCRIPT_NAME)
+    with as_file(ref) as script:
+        proc = subprocess.run(
+            [sys.executable, str(script)],
+            input=json.dumps(
+                {
+                    "tool_name": "Bash",
+                    "tool_input": {
+                        "command": (
+                            'git commit -m "fix: update `src/radar/allocation.py`"'
+                        )
+                    },
+                }
+            ).encode(),
+            capture_output=True,
+            check=False,
+            cwd=repo,
+        )
+    assert proc.returncode == 2
+    assert b"not staged" in proc.stderr
+
+
+def test_commit_guard_reads_message_file(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+    msg_file = repo / "msg.txt"
+    msg_file.write_text("fix: update `src/missing.py`\n", encoding="utf-8")
+    # empty index → path claim fails
+    ref = files("llmux.cli.hook_assets").joinpath(COMMIT_GUARD_SCRIPT_NAME)
+    with as_file(ref) as script:
+        proc = subprocess.run(
+            [sys.executable, str(script)],
+            input=json.dumps(
+                {
+                    "tool_name": "Bash",
+                    "tool_input": {"command": f"git commit -F {msg_file}"},
+                }
+            ).encode(),
+            capture_output=True,
+            check=False,
+            cwd=repo,
+        )
+    assert proc.returncode == 2
+    assert b"not staged" in proc.stderr
+
+
 def test_merge_hooks_creates_managed_entries() -> None:
     merged = merge_hooks({})
     assert any(
@@ -247,6 +425,10 @@ def test_merge_hooks_creates_managed_entries() -> None:
     )
     assert any(
         COMMIT_GUARD_MARKER in e["hooks"][0]["command"]
+        for e in merged["hooks"]["PreToolUse"]
+    )
+    assert any(
+        PYTEST_GUARD_MARKER in e["hooks"][0]["command"]
         for e in merged["hooks"]["PreToolUse"]
     )
     assert any(
@@ -315,9 +497,11 @@ def test_install_hooks_writes_scripts_settings_and_rule(tmp_path: Path) -> None:
     syntax = tmp_path / ".claude" / "hooks" / SYNTAX_SCRIPT_NAME
     breaker = tmp_path / ".claude" / "hooks" / BREAKER_SCRIPT_NAME
     commit_guard = tmp_path / ".claude" / "hooks" / COMMIT_GUARD_SCRIPT_NAME
+    pytest_guard = tmp_path / ".claude" / "hooks" / PYTEST_GUARD_SCRIPT_NAME
     assert syntax.is_file()
     assert breaker.is_file()
     assert commit_guard.is_file()
+    assert pytest_guard.is_file()
     assert settings in paths
     assert rule in paths
     data = json.loads(settings.read_text(encoding="utf-8"))
