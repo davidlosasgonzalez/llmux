@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """PreToolUse Bash: block git commits whose message claims work the staged diff lacks.
 
-Catches false-close commits: message names paths or asserts a fix that is not
-in the index. Advisor-specific weight/marketValue checks remain as overlays.
+Catches false-close commits: message names paths or asserts completed work that
+is not in the index.
 """
 
 import json
@@ -139,82 +139,6 @@ def _check_empty_done_claim(msg: str, staged: dict[str, str]) -> str | None:
     )
 
 
-def _claims_weight_unification(msg: str) -> bool:
-    low = msg.lower()
-    return bool(
-        re.search(
-            r"unica fuente|única fuente|chosen_weights|unificar pesos|"
-            r"verdad unica|verdad única",
-            low,
-        )
-        or re.search(r"proposal\.py.*verdad|allocation.*import", low)
-    )
-
-
-def _claims_market_value(msg: str) -> bool:
-    low = msg.lower()
-    return bool(re.search(r"market[_\s]?value|valor de mercado|marketvalue", low))
-
-
-def _check_weight_claim(staged: dict[str, str]) -> str | None:
-    alloc = staged.get("src/radar/allocation.py")
-    if alloc is None:
-        return (
-            f"BLOCKED: commit claims weight unification but src/radar/allocation.py "
-            f"is not staged. ({MARKER})"
-        )
-    if "from radar import proposal" not in alloc and "import proposal" not in alloc:
-        return (
-            f"BLOCKED: commit claims proposal is the sole weight source, but staged "
-            f"allocation.py does not import proposal. ({MARKER})"
-        )
-    if "CHOSEN_WEIGHTS" not in alloc:
-        return (
-            f"BLOCKED: commit claims CHOSEN_WEIGHTS unification, but staged "
-            f"allocation.py never references CHOSEN_WEIGHTS. ({MARKER})"
-        )
-    if re.search(r"CORE_WEIGHT_PCT\s*=\s*60", alloc) or (
-        "4GLD.DE" in alloc and "GOLD_WEIGHT" in alloc
-    ):
-        return (
-            f"BLOCKED: commit claims unified live weights, but staged allocation.py "
-            f"still hardcodes the old 60/gold plan. ({MARKER})"
-        )
-    return None
-
-
-def _check_market_claim(staged: dict[str, str]) -> str | None:
-    gateway = staged.get("src/services/ibkr/gateway.py", "")
-    radar = staged.get("src/commands/radar_cmd.py", "")
-    touched = (
-        "src/services/ibkr/gateway.py" in staged
-        or "src/commands/radar_cmd.py" in staged
-    )
-    if not touched:
-        return (
-            f"BLOCKED: commit claims market-value fix but neither gateway.py nor "
-            f"radar_cmd.py is staged. ({MARKER})"
-        )
-    if (
-        gateway
-        and "portfolio()" not in gateway
-        and "src/services/ibkr/gateway.py" in staged
-    ):
-        return (
-            f"BLOCKED: commit claims marketValue from broker, but staged "
-            f"gateway.py does not call portfolio(). ({MARKER})"
-        )
-    if radar and re.search(
-        r"shares[^\n]{0,40}\*\s*(market_value|marketValue|pos\.get\(\s*[\"']market",
-        radar,
-    ):
-        return (
-            f"BLOCKED: commit claims market-value totals, but staged propose_cash "
-            f"still multiplies shares * market_value (double-count). ({MARKER})"
-        )
-    return None
-
-
 def main() -> int:
     payload = json.load(sys.stdin)
     if not isinstance(payload, dict):
@@ -237,14 +161,6 @@ def main() -> int:
     err = _check_empty_done_claim(msg, staged)
     if err:
         return _deny(err)
-    if _claims_weight_unification(msg):
-        err = _check_weight_claim(staged)
-        if err:
-            return _deny(err)
-    if _claims_market_value(msg):
-        err = _check_market_claim(staged)
-        if err:
-            return _deny(err)
     return 0
 
 

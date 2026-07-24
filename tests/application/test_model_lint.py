@@ -45,6 +45,12 @@ def test_strong_model_in_sonnet_slot_does_not_warn():
     assert lint_model_config(config) == []
 
 
+def test_gemini_pro_in_sonnet_slot_does_not_warn_as_cheap():
+    config = FakeModelConfig(model_sonnet="gemini/models/gemini-3.1-pro-preview")
+    warnings = lint_model_config(config)
+    assert not any("cheap" in w or "weak for agent coding" in w for w in warnings)
+
+
 def test_cheap_default_model_warns_when_sonnet_unset():
     config = FakeModelConfig(model="open_router/deepseek/deepseek-v4-flash")
     warnings = lint_model_config(config)
