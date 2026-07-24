@@ -739,10 +739,13 @@ instead of stopping at its login gate.
 - `llmux-claude` applies the shared proxy environment without changing the user's
   Claude command arguments.
 - `llmux-claude install-hooks` is a LLMux-owned subcommand (no proxy required)
-  implemented in [cli/claude_hooks.py](src/llmux/cli/claude_hooks.py). It merges a
-  PostToolUse `ast.parse` check for `*.py` into the project's
-  `.claude/settings.json` and writes `.claude/rules/llmux-edit-safety.md`. Hooks
-  remain Claude Code's responsibility; the launcher never executes them.
+  implemented in [cli/claude_hooks.py](src/llmux/cli/claude_hooks.py). It copies
+  hook scripts into `.claude/hooks/`, merges PostToolUse `ast.parse` (no
+  formatters), PreToolUse/PostToolUse/PostToolUseFailure circuit-breaker entries
+  into `.claude/settings.json` (and strips silent `ruff --fix`/`format`
+  PostToolUse hooks that rewrite files under Claude), and writes
+  `.claude/rules/llmux-edit-safety.md`. Hooks remain Claude Code's
+  responsibility; the launcher never executes them.
 
 [cli/launchers/common.py](src/llmux/cli/launchers/common.py) owns the
 shared launcher process helpers: the proxy `/health` preflight, client binary
