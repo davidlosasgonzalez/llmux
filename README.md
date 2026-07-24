@@ -211,7 +211,7 @@ through LLMux — these are the combinations that made sense at that date.
 | Model | Providers | Why |
 | --- | --- | --- |
 | `kimi-k2.6` | kimi, open_router (`:free`), fireworks, cloudflare | Best verified all-round coding agent (SWE-bench Verified 80.2, Terminal-Bench 66.7); `kimi-k2.7-code` is its coding-tuned variant |
-| `deepseek-v4-pro` / `deepseek-v4-flash` | deepseek, nvidia_nim, open_router | ~80 SWE-bench Verified, 1M context, very cheap; Flash is the budget pick |
+| `deepseek-v4-pro` | deepseek, nvidia_nim, open_router | ~80 SWE-bench Verified, 1M context; keep `deepseek-v4-flash` on `MODEL_HAIKU`, not Sonnet |
 | `glm-5.2` | zai, nvidia_nim | #1 open model on LiveBench agentic coding; 1M context |
 | `devstral-2` (123B) / `devstral-small-latest` (24B) | mistral | Purpose-built coding agents; Devstral Small 2 also leads the local class |
 

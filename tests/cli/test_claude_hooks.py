@@ -325,6 +325,10 @@ def test_breaker_blocks_edit_revert_cycle(tmp_path: Path) -> None:
     assert blocked.returncode == 2
     assert b"Edit" in blocked.stderr and b"revert" in blocked.stderr
 
+    # Read clears the lock; a non-revert edit is allowed again.
+    read()
+    assert pre_edit("A", "C").returncode == 0
+
 
 def test_pytest_guard_blocks_bare_pytest() -> None:
     blocked = _run_asset(
@@ -334,6 +338,15 @@ def test_pytest_guard_blocks_bare_pytest() -> None:
     assert blocked.returncode == 2
     assert b"uv run pytest" in blocked.stderr
 
+    chained = _run_asset(
+        PYTEST_GUARD_SCRIPT_NAME,
+        {
+            "tool_name": "Bash",
+            "tool_input": {"command": "uv run true; pytest -q"},
+        },
+    )
+    assert chained.returncode == 2
+
     allowed = _run_asset(
         PYTEST_GUARD_SCRIPT_NAME,
         {"tool_name": "Bash", "tool_input": {"command": "uv run pytest -q"}},
@@ -341,29 +354,10 @@ def test_pytest_guard_blocks_bare_pytest() -> None:
     assert allowed.returncode == 0
 
 
-def test_commit_guard_blocks_false_weight_claim(tmp_path: Path) -> None:
+def test_commit_guard_blocks_empty_doneish_claim(tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
     subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
-    subprocess.run(
-        ["git", "config", "user.email", "t@example.com"],
-        cwd=repo,
-        check=True,
-        capture_output=True,
-    )
-    subprocess.run(
-        ["git", "config", "user.name", "t"],
-        cwd=repo,
-        check=True,
-        capture_output=True,
-    )
-    alloc = repo / "src" / "radar" / "allocation.py"
-    alloc.parent.mkdir(parents=True)
-    alloc.write_text(
-        "CORE_WEIGHT_PCT = 60.0\nGOLD_WEIGHT = 10\n4GLD.DE = 1\n", encoding="utf-8"
-    )
-    subprocess.run(["git", "add", "src/radar/allocation.py"], cwd=repo, check=True)
-
     ref = files("llmux.cli.hook_assets").joinpath(COMMIT_GUARD_SCRIPT_NAME)
     with as_file(ref) as script:
         proc = subprocess.run(
@@ -373,8 +367,7 @@ def test_commit_guard_blocks_false_weight_claim(tmp_path: Path) -> None:
                     "tool_name": "Bash",
                     "tool_input": {
                         "command": (
-                            'git commit -m "fix: unificar pesos, proposal.py es '
-                            'la única fuente con CHOSEN_WEIGHTS"'
+                            'git commit -m "feat: implemented cash flow feature"'
                         )
                     },
                 }
@@ -384,7 +377,7 @@ def test_commit_guard_blocks_false_weight_claim(tmp_path: Path) -> None:
             cwd=repo,
         )
     assert proc.returncode == 2
-    assert b"BLOCKED" in proc.stderr
+    assert b"index is empty" in proc.stderr
 
 
 def test_commit_guard_allows_unrelated_commit_message() -> None:

@@ -2,6 +2,7 @@
 
 from llmux.core.model_capability import (
     has_cheap_coding_hint,
+    has_small_hint,
     has_weak_coding_hint,
     known_context_window,
 )
@@ -35,7 +36,13 @@ def test_known_context_window_does_not_match_provider_lookalikes():
 
 def test_cheap_and_weak_coding_hints():
     assert has_cheap_coding_hint("deepseek-v4-flash")
+    assert has_cheap_coding_hint("gpt-4o-mini")
+    assert has_cheap_coding_hint("gemini-3.1-flash-lite")
     assert not has_cheap_coding_hint("kimi-k2.6")
+    # ``mini`` must not match inside gemini / minimax family names.
+    assert not has_cheap_coding_hint("gemini-3.1-pro-preview")
+    assert not has_cheap_coding_hint("MiniMax-M3")
+    assert not has_small_hint("gemini-3.1-pro-preview")
     assert has_weak_coding_hint("gpt-oss-120b")
     assert has_weak_coding_hint("command-a-plus-05-2026")
     assert not has_weak_coding_hint("kimi-k2.6")

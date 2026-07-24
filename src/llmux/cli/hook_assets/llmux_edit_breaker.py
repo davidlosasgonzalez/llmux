@@ -191,7 +191,15 @@ def _handle_pre(payload: dict[str, Any], state: dict[str, Any]) -> int:
         if not path:
             return 0
         was_dirty = bool(state["dirty"].get(path))
+        revert_locked = int(state["revert_cycles"].get(path) or 0) >= REVERT_CYCLE_LIMIT
         _clear_path(state, path)
+        # Escape hatch after Edit↔revert lock: Read clears the cycle so the
+        # model can pick a new direction (matches the installed rule text).
+        if revert_locked:
+            state["revert_cycles"].pop(path, None)
+            state["last_edit"].pop(path, None)
+            state["read_streak"][path] = 0
+            return 0
         # Mandatory re-read after a successful Edit counts as progress, not a
         # stuck Read loop.
         if was_dirty:

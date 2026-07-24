@@ -55,7 +55,8 @@ Enforced by `.claude/hooks/llmux_edit_breaker.py` — not optional markdown:
 3. After 3 identical Bash failures (same command + same error), that command
    is **blocked**.
 4. **Edit↔revert** — editing then undoing the same strings on a path is
-   **blocked** after 2 cycles (survives the mandatory Read between edits).
+   **blocked** after 2 cycles. A subsequent `Read` clears the lock so you can
+   pick a new direction.
 5. **Bash must not rewrite Python** — `sed -i`, redirects into `*.py`,
    `ruff format` / `ruff check --fix`, `black`, `isort` are **blocked**.
    Use Edit/Write so dirty-path tracking works.
@@ -63,19 +64,16 @@ Enforced by `.claude/hooks/llmux_edit_breaker.py` — not optional markdown:
    intervening Edit/Write/Bash success is **blocked** (mandatory re-read after
    a dirty Edit does not count).
 7. **Commit claim guard** — `git commit` messages that name `src/`/`tests/`
-   paths or claim done/fixed work are denied unless the staged diff matches
-   (also advisor weight / market-value overlays).
-8. **pytest via uv** — bare `pytest` / `python -m pytest` is **blocked**;
-   use `uv run pytest …`.
+   paths or claim completed work are denied unless the staged diff matches.
+8. **pytest via uv** — bare `pytest` / `python -m pytest` (including after
+   `uv run something;`) is **blocked**; use `uv run pytest …`.
 
-## Soft signals (still apply)
-
-None currently — former soft loop signals are hard-enforced above.
+## Hard thresholds
 
 | Signal | Threshold | Action |
 |--------|-----------|--------|
 | Same Bash + same stderr | 3 | Deny tool (`BLOCKED: loop detected`) |
-| Edit+revert same file | 2 cycles | Deny until Read + new direction |
+| Edit+revert same file | 2 cycles | Deny until Read clears the lock |
 | Bash mutates `*.py` | any | Deny; use Edit/Write |
 | Read same file, no progress | 3 | Deny further Read of that path |
 | Edit after dirty path / failed Edit x2 | -- | Deny until Read |

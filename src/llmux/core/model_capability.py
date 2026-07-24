@@ -29,18 +29,21 @@ _FAMILY_BASE: dict[str, float] = {
     "cohere-command": 0.66,
 }
 
-_SMALL_TOKENS = ("nano", "mini", "-lite", "lite-", "tiny", "-small", "small-", "guard")
+_SMALL_TOKENS = ("nano", "-lite", "lite-", "tiny", "-small", "small-", "guard")
 # Cheap / high-throughput tiers — fine for Haiku, foot-guns in MODEL_SONNET/OPUS.
+# Do NOT use bare ``mini`` / ``lite`` as substrings: ``mini`` matches inside
+# ``gemini`` and ``minimax``. Segment-aware matching is in ``_has_tier_token``.
 _CHEAP_CODING_TOKENS = (
     "flash",
     "haiku",
     "instant",
     "turbo",
     "fast",
-    "lite",
     "nano",
-    "mini",
 )
+# Segment tokens that must not match inside longer family names.
+_CHEAP_SEGMENT_TOKENS = ("mini", "lite")
+_SMALL_SEGMENT_TOKENS = ("mini",)
 # Not flash-class, but weak as Claude Code's primary coding (Sonnet) slot —
 # chat/general models that thrash on Edit/Bash agent loops.
 _WEAK_CODING_TOKENS = (
@@ -138,7 +141,9 @@ def family_of(model_id: str) -> str:
 def has_small_hint(model_id: str) -> bool:
     """True when the model id carries an explicit small-tier hint."""
     lowered = model_id.lower()
-    return any(token in lowered for token in _SMALL_TOKENS)
+    if any(token in lowered for token in _SMALL_TOKENS):
+        return True
+    return any(_has_tier_token(lowered, token) for token in _SMALL_SEGMENT_TOKENS)
 
 
 def has_cheap_coding_hint(model_id: str) -> bool:
@@ -150,7 +155,14 @@ def has_cheap_coding_hint(model_id: str) -> bool:
     ``MODEL_SONNET=.../deepseek-v4-flash``.
     """
     lowered = model_id.lower()
-    return any(token in lowered for token in _CHEAP_CODING_TOKENS)
+    if any(token in lowered for token in _CHEAP_CODING_TOKENS):
+        return True
+    return any(_has_tier_token(lowered, token) for token in _CHEAP_SEGMENT_TOKENS)
+
+
+def _has_tier_token(lowered: str, token: str) -> bool:
+    """Match ``token`` as its own segment, not inside ``gemini`` / ``minimax``."""
+    return bool(re.search(rf"(?<![a-z0-9]){re.escape(token)}(?![a-z0-9])", lowered))
 
 
 def has_weak_coding_hint(model_id: str) -> bool:
@@ -218,7 +230,7 @@ def capability_prior(model_id: str, family: str, *, supports_reasoning: bool) ->
 
     if supports_reasoning:
         base += 0.05
-    if any(token in lowered for token in _SMALL_TOKENS):
+    if has_small_hint(model_id):
         base -= 0.15
 
     return max(0.0, min(1.0, base))
