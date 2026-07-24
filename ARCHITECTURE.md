@@ -742,9 +742,9 @@ instead of stopping at its login gate.
   implemented in [cli/claude_hooks.py](src/llmux/cli/claude_hooks.py). It copies
   hook scripts into `.claude/hooks/`, merges PostToolUse `ast.parse` (no
   formatters), PreToolUse/PostToolUse/PostToolUseFailure circuit-breaker entries
-  into `.claude/settings.json` (and strips silent `ruff --fix`/`format`
-  PostToolUse hooks that rewrite files under Claude), and writes
-  `.claude/rules/llmux-edit-safety.md`. Hooks remain Claude Code's
+  and a commit-claim guard into `.claude/settings.json` (and strips silent
+  `ruff --fix`/`format` PostToolUse hooks that rewrite files under Claude), and
+  writes `.claude/rules/llmux-edit-safety.md`. Hooks remain Claude Code's
   responsibility; the launcher never executes them.
 
 [cli/launchers/common.py](src/llmux/cli/launchers/common.py) owns the

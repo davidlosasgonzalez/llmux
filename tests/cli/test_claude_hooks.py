@@ -11,6 +11,8 @@ import pytest
 from llmux.cli.claude_hooks import (
     BREAKER_MARKER,
     BREAKER_SCRIPT_NAME,
+    COMMIT_GUARD_MARKER,
+    COMMIT_GUARD_SCRIPT_NAME,
     EDIT_SAFETY_RULE_NAME,
     HOOK_MARKER,
     SYNTAX_SCRIPT_NAME,
@@ -177,6 +179,63 @@ def test_breaker_blocks_repeated_bash_failures() -> None:
     assert b"same Bash command failed" in blocked.stderr
 
 
+def test_commit_guard_blocks_false_weight_claim(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init"], cwd=repo, check=True, capture_output=True)
+    subprocess.run(
+        ["git", "config", "user.email", "t@example.com"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    )
+    subprocess.run(
+        ["git", "config", "user.name", "t"],
+        cwd=repo,
+        check=True,
+        capture_output=True,
+    )
+    alloc = repo / "src" / "radar" / "allocation.py"
+    alloc.parent.mkdir(parents=True)
+    alloc.write_text(
+        "CORE_WEIGHT_PCT = 60.0\nGOLD_WEIGHT = 10\n4GLD.DE = 1\n", encoding="utf-8"
+    )
+    subprocess.run(["git", "add", "src/radar/allocation.py"], cwd=repo, check=True)
+
+    ref = files("llmux.cli.hook_assets").joinpath(COMMIT_GUARD_SCRIPT_NAME)
+    with as_file(ref) as script:
+        proc = subprocess.run(
+            [sys.executable, str(script)],
+            input=json.dumps(
+                {
+                    "tool_name": "Bash",
+                    "tool_input": {
+                        "command": (
+                            'git commit -m "fix: unificar pesos, proposal.py es '
+                            'la única fuente con CHOSEN_WEIGHTS"'
+                        )
+                    },
+                }
+            ).encode(),
+            capture_output=True,
+            check=False,
+            cwd=repo,
+        )
+    assert proc.returncode == 2
+    assert b"BLOCKED" in proc.stderr
+
+
+def test_commit_guard_allows_unrelated_commit_message() -> None:
+    proc = _run_asset(
+        COMMIT_GUARD_SCRIPT_NAME,
+        {
+            "tool_name": "Bash",
+            "tool_input": {"command": 'git commit -m "docs: fix typo in README"'},
+        },
+    )
+    assert proc.returncode == 0
+
+
 def test_merge_hooks_creates_managed_entries() -> None:
     merged = merge_hooks({})
     assert any(
@@ -184,6 +243,10 @@ def test_merge_hooks_creates_managed_entries() -> None:
     )
     assert any(
         BREAKER_MARKER in e["hooks"][0]["command"]
+        for e in merged["hooks"]["PreToolUse"]
+    )
+    assert any(
+        COMMIT_GUARD_MARKER in e["hooks"][0]["command"]
         for e in merged["hooks"]["PreToolUse"]
     )
     assert any(
@@ -251,8 +314,10 @@ def test_install_hooks_writes_scripts_settings_and_rule(tmp_path: Path) -> None:
     rule = rules_path(tmp_path)
     syntax = tmp_path / ".claude" / "hooks" / SYNTAX_SCRIPT_NAME
     breaker = tmp_path / ".claude" / "hooks" / BREAKER_SCRIPT_NAME
+    commit_guard = tmp_path / ".claude" / "hooks" / COMMIT_GUARD_SCRIPT_NAME
     assert syntax.is_file()
     assert breaker.is_file()
+    assert commit_guard.is_file()
     assert settings in paths
     assert rule in paths
     data = json.loads(settings.read_text(encoding="utf-8"))
