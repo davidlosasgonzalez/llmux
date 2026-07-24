@@ -224,7 +224,6 @@ def _family_base(model_id: str, family: str) -> float:
 
 def capability_prior(model_id: str, family: str, *, supports_reasoning: bool) -> float:
     """Return a 0..1 static capability estimate for a model."""
-    lowered = model_id.lower()
     size = size_billions(model_id)
     base = _size_score(size) if size is not None else _family_base(model_id, family)
 
