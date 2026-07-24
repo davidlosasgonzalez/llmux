@@ -13,6 +13,8 @@ from llmux.cli.claude_hooks import (
     BREAKER_SCRIPT_NAME,
     COMMIT_GUARD_MARKER,
     COMMIT_GUARD_SCRIPT_NAME,
+    COMPACT_REINJECT_MARKER,
+    COMPACT_REINJECT_SCRIPT_NAME,
     EDIT_SAFETY_RULE_NAME,
     HOOK_MARKER,
     PYTEST_GUARD_MARKER,
@@ -476,6 +478,10 @@ def test_merge_hooks_creates_managed_entries() -> None:
         for e in merged["hooks"]["PreToolUse"]
     )
     assert any(
+        COMPACT_REINJECT_MARKER in e["hooks"][0]["command"]
+        for e in merged["hooks"]["SessionStart"]
+    )
+    assert any(
         BREAKER_MARKER in e["hooks"][0]["command"]
         for e in merged["hooks"]["PostToolUseFailure"]
     )
@@ -542,10 +548,12 @@ def test_install_hooks_writes_scripts_settings_and_rule(tmp_path: Path) -> None:
     breaker = tmp_path / ".claude" / "hooks" / BREAKER_SCRIPT_NAME
     commit_guard = tmp_path / ".claude" / "hooks" / COMMIT_GUARD_SCRIPT_NAME
     pytest_guard = tmp_path / ".claude" / "hooks" / PYTEST_GUARD_SCRIPT_NAME
+    compact = tmp_path / ".claude" / "hooks" / COMPACT_REINJECT_SCRIPT_NAME
     assert syntax.is_file()
     assert breaker.is_file()
     assert commit_guard.is_file()
     assert pytest_guard.is_file()
+    assert compact.is_file()
     assert settings in paths
     assert rule in paths
     data = json.loads(settings.read_text(encoding="utf-8"))

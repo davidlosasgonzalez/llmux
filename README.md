@@ -290,12 +290,19 @@ Install the [Claude Code extension](https://marketplace.visualstudio.com/items?i
   { "name": "ANTHROPIC_BASE_URL", "value": "http://localhost:8082" },
   { "name": "ANTHROPIC_AUTH_TOKEN", "value": "llmux" },
   { "name": "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY", "value": "1" },
-  { "name": "CLAUDE_CODE_AUTO_COMPACT_WINDOW", "value": "190000" },
+  { "name": "CLAUDE_CODE_AUTO_COMPACT_WINDOW", "value": "262144" },
+  { "name": "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE", "value": "85" },
   { "name": "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC", "value": "1" }
 ]
 ```
 
 Match the port and authentication token to the Admin UI, then reload the extension.
+Prefer `llmux-claude` in a terminal when possible: it derives
+`CLAUDE_CODE_AUTO_COMPACT_WINDOW` / `CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` from
+`MODEL_SONNET` (or `MODEL`) automatically. Strategy: set the window to your
+coding model's real size, then a **lower** PCT on narrower backends (e.g. ~52%
+for 131k, ~85% for 262k) so Claude Code compacts *earlier and more often* —
+smaller summaries stay useful longer than one late dump at 90%+.
 
 </details>
 
@@ -314,10 +321,14 @@ Set the environment for `acp.registry.claude-acp`:
   "ANTHROPIC_BASE_URL": "http://localhost:8082",
   "ANTHROPIC_AUTH_TOKEN": "llmux",
   "CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY": "1",
-  "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "190000",
+  "CLAUDE_CODE_AUTO_COMPACT_WINDOW": "262144",
+  "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE": "85",
   "CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1"
 }
 ```
+
+Same guidance as VS Code: prefer `llmux-claude` for automatic compact sync
+(real window + earlier PCT on narrow backends), or set those values manually.
 
 Match the port and token to the Admin UI, then restart the IDE.
 

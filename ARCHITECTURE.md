@@ -367,10 +367,15 @@ compact) rather than a 500 it would retry into the same wall.
 advisory (non-blocking) startup warnings from the same static model-name
 heuristics (overrides applied), including one for a configured chain whose
 every known context window sits below 200k with no `MODEL_LONG_CONTEXT` set.
-It also exposes `client_config_recommendation`, which recommends a
-`CLAUDE_AUTOCOMPACT_PCT_OVERRIDE` value so the client compacts before that
-same ceiling instead of after — surfaced as a startup log line and in
-`/admin/api/status`.
+It also exposes `claude_auto_compact_window` /
+`claude_autocompact_pct_override` (primary coding model = `MODEL_SONNET` or
+`MODEL`) and `client_config_recommendation` for Admin/startup logs.
+[cli/claude_env.py](src/llmux/cli/claude_env.py) **injects** those values into
+`llmux-claude` child processes so Claude Code's autocompact math matches the
+backend window and, on narrower models, uses a *lower* PCT (earlier, more
+frequent compact) instead of Claude's default ~200k / late threshold.
+`install-hooks` also installs a SessionStart(`compact`) reinject that restores
+git status + a verify-before-done reminder after autocompact.
 [api/response_streams.py](src/llmux/api/response_streams.py) owns public streaming egress
 commit timing. It waits for the first protocol chunk before returning a
 successful LLMux-owned `StreamingResponse`. Its explicit replay iterator owns the
