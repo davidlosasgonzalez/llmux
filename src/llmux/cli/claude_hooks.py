@@ -30,11 +30,13 @@ HOOK_MARKER = "llmux-python-syntax-hook"
 BREAKER_MARKER = "llmux-edit-breaker"
 COMMIT_GUARD_MARKER = "llmux-commit-claim-guard"
 PYTEST_GUARD_MARKER = "llmux-pytest-uv-guard"
+COMPACT_REINJECT_MARKER = "llmux-compact-reinject"
 
 SYNTAX_SCRIPT_NAME = "llmux_python_syntax.py"
 BREAKER_SCRIPT_NAME = "llmux_edit_breaker.py"
 COMMIT_GUARD_SCRIPT_NAME = "llmux_commit_claim_guard.py"
 PYTEST_GUARD_SCRIPT_NAME = "llmux_pytest_uv_guard.py"
+COMPACT_REINJECT_SCRIPT_NAME = "llmux_compact_reinject.py"
 
 EDIT_SAFETY_RULE_NAME = "llmux-edit-safety.md"
 
@@ -67,6 +69,9 @@ Enforced by `.claude/hooks/llmux_edit_breaker.py` — not optional markdown:
    paths or claim completed work are denied unless the staged diff matches.
 8. **pytest via uv** — bare `pytest` / `python -m pytest` (including after
    `uv run something;`) is **blocked**; use `uv run pytest …`.
+9. **After autocompact** — SessionStart reinjects git status + a
+   verify-before-done reminder so the model does not treat the summary as
+   proof that work landed.
 
 ## Hard thresholds
 
@@ -88,6 +93,7 @@ Enforced by `.claude/hooks/llmux_edit_breaker.py` — not optional markdown:
   it reports a syntax error, fix that file before any other work.
 - Do **not** add silent formatters (`ruff format`, `ruff check --fix`) to
   PostToolUse — they rewrite the file under Claude and cause Edit loops.
+- After compact, re-verify claims against disk and tests before saying done.
 """
 
 
@@ -130,6 +136,13 @@ def pytest_guard_hook_command() -> str:
     )
 
 
+def compact_reinject_hook_command() -> str:
+    return (
+        f"${{CLAUDE_PROJECT_DIR}}/.claude/hooks/{COMPACT_REINJECT_SCRIPT_NAME}  "
+        f"# {COMPACT_REINJECT_MARKER}"
+    )
+
+
 def syntax_hook_entry() -> dict[str, Any]:
     return {
         "matcher": "Edit|Write",
@@ -155,6 +168,13 @@ def pytest_guard_pre_entry() -> dict[str, Any]:
     return {
         "matcher": "Bash",
         "hooks": [{"type": "command", "command": pytest_guard_hook_command()}],
+    }
+
+
+def compact_reinject_entry() -> dict[str, Any]:
+    return {
+        "matcher": "compact",
+        "hooks": [{"type": "command", "command": compact_reinject_hook_command()}],
     }
 
 
@@ -237,6 +257,9 @@ def merge_hooks(
     fail = _strip_marker_entries(
         _ensure_list(hooks_root, "PostToolUseFailure"), BREAKER_MARKER
     )
+    session = _strip_marker_entries(
+        _ensure_list(hooks_root, "SessionStart"), COMPACT_REINJECT_MARKER
+    )
 
     if strip_ruff_autofix:
         post = [entry for entry in post if not _is_ruff_autofix_post_entry(entry)]
@@ -247,10 +270,12 @@ def merge_hooks(
     post.append(syntax_hook_entry())
     post.append(breaker_post_entry())
     fail.append(breaker_failure_entry())
+    session.append(compact_reinject_entry())
 
     hooks_root["PreToolUse"] = pre
     hooks_root["PostToolUse"] = post
     hooks_root["PostToolUseFailure"] = fail
+    hooks_root["SessionStart"] = session
     merged["hooks"] = hooks_root
     return merged
 
@@ -274,6 +299,7 @@ def install_hook_scripts(project_root: Path) -> list[Path]:
         BREAKER_SCRIPT_NAME,
         COMMIT_GUARD_SCRIPT_NAME,
         PYTEST_GUARD_SCRIPT_NAME,
+        COMPACT_REINJECT_SCRIPT_NAME,
     ):
         dest = dest_dir / name
         dest.write_text(_asset_text(name), encoding="utf-8")

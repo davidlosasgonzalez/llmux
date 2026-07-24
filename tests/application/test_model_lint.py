@@ -214,22 +214,37 @@ def test_client_config_recommendation_for_narrow_default_chain():
     )
     recommendation = client_config_recommendation(config)
     assert recommendation is not None
-    assert "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=60" in recommendation
-    assert "131072" in recommendation
+    assert "CLAUDE_CODE_AUTO_COMPACT_WINDOW=131072" in recommendation
+    assert "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=52" in recommendation
 
 
-def test_client_config_recommendation_none_with_long_context():
+def test_client_config_recommendation_uses_sonnet_window():
+    config = FakeModelConfig(
+        model="nvidia_nim/nvidia/nemotron-3-super-120b-a12b",
+        model_sonnet="open_router/moonshotai/kimi-k2.6",
+        model_long_context=None,
+    )
+    recommendation = client_config_recommendation(config)
+    assert recommendation is not None
+    assert "CLAUDE_CODE_AUTO_COMPACT_WINDOW=262144" in recommendation
+    assert "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE=85" in recommendation
+
+
+def test_client_config_recommendation_still_set_with_long_context():
+    # Long-context rescue does not change primary coding compact math.
     config = FakeModelConfig(
         model="nvidia_nim/nvidia/nemotron-3-super-120b-a12b",
         model_fallbacks="open_router/deepseek/deepseek-v4-flash,cerebras/gpt-oss-120b",
         model_long_context="gemini/models/gemini-3.5-flash",
     )
-    assert client_config_recommendation(config) is None
+    recommendation = client_config_recommendation(config)
+    assert recommendation is not None
+    assert "CLAUDE_CODE_AUTO_COMPACT_WINDOW=131072" in recommendation
 
 
-def test_client_config_recommendation_none_with_large_window_in_chain():
+def test_client_config_recommendation_none_when_primary_window_unknown():
     config = FakeModelConfig(
-        model="nvidia_nim/nvidia/nemotron-3-super-120b-a12b",
+        model="cohere/aya-vision-32b",
         model_fallbacks="kimi/kimi-k2.6",
         model_long_context=None,
     )

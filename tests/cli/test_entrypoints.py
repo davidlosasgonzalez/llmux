@@ -23,6 +23,14 @@ def _launcher_settings(
         port=port,
         anthropic_auth_token=token,
         model="nvidia_nim/test-model",
+        model_sonnet=None,
+        model_opus=None,
+        model_haiku=None,
+        model_fable=None,
+        model_fallbacks="",
+        model_long_context=None,
+        context_window_overrides="",
+        model_classifier=None,
         open_admin_browser=open_admin_browser,
     )
 
@@ -480,6 +488,30 @@ def test_claude_child_env_targets_current_proxy_config() -> None:
     assert "CLAUDE_CODE_OAUTH_TOKEN" not in env
 
 
+def test_claude_child_env_derives_compact_from_settings() -> None:
+    from llmux.cli.claude_env import build_claude_proxy_env
+
+    settings = Settings.model_construct(
+        model="nvidia_nim/nvidia/nemotron-3-super-120b-a12b",
+        model_sonnet="open_router/moonshotai/kimi-k2.6",
+        model_fallbacks="",
+        model_long_context=None,
+        context_window_overrides="",
+        model_fable=None,
+        model_opus=None,
+        model_haiku=None,
+        model_classifier=None,
+    )
+    env = build_claude_proxy_env(
+        proxy_root_url="http://127.0.0.1:9090",
+        auth_token="token",
+        base_env={},
+        settings=settings,
+    )
+    assert env["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] == "262144"
+    assert env["CLAUDE_AUTOCOMPACT_PCT_OVERRIDE"] == "85"
+
+
 def test_claude_child_env_uses_sentinel_for_blank_configured_auth_token() -> None:
     from llmux.cli.claude_env import build_claude_proxy_env
 
@@ -532,6 +564,7 @@ def test_launch_claude_passes_args_and_child_env(
     assert child_env["CLAUDE_CODE_ENABLE_GATEWAY_MODEL_DISCOVERY"] == "1"
     assert child_env["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] == "190000"
     assert child_env["CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC"] == "1"
+    assert "CLAUDE_AUTOCOMPACT_PCT_OVERRIDE" not in child_env
     assert child_env["KEEP_ME"] == "yes"
     register_pid.assert_called_once_with(12345)
     unregister_pid.assert_called_once_with(12345)
