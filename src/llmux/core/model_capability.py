@@ -41,6 +41,17 @@ _CHEAP_CODING_TOKENS = (
     "nano",
     "mini",
 )
+# Not flash-class, but weak as Claude Code's primary coding (Sonnet) slot —
+# chat/general models that thrash on Edit/Bash agent loops.
+_WEAK_CODING_TOKENS = (
+    "gpt-oss",
+    "command-a",
+    "command-r",
+    "gemma",
+    "phi-",
+    "phi3",
+    "phi-3",
+)
 _CODER_TOKENS = ("coder", "code", "devstral", "codestral", "codellama", "starcoder")
 _REASONING_TOKENS = ("reason", "think", "r1", "o1", "deepseek", "nemotron")
 
@@ -140,6 +151,16 @@ def has_cheap_coding_hint(model_id: str) -> bool:
     """
     lowered = model_id.lower()
     return any(token in lowered for token in _CHEAP_CODING_TOKENS)
+
+
+def has_weak_coding_hint(model_id: str) -> bool:
+    """True when the model is mediocre for agent coding (not merely flash-class).
+
+    Catches chat/general models people put in ``MODEL_SONNET`` after avoiding
+    flash — still thrash on Edit/Bash (e.g. ``gpt-oss``, ``command-a-plus``).
+    """
+    lowered = model_id.lower()
+    return any(token in lowered for token in _WEAK_CODING_TOKENS)
 
 
 def is_coder_model(model_id: str) -> bool:

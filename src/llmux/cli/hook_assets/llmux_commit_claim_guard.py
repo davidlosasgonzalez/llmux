@@ -1,16 +1,29 @@
 #!/usr/bin/env python3
 """PreToolUse Bash: block git commits whose message claims work the staged diff lacks.
 
-Stops the advisor-style false close (2026-07-24): commit text said allocation
-imported CHOSEN_WEIGHTS / marketValue was fixed while the staged code did not.
+Catches false-close commits: message names paths or asserts a fix that is not
+in the index. Advisor-specific weight/marketValue checks remain as overlays.
 """
 
 import json
 import re
 import subprocess
 import sys
+from pathlib import Path
 
 MARKER = "llmux-commit-claim-guard"
+
+_PATH_CLAIM = re.compile(
+    r"`((?:src|tests|scripts|smoke)/[^`\s]+)`|"
+    r"(?<![\w./-])((?:src|tests|scripts|smoke)/[\w./-]+\.(?:py|md|toml|yml|yaml))",
+)
+
+_DONEISH = re.compile(
+    r"\b(?:fixed|implemented|implementado|implementada|completed|completado|"
+    r"completada|done|resuelto|unificar|unificado|unificada|"
+    r"única fuente|unica fuente)\b",
+    re.I,
+)
 
 
 def _deny(reason: str) -> int:
@@ -30,21 +43,38 @@ def _deny(reason: str) -> int:
 
 
 def _commit_message(command: str) -> str | None:
+    if not re.search(r"git\s+commit\b", command):
+        return None
+
+    # -m '...' / -m "..."
     m = re.search(
         r"git\s+commit\b[^;&|]*?-m\s+(['\"])(?P<msg>.*?)(?<!\\)\1", command, re.S
     )
     if m:
         return m.group("msg")
-    if re.search(r"git\s+commit\b", command) and (
-        "<<'" in command or '<<"' in command or "<<EOF" in command
-    ):
-        hm = re.search(r"<<['\"]?EOF['\"]?\s*\n(?P<body>.*?)\nEOF", command, re.S)
+
+    # -F path (message file)
+    fm = re.search(r"git\s+commit\b[^;&|]*?-F\s+(?P<path>\S+)", command)
+    if fm:
+        raw = fm.group("path").strip("'\"")
+        try:
+            return Path(raw).read_text(encoding="utf-8")
+        except OSError:
+            return ""
+
+    # Heredoc: <<'EOF' / <<"EOF" / <<EOF … EOF
+    if "<<" in command:
+        hm = re.search(
+            r"<<\s*['\"]?(?P<tag>\w+)['\"]?\s*\n(?P<body>.*?)\n(?P=tag)\b",
+            command,
+            re.S,
+        )
         if hm:
             return hm.group("body")
         return ""
-    if re.search(r"git\s+commit\b", command):
-        return ""
-    return None
+
+    # Bare ``git commit`` / ``git commit --amend`` without inline message.
+    return ""
 
 
 def _staged_text() -> dict[str, str]:
@@ -71,6 +101,42 @@ def _staged_text() -> dict[str, str]:
         except UnicodeDecodeError:
             out[path] = ""
     return out
+
+
+def _claimed_paths(msg: str) -> list[str]:
+    found: list[str] = []
+    seen: set[str] = set()
+    for match in _PATH_CLAIM.finditer(msg):
+        path = match.group(1) or match.group(2)
+        if path and path not in seen:
+            seen.add(path)
+            found.append(path)
+    return found
+
+
+def _check_path_claims(msg: str, staged: dict[str, str]) -> str | None:
+    claimed = _claimed_paths(msg)
+    if not claimed:
+        return None
+    missing = [p for p in claimed if p not in staged]
+    if missing:
+        return (
+            f"BLOCKED: commit message names {missing[0]} but that path is not "
+            f"staged. Stage the claimed files or drop them from the message. "
+            f"({MARKER})"
+        )
+    return None
+
+
+def _check_empty_done_claim(msg: str, staged: dict[str, str]) -> str | None:
+    if not msg.strip() or staged:
+        return None
+    if not _DONEISH.search(msg):
+        return None
+    return (
+        f"BLOCKED: commit message claims completed work but the index is empty. "
+        f"Stage the real changes first. ({MARKER})"
+    )
 
 
 def _claims_weight_unification(msg: str) -> bool:
@@ -165,6 +231,12 @@ def main() -> int:
         return 0
 
     staged = _staged_text()
+    err = _check_path_claims(msg, staged)
+    if err:
+        return _deny(err)
+    err = _check_empty_done_claim(msg, staged)
+    if err:
+        return _deny(err)
     if _claims_weight_unification(msg):
         err = _check_weight_claim(staged)
         if err:

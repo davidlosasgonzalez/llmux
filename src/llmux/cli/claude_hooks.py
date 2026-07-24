@@ -9,9 +9,12 @@ Installed hooks:
 - PostToolUse ``ast.parse`` on ``*.py`` after Edit/Write (fail closed). Does
   **not** run formatters — silent rewrites break the next Edit's ``old_string``.
 - PreToolUse / PostToolUse / PostToolUseFailure circuit-breaker: require Read
-  between edits on the same path; stop after repeated Edit or Bash failures.
+  between edits on the same path; stop after repeated Edit or Bash failures;
+  deny Bash that silently mutates ``*.py``; hard-stop Edit↔revert cycles.
 - PreToolUse commit-claim guard: deny ``git commit`` when the message claims
-  weight unification / market-value fixes the staged diff does not contain.
+  paths or fixes the staged diff does not contain.
+- PreToolUse pytest guard: deny bare ``pytest`` / ``python -m pytest``; require
+  ``uv run pytest``.
 """
 
 import argparse
@@ -26,10 +29,12 @@ from typing import Any
 HOOK_MARKER = "llmux-python-syntax-hook"
 BREAKER_MARKER = "llmux-edit-breaker"
 COMMIT_GUARD_MARKER = "llmux-commit-claim-guard"
+PYTEST_GUARD_MARKER = "llmux-pytest-uv-guard"
 
 SYNTAX_SCRIPT_NAME = "llmux_python_syntax.py"
 BREAKER_SCRIPT_NAME = "llmux_edit_breaker.py"
 COMMIT_GUARD_SCRIPT_NAME = "llmux_commit_claim_guard.py"
+PYTEST_GUARD_SCRIPT_NAME = "llmux_pytest_uv_guard.py"
 
 EDIT_SAFETY_RULE_NAME = "llmux-edit-safety.md"
 
@@ -49,21 +54,26 @@ Enforced by `.claude/hooks/llmux_edit_breaker.py` — not optional markdown:
    edits on that path are **blocked**.
 3. After 3 identical Bash failures (same command + same error), that command
    is **blocked**.
-4. **Commit claim guard** — `git commit` messages that claim weight unification
-   or market-value fixes are denied unless the staged diff actually contains
-   those changes (blocks false-close commits).
+4. **Edit↔revert** — editing then undoing the same strings on a path is
+   **blocked** after 2 cycles (survives the mandatory Read between edits).
+5. **Bash must not rewrite Python** — `sed -i`, redirects into `*.py`,
+   `ruff format` / `ruff check --fix`, `black`, `isort` are **blocked**.
+   Use Edit/Write so dirty-path tracking works.
+6. **Commit claim guard** — `git commit` messages that name `src/`/`tests/`
+   paths or claim done/fixed work are denied unless the staged diff matches
+   (also advisor weight / market-value overlays).
+7. **pytest via uv** — bare `pytest` / `python -m pytest` is **blocked**;
+   use `uv run pytest …`.
 
 ## Soft signals (still apply)
 
-1. **Same Bash error** — identical stderr 3+ times in a row (hard-blocked above).
-2. **Edit → revert** — edit then undo the same file, cycle repeats (2 cycles).
-3. **Read without progress** — same file read 3+ times with no edit/output.
-4. **Edit without re-read** — hard-blocked above after the first successful edit.
+1. **Read without progress** — same file read 3+ times with no edit/output.
 
 | Signal | Threshold | Action |
 |--------|-----------|--------|
 | Same Bash + same stderr | 3 | Deny tool (`BLOCKED: loop detected`) |
-| Edit+revert same file | 2 cycles | Stop; ask the user |
+| Edit+revert same file | 2 cycles | Deny until Read + new direction |
+| Bash mutates `*.py` | any | Deny; use Edit/Write |
 | Read same file, no output | 3 | Stop with a short diagnosis |
 | Edit after dirty path / failed Edit x2 | -- | Deny until Read |
 
@@ -112,6 +122,13 @@ def commit_guard_hook_command() -> str:
     )
 
 
+def pytest_guard_hook_command() -> str:
+    return (
+        f"${{CLAUDE_PROJECT_DIR}}/.claude/hooks/{PYTEST_GUARD_SCRIPT_NAME}  "
+        f"# {PYTEST_GUARD_MARKER}"
+    )
+
+
 def syntax_hook_entry() -> dict[str, Any]:
     return {
         "matcher": "Edit|Write",
@@ -130,6 +147,13 @@ def commit_guard_pre_entry() -> dict[str, Any]:
     return {
         "matcher": "Bash",
         "hooks": [{"type": "command", "command": commit_guard_hook_command()}],
+    }
+
+
+def pytest_guard_pre_entry() -> dict[str, Any]:
+    return {
+        "matcher": "Bash",
+        "hooks": [{"type": "command", "command": pytest_guard_hook_command()}],
     }
 
 
@@ -206,6 +230,7 @@ def merge_hooks(
 
     pre = _strip_marker_entries(_ensure_list(hooks_root, "PreToolUse"), BREAKER_MARKER)
     pre = _strip_marker_entries(pre, COMMIT_GUARD_MARKER)
+    pre = _strip_marker_entries(pre, PYTEST_GUARD_MARKER)
     post = _strip_marker_entries(_ensure_list(hooks_root, "PostToolUse"), HOOK_MARKER)
     post = _strip_marker_entries(post, BREAKER_MARKER)
     fail = _strip_marker_entries(
@@ -217,6 +242,7 @@ def merge_hooks(
 
     pre.append(breaker_pre_entry())
     pre.append(commit_guard_pre_entry())
+    pre.append(pytest_guard_pre_entry())
     post.append(syntax_hook_entry())
     post.append(breaker_post_entry())
     fail.append(breaker_failure_entry())
@@ -242,7 +268,12 @@ def install_hook_scripts(project_root: Path) -> list[Path]:
     dest_dir = hooks_dir(project_root)
     dest_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
-    for name in (SYNTAX_SCRIPT_NAME, BREAKER_SCRIPT_NAME, COMMIT_GUARD_SCRIPT_NAME):
+    for name in (
+        SYNTAX_SCRIPT_NAME,
+        BREAKER_SCRIPT_NAME,
+        COMMIT_GUARD_SCRIPT_NAME,
+        PYTEST_GUARD_SCRIPT_NAME,
+    ):
         dest = dest_dir / name
         dest.write_text(_asset_text(name), encoding="utf-8")
         dest.chmod(dest.stat().st_mode | 0o111)
@@ -303,9 +334,9 @@ def install_hooks_cli(argv: Sequence[str] | None = None) -> None:
         prog="llmux-claude install-hooks",
         description=(
             "Install Claude Code PostToolUse Python syntax checks, a hard "
-            "edit/bash circuit-breaker, and an edit-safety rule into a "
-            "project's .claude/ directory. Strips silent ruff --fix/format "
-            "PostToolUse hooks that cause Edit loops."
+            "edit/bash circuit-breaker, commit-claim and pytest guards, and an "
+            "edit-safety rule into a project's .claude/ directory. Strips silent "
+            "ruff --fix/format PostToolUse hooks that cause Edit loops."
         ),
     )
     parser.add_argument(

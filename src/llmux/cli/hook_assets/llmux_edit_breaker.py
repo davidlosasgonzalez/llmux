@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """Hard edit/bash circuit-breaker for Claude Code (llmux-claude install-hooks).
 
-Enforces the soft rules that models ignore under pressure:
+Enforces rules models ignore under pressure:
 
-- After a successful Edit/Write, the path is "dirty" until Read — the next
-  Edit/Write on that path is denied (exit 2) so old_string cannot target a
-  stale view (or a silently reformatted file).
-- After 2 failed Edit/Write attempts on the same path without an intervening
-  Read, further Edit/Write on that path is denied.
-- After 3 identical Bash failures (same command + same error fingerprint),
-  that command is denied on PreToolUse.
+- After a successful Edit/Write, the path is dirty until Read.
+- After 2 failed Edit/Write attempts on the same path without Read, deny.
+- After 3 identical Bash failures (same command + same error), deny.
+- Edit that exactly reverses the previous Edit on the same path (Edit↔revert)
+  is counted; 2 cycles → deny until Read.
+- Bash that silently mutates ``*.py`` (sed -i, redirects, ruff --fix/format,
+  etc.) is denied — use the Edit tool so the dirty-path breaker can track it.
 
 State is per Claude ``session_id`` under the system temp dir.
 """
@@ -25,8 +25,25 @@ from typing import Any
 
 EDIT_FAIL_LIMIT = 2
 BASH_FAIL_LIMIT = 3
+REVERT_CYCLE_LIMIT = 2
 
 _MARKER = "llmux-edit-breaker"
+
+# Bash that rewrites Python on disk without going through Edit/Write.
+_PY_MUTATE_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"\bsed\b[^\n]*\s-i\b"),
+    re.compile(r"\bperl\b[^\n]*\s-i\b"),
+    re.compile(r"\bruff\b[^\n]*\b(?:format|check)\b[^\n]*--fix\b"),
+    re.compile(r"\bruff\b[^\n]*\bformat\b"),
+    re.compile(r"\bblack\b"),
+    re.compile(r"\bisort\b"),
+    re.compile(r"(?:^|[;&|]\s*)(?:cat|tee|printf|echo)\b[^\n]*>+\s*[^\s;|&]+\.py\b"),
+    re.compile(r"\btee\b[^\n]*\b[\w./-]+\.py\b"),
+    re.compile(r">\s*[\w./-]+\.py\b"),
+    re.compile(r"\bcp\b[^\n]+\.py\b"),
+    re.compile(r"\bmv\b[^\n]+\.py\b"),
+    re.compile(r"\btruncate\b[^\n]+\.py\b"),
+)
 
 
 def _state_path(session_id: str) -> Path:
@@ -36,34 +53,26 @@ def _state_path(session_id: str) -> Path:
 
 def _load(session_id: str) -> dict[str, Any]:
     path = _state_path(session_id)
+    empty = {
+        "dirty": {},
+        "edit_fails": {},
+        "bash_fails": {},
+        "last_edit": {},
+        "revert_cycles": {},
+    }
     if not path.is_file():
-        return {
-            "dirty": {},
-            "edit_fails": {},
-            "bash_fails": {},
-        }
+        return empty
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except OSError, json.JSONDecodeError:
-        return {
-            "dirty": {},
-            "edit_fails": {},
-            "bash_fails": {},
-        }
+        return empty
     if not isinstance(data, dict):
-        return {
-            "dirty": {},
-            "edit_fails": {},
-            "bash_fails": {},
-        }
-    dirty = data.get("dirty")
-    edit_fails = data.get("edit_fails")
-    bash_fails = data.get("bash_fails")
-    return {
-        "dirty": dict(dirty) if isinstance(dirty, dict) else {},
-        "edit_fails": dict(edit_fails) if isinstance(edit_fails, dict) else {},
-        "bash_fails": dict(bash_fails) if isinstance(bash_fails, dict) else {},
-    }
+        return empty
+    out = dict(empty)
+    for key in empty:
+        raw = data.get(key)
+        out[key] = dict(raw) if isinstance(raw, dict) else {}
+    return out
 
 
 def _save(session_id: str, state: dict[str, Any]) -> None:
@@ -97,14 +106,21 @@ def _bash_command(payload: dict[str, Any]) -> str:
     return str(tool_input.get("command") or "").strip()
 
 
+def _edit_strings(payload: dict[str, Any]) -> tuple[str, str]:
+    tool_input = payload.get("tool_input") or {}
+    if not isinstance(tool_input, dict):
+        return "", ""
+    return (
+        str(tool_input.get("old_string") or ""),
+        str(tool_input.get("new_string") or ""),
+    )
+
+
 def _bash_key(command: str, error: str) -> str:
-    # Collapse whitespace so trivial re-wrapping does not reset the counter.
     cmd = re.sub(r"\s+", " ", command).strip()
     err = re.sub(r"\s+", " ", error).strip()
-    # Keep stderr short — full traces vary by line noise but the head is stable.
     err_head = err[:400]
-    raw = f"{cmd}\n{err_head}"
-    return hashlib.sha256(raw.encode()).hexdigest()
+    return hashlib.sha256(f"{cmd}\n{err_head}".encode()).hexdigest()
 
 
 def _cmd_only_key(command: str) -> str:
@@ -114,15 +130,17 @@ def _cmd_only_key(command: str) -> str:
 
 def _deny(reason: str) -> int:
     print(reason, file=sys.stderr)
-    # Also emit structured deny for clients that prefer JSON decisions.
-    decision = {
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "deny",
-            "permissionDecisionReason": reason,
-        }
-    }
-    print(json.dumps(decision), file=sys.stdout)
+    print(
+        json.dumps(
+            {
+                "hookSpecificOutput": {
+                    "hookEventName": "PreToolUse",
+                    "permissionDecision": "deny",
+                    "permissionDecisionReason": reason,
+                }
+            }
+        )
+    )
     return 2
 
 
@@ -141,8 +159,25 @@ def _additional_context(text: str) -> int:
 
 
 def _clear_path(state: dict[str, Any], path: str) -> None:
+    # Keep last_edit / revert_cycles across Read so Edit↔revert still detects
+    # after the mandatory re-read that follows a successful Edit.
     state["dirty"].pop(path, None)
     state["edit_fails"].pop(path, None)
+
+
+def _bash_mutates_python(command: str) -> bool:
+    """True when Bash would rewrite Python sources outside Edit/Write."""
+
+    # Formatters rewrite the tree even when argv omits an explicit ``.py``.
+    if re.search(r"\bruff\b[^\n]*\bformat\b", command):
+        return True
+    if re.search(r"\bruff\b[^\n]*\bcheck\b[^\n]*--fix\b", command):
+        return True
+    if re.search(r"\b(?:black|isort)\b", command):
+        return True
+    if ".py" not in command:
+        return False
+    return any(p.search(command) for p in _PY_MUTATE_PATTERNS)
 
 
 def _handle_pre(payload: dict[str, Any], state: dict[str, Any]) -> int:
@@ -164,18 +199,50 @@ def _handle_pre(payload: dict[str, Any], state: dict[str, Any]) -> int:
                 f"without a successful Read. Re-read the full file (or restore "
                 f"from git) before editing again. ({_MARKER})"
             )
+        if int(state["revert_cycles"].get(path) or 0) >= REVERT_CYCLE_LIMIT:
+            return _deny(
+                f"BLOCKED: loop detected — Edit↔revert cycled "
+                f"{REVERT_CYCLE_LIMIT}+ times on {path}. Stop oscillating; "
+                f"Read the file and pick one direction. ({_MARKER})"
+            )
         if state["dirty"].get(path):
             return _deny(
                 f"BLOCKED: {path} was edited since your last Read of it. "
                 f"Read the file again before the next Edit/Write so old_string "
                 f"matches disk. ({_MARKER})"
             )
+        # Detect pending revert against last successful edit (same turn sequence).
+        if tool == "Edit":
+            old_s, new_s = _edit_strings(payload)
+            prev = state["last_edit"].get(path)
+            if (
+                isinstance(prev, dict)
+                and old_s
+                and new_s
+                and prev.get("new") == old_s
+                and prev.get("old") == new_s
+            ):
+                cycles = int(state["revert_cycles"].get(path) or 0) + 1
+                state["revert_cycles"][path] = cycles
+                if cycles >= REVERT_CYCLE_LIMIT:
+                    return _deny(
+                        f"BLOCKED: loop detected — this Edit reverts the previous "
+                        f"one on {path} (cycle {cycles}). Read and decide. "
+                        f"({_MARKER})"
+                    )
         return 0
 
     if tool == "Bash":
         command = _bash_command(payload)
         if not command:
             return 0
+        if _bash_mutates_python(command):
+            return _deny(
+                f"BLOCKED: Bash must not silently rewrite Python sources "
+                f"(sed -i / redirects / ruff format|--fix / black / …). "
+                f"Use the Edit or Write tool so the edit-safety breaker can "
+                f"track dirty paths. ({_MARKER})"
+            )
         cmd_key = _cmd_only_key(command)
         entry = state["bash_fails"].get(cmd_key)
         if isinstance(entry, dict) and int(entry.get("count") or 0) >= BASH_FAIL_LIMIT:
@@ -198,8 +265,19 @@ def _handle_post_success(payload: dict[str, Any], state: dict[str, Any]) -> int:
     if not path:
         return 0
     state["dirty"][path] = True
-    # A successful edit resets the failure streak for that path.
     state["edit_fails"].pop(path, None)
+    if tool == "Edit":
+        old_s, new_s = _edit_strings(payload)
+        if old_s or new_s:
+            prev = state["last_edit"].get(path)
+            is_revert = (
+                isinstance(prev, dict)
+                and prev.get("new") == old_s
+                and prev.get("old") == new_s
+            )
+            if not is_revert:
+                state["revert_cycles"][path] = 0
+            state["last_edit"][path] = {"old": old_s, "new": new_s}
     return 0
 
 
@@ -213,7 +291,6 @@ def _handle_post_failure(payload: dict[str, Any], state: dict[str, Any]) -> int:
             return 0
         fails = int(state["edit_fails"].get(path) or 0) + 1
         state["edit_fails"][path] = fails
-        # Treat a failed edit as dirty so a blind retry cannot proceed without Read.
         state["dirty"][path] = True
         if fails >= EDIT_FAIL_LIMIT:
             return _additional_context(
